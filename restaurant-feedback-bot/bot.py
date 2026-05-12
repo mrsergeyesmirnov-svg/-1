@@ -1,0 +1,1113 @@
+"""
+Бот смен: в группе — только напоминание и ссылка в личку; оценка и текст — только в личке (анонимно для чата).
+Чаты = разные рестораны. Расписание авто-напоминаний + /send_now.
+"""
+from __future__ import annotations
+
+import asyncio
+import base64
+import json
+import os
+import re
+from datetime import datetime, date, timedelta, timezone
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from aiogram import Bot, Dispatcher, F
+from aiogram.filters import BaseFilter, CommandStart, Command
+from aiogram.types import (
+    Message,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    CallbackQuery,
+    ChatMemberUpdated,
+)
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+except ImportError:
+    pass
+
+import pulse_model
+
+DATA_PATH = Path(__file__).resolve().parent / "bot_data.json"
+FEEDBACK_LOG_PATH = Path(__file__).resolve().parent / "feedback_log.jsonl"
+DATA_LOCK = asyncio.Lock()
+LOG_LOCK = asyncio.Lock()
+DEFAULT_TZ = "Europe/Moscow"
+
+_MSK_FALLBACK = timezone(timedelta(hours=3))
+
+
+def get_tz(tz_name: str | None = None) -> timezone | ZoneInfo:
+    """Windows без tzdata не знает Europe/Moscow — ставьте pip install tzdata или используется МСК UTC+3."""
+    name = (tz_name or DEFAULT_TZ).strip() or DEFAULT_TZ
+    try:
+        return ZoneInfo(name)
+    except Exception:
+        if name == DEFAULT_TZ:
+            return _MSK_FALLBACK
+        try:
+            return ZoneInfo("UTC")
+        except Exception:
+            return _MSK_FALLBACK
+
+
+def _parse_admin_ids() -> set[int]:
+    """Только из .env — без подстановок. Владелец бота один (ваш id в ADMIN_IDS)."""
+    raw = os.getenv("ADMIN_IDS", "").strip()
+    out: set[int] = set()
+    for part in raw.replace(";", ",").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            out.add(int(part))
+        except ValueError:
+            continue
+    return out
+
+
+ADMIN_IDS = _parse_admin_ids()
+ADMINS_BY_ABS = {abs(x) for x in ADMIN_IDS}
+
+SUPPORT_USERNAME = os.getenv("SUPPORT_USERNAME", "").strip()
+
+TOKEN = os.getenv("BOT_TOKEN", "").strip()
+if not TOKEN:
+    raise SystemExit("Задайте BOT_TOKEN в окружении или в файле .env рядом с bot.py")
+if not ADMIN_IDS:
+    raise SystemExit(
+        "Задайте ADMIN_IDS в .env — ваш Telegram id (узнать: временно поставьте любой токен, "
+        "напишите @userinfobot в Telegram). Пример: ADMIN_IDS=5274130715"
+    )
+
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+
+class ManagerMenuFilter(BaseFilter):
+    """Текст одной из кнопок меню и роль менеджера или глобальный админ."""
+
+    async def __call__(self, message: Message) -> bool:
+        if message.chat.type != "private" or not message.text:
+            return False
+        if message.text.strip() not in pulse_model.MANAGER_MENU_BUTTONS:
+            return False
+        data = await load_data()
+        uid = message.from_user.id
+        return is_global_admin(uid) or pulse_model.has_manager_access(data, uid)
+
+
+async def manager_ui_for_user(user_id: int) -> bool:
+    data = await load_data()
+    return is_global_admin(user_id) or pulse_model.has_manager_access(data, user_id)
+
+
+def is_global_admin(user_id: int) -> bool:
+    """Доступ: точное совпадение id или совпадение по модулю (на случай разного знака в .env)."""
+    if user_id in ADMIN_IDS:
+        return True
+    if abs(user_id) in ADMINS_BY_ABS:
+        return True
+    return False
+
+
+async def load_data() -> dict:
+    async with DATA_LOCK:
+        if not DATA_PATH.exists():
+            data = pulse_model.default_data()
+            DATA_PATH.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            return data
+        try:
+            data = json.loads(DATA_PATH.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            data = pulse_model.default_data()
+        if pulse_model.migrate_in_place(data):
+            DATA_PATH.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        return data
+
+
+async def save_data(data: dict) -> None:
+    async with DATA_LOCK:
+        DATA_PATH.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+
+async def log_feedback_event(entry: dict) -> None:
+    """Событие для аналитики: user_id + ресторан (чат) + тип. Сбой записи не должен блокировать опрос."""
+    try:
+        row = {
+            **entry,
+            "ts": datetime.now(get_tz()).isoformat(timespec="seconds"),
+        }
+        line = json.dumps(row, ensure_ascii=False) + "\n"
+        async with LOG_LOCK:
+            with FEEDBACK_LOG_PATH.open("a", encoding="utf-8") as f:
+                f.write(line)
+    except Exception as e:
+        print("[log_feedback_event]", repr(e))
+
+
+def chat_record(data: dict, chat_id: int) -> dict | None:
+    return data.get("chats", {}).get(str(chat_id))
+
+
+def org_id_for_restaurant_chat(data: dict, chat_id: int | None) -> str | None:
+    if chat_id is None:
+        return None
+    return pulse_model.chat_organization_id(data, chat_id)
+
+
+def encode_start_chat(chat_id: int) -> str:
+    """Параметр /start для ссылки из группы (A-Za-z0-9_-)."""
+    b = base64.urlsafe_b64encode(str(chat_id).encode()).decode().rstrip("=")
+    return f"c{b}"
+
+
+def decode_start_chat(token: str) -> int | None:
+    if not token.startswith("c") or len(token) < 2:
+        return None
+    tail = token[1:]
+    pad = (4 - len(tail) % 4) % 4
+    try:
+        raw = base64.urlsafe_b64decode(tail + "=" * pad).decode()
+        return int(raw)
+    except Exception:
+        return None
+
+
+# user_id -> id группы, для которой сейчас проходит опрос в личке
+user_linked_chat: dict[int, int] = {}
+# slug из /start <slug> (для старых ссылок без привязки к чату)
+user_private_slug: dict[int, str] = {}
+# ждём текст комментария в личке
+waiting_for_comment: set[int] = set()
+
+
+# В группе при /start — тот же текст, что на лендинге (в личке при опросе не дублируем)
+PRIVATE_WELCOME = """Привет! 👋
+
+Этот бот помогает делать смены комфортнее и улучшать рабочие процессы в ресторане.
+
+Здесь можно анонимно поделиться:
+
+• впечатлением от смены
+• проблемами в работе
+• атмосферой в команде
+• предложениями и идеями
+
+Обратная связь помогает быстрее замечать проблемы и делать работу команды лучше ❤️
+
+Опрос займёт меньше 30 секунд."""
+
+# Личка: /start без ссылки из чата — коротко, без длинного приветствия
+PRIVATE_START_NO_LINK = (
+    "Чтобы оценить смену, зайдите в групповой чат ресторана и нажмите там "
+    "«Оценить смену в личке»."
+)
+
+# Сообщение в группу при подключении бота — «как раньше»: тёплое, по-человечески
+GROUP_JOIN_WELCOME = (
+    "Привет! 👋 Рады быть в этом чате.\n\n"
+    "Этот бот помогает делать смены комфортнее и улучшать рабочие процессы в ресторане. "
+    "Для нас **каждый такой чат — отдельная точка** (свой «ресторан» в системе).\n\n"
+    "Здесь можно **анонимно** делиться впечатлением от смены, проблемами, атмосферой и идеями — "
+    "обратная связь помогает быстрее замечать сложности и беречь команду ❤️\n\n"
+    "**Как это устроено:** мы будем присылать короткие напоминания с **кнопкой в личку** — "
+    "оценка и текст идут **только в диалоге с ботом**, в этом чате никто не увидит ни звёздочек, ни ваших слов.\n\n"
+    "**Для администраторов чата:**\n"
+    "• /settime 22:00 — когда присылать напоминание\n"
+    "• /times — расписание\n"
+    "• /deltime 22:00 — убрать время\n"
+    "• /timezone Europe/Moscow — часовой пояс\n"
+    "• /send или /send_now — отправить напоминание сейчас\n"
+    "• /link_org org_xxxx — привязать чат к организации (после `/create_org`)\n"
+    "• /smena_help — краткая справка по командам"
+)
+
+GROUP_POLL_TEXT = (
+    "✨ **Напоминание о смене**\n\n"
+    "Хотите **анонимно** поделиться, как прошла смена? Это займёт **до 30 секунд**.\n\n"
+    "**Важно:** нажмите кнопку ниже — диалог откроется **в личке с ботом**. "
+    "В этом чате не будет ни звёздочек, ни текста от вас: с коллегами останется только это короткое сообщение.\n\n"
+    "Так мы бережём вашу приватность и всё равно слышим команду ❤️"
+)
+
+
+rating_keyboard = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(text="1 ⭐", callback_data="rating_1"),
+            InlineKeyboardButton(text="2 ⭐", callback_data="rating_2"),
+            InlineKeyboardButton(text="3 ⭐", callback_data="rating_3"),
+            InlineKeyboardButton(text="4 ⭐", callback_data="rating_4"),
+            InlineKeyboardButton(text="5 ⭐", callback_data="rating_5"),
+        ]
+    ]
+)
+
+problem_keyboard = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="🍽 Медленная кухня",
+                callback_data="problem_kitchen",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="😤 Конфликт / напряжение",
+                callback_data="problem_conflict",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="👥 Нехватка персонала",
+                callback_data="problem_staff",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="📋 Плохая организация",
+                callback_data="problem_management",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="😓 Сильная нагрузка",
+                callback_data="problem_stress",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="💬 Поделитесь с нами",
+                callback_data="problem_comment",
+            )
+        ],
+    ]
+)
+
+
+def restaurant_label_for_log(data: dict, user_id: int) -> str:
+    cid = user_linked_chat.get(user_id)
+    if cid is not None:
+        rec = chat_record(data, cid)
+        if rec:
+            return rec.get("title") or str(cid)
+        return str(cid)
+    slug = user_private_slug.get(user_id) or data.get("private_slugs", {}).get(str(user_id))
+    return slug or "неизвестно"
+
+
+def finish_private_flow(user_id: int) -> None:
+    user_linked_chat.pop(user_id, None)
+    user_private_slug.pop(user_id, None)
+
+
+async def is_chat_admin(chat_id: int, user_id: int) -> bool:
+    try:
+        m = await bot.get_chat_member(chat_id, user_id)
+        return m.status in ("creator", "administrator")
+    except Exception:
+        return False
+
+
+def build_private_shift_url(chat_id: int, bot_username: str) -> str:
+    return f"https://t.me/{bot_username}?start={encode_start_chat(chat_id)}"
+
+
+def shift_link_markup(chat_id: int, bot_username: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Оценить смену в личке ❤️",
+                    url=build_private_shift_url(chat_id, bot_username),
+                )
+            ]
+        ]
+    )
+
+
+def parse_hhmm(s: str) -> str | None:
+    s = s.strip()
+    if not re.match(r"^\d{1,2}:\d{2}$", s):
+        return None
+    h, m = s.split(":")
+    hi, mi = int(h), int(m)
+    if not (0 <= hi <= 23 and 0 <= mi <= 59):
+        return None
+    return f"{hi:02d}:{mi:02d}"
+
+
+@dp.my_chat_member()
+async def on_my_chat_member(event: ChatMemberUpdated) -> None:
+    if event.new_chat_member.user.id != event.bot.id:
+        return
+    chat = event.chat
+    if chat.type not in ("group", "supergroup"):
+        return
+
+    data = await load_data()
+    cid = str(chat.id)
+    chats = data.setdefault("chats", {})
+    new_st = event.new_chat_member.status
+    old_st = event.old_chat_member.status if event.old_chat_member else None
+
+    if new_st in ("member", "administrator") and old_st in (None, "left", "kicked", "restricted"):
+        prev = chats.get(cid, {})
+        chats[cid] = {
+            "title": chat.title or f"Чат {cid}",
+            "type": chat.type,
+            "added_at": prev.get("added_at")
+            or datetime.now(get_tz()).isoformat(timespec="seconds"),
+            "auto_times": prev.get("auto_times", []),
+            "timezone": prev.get("timezone", DEFAULT_TZ),
+            "active": True,
+            # None = ждёт /link_org; при повторном входе сохраняем привязку из prev
+            "organization_id": prev.get("organization_id"),
+        }
+        chats[cid].pop("removed_at", None)
+        await save_data(data)
+        try:
+            await bot.send_message(
+                chat.id,
+                GROUP_JOIN_WELCOME,
+                parse_mode="Markdown",
+            )
+        except Exception:
+            pass
+        print(f"[chat+]{cid} {chats[cid]['title']}")
+
+    if new_st in ("left", "kicked") and old_st not in (None, "left", "kicked"):
+        if cid in chats:
+            chats[cid]["removed_at"] = datetime.now(get_tz()).isoformat(timespec="seconds")
+            chats[cid]["active"] = False
+        await save_data(data)
+        print(f"[chat-]{cid}")
+
+
+@dp.message(CommandStart())
+async def cmd_start(message: Message) -> None:
+    if message.chat.type in ("group", "supergroup"):
+        # /start в чате = то же приветствие, что в личке, плюс кнопка в личку для этой точки
+        me = await bot.get_me()
+        await message.answer(PRIVATE_WELCOME)
+        await message.answer(
+            "Нажмите кнопку — откроется чат с ботом. Оценка и текст только там; "
+            "для аналитики ответ привяжется к этому чату.",
+            reply_markup=shift_link_markup(message.chat.id, me.username),
+            disable_web_page_preview=True,
+        )
+        return
+    args = message.text.split(maxsplit=1)
+    uid = message.from_user.id
+
+    if len(args) > 1:
+        arg = args[1].strip()
+        linked = decode_start_chat(arg)
+        if linked is not None:
+            user_linked_chat[uid] = linked
+            user_private_slug.pop(uid, None)
+            await message.answer(
+                "Оценка только здесь, в личке. Выберите рейтинг ниже.",
+                reply_markup=pulse_model.remove_reply_markup(),
+            )
+            await message.answer(
+                "Как прошла смена сегодня?",
+                reply_markup=rating_keyboard,
+            )
+            return
+
+        user_private_slug[uid] = arg
+        data = await load_data()
+        data.setdefault("private_slugs", {})[str(uid)] = arg
+        await save_data(data)
+        await message.answer(
+            "Оценка только здесь, в личке. Выберите рейтинг ниже.",
+            reply_markup=pulse_model.remove_reply_markup(),
+        )
+        await message.answer(
+            "Как прошла смена сегодня?",
+            reply_markup=rating_keyboard,
+        )
+        return
+
+    if await manager_ui_for_user(uid):
+        await message.answer(
+            "Пульс смен — меню ниже. Оценку смены по-прежнему начинайте из **группы точки** "
+            "(кнопка «Оценить смену в личке»), чтобы ответ привязался к нужному чату.",
+            parse_mode="Markdown",
+            reply_markup=pulse_model.manager_menu_reply_markup(),
+        )
+    else:
+        await message.answer(
+            PRIVATE_START_NO_LINK,
+            reply_markup=pulse_model.remove_reply_markup(),
+        )
+
+
+@dp.message(Command("myid"))
+async def cmd_myid(message: Message) -> None:
+    if message.chat.type != "private":
+        return
+    uid = message.from_user.id
+    await message.answer(
+        f"Ваш Telegram ID: `{uid}`\n\n"
+        "Если бот пишет «нет доступа» к /admin, добавьте эту строку в `.env`:\n"
+        f"`ADMIN_IDS={uid}`\n\n"
+        "(несколько id через запятую без пробела)",
+        parse_mode="Markdown",
+    )
+
+
+@dp.message(Command("smena_help"))
+async def cmd_help(message: Message) -> None:
+    if message.chat.type in ("group", "supergroup"):
+        await message.answer(
+            "**Команды в этом чате**\n"
+            "/settime 22:00 — когда присылать напоминание с переходом в личку\n"
+            "/times — расписание\n"
+            "/deltime 22:00 — убрать время\n"
+            "/timezone Europe/Moscow — часовой пояс\n"
+            "/send или /send_now — напоминание в группу сейчас (со ссылкой в личку)\n"
+            "/link_org org_xxxx — привязать этот чат к организации (глобальный админ или админ чата)\n"
+            "/start в этом чате — ваша личная ссылка в личку для оценки **этой** точки\n\n"
+            "Оценка всегда **в личке с ботом**, чтобы ответ привязался к этой точке.",
+            parse_mode="Markdown",
+        )
+        return
+    if is_global_admin(message.from_user.id):
+        await message.answer(
+            "В личке:\n"
+            "**/admin** — чаты и org\n"
+            "**/orgs**, **/create_org**, **/link_manager**, **/link_org** (в группе)\n"
+            "**/set_subscription** org_id active|grace|suspended — пауза по оплате\n"
+            "У менеджеров — кнопки «Отчёт», «Подписка», «Поддержка», «Как подключить точку».",
+            parse_mode="Markdown",
+        )
+    elif await manager_ui_for_user(message.from_user.id):
+        await message.answer(
+            "У вас есть меню снизу: отчёт, подписка, поддержка, как подключить точку.\n"
+            "Оценку смены начинайте из **группы** по кнопке «в личку».",
+            parse_mode="Markdown",
+        )
+    else:
+        await message.answer(
+            "Если пришло напоминание из чата ресторана — откройте кнопку «в личку» там. "
+            "Остальное позже добавим для менеджеров.",
+        )
+
+
+@dp.message(Command("admin"))
+async def cmd_admin(message: Message) -> None:
+    if message.chat.type in ("group", "supergroup"):
+        return
+    uid = message.from_user.id
+    if not is_global_admin(uid):
+        await message.answer(
+            "Нет доступа.\n\n"
+            f"Ваш Telegram ID: `{uid}`\n"
+            "Добавьте в файл `.env` рядом с ботом строку (можно несколько id через запятую):\n"
+            f"`ADMIN_IDS={uid}`\n"
+            "и перезапустите бота.",
+            parse_mode="Markdown",
+        )
+        return
+    data = await load_data()
+    orgs = data.get("organizations", {})
+    chats = data.get("chats", {})
+    lines = [
+        f"Организаций: {len(orgs)} · чатов в базе: {len(chats)}\n",
+    ]
+    for cid, info in sorted(chats.items(), key=lambda x: x[0]):
+        title = info.get("title", cid)
+        active = "✓" if info.get("active", True) and not info.get("removed_at") else "✗"
+        times = ", ".join(info.get("auto_times", [])) or "—"
+        tz = info.get("timezone", DEFAULT_TZ)
+        oid = info.get("organization_id") or "—"
+        lines.append(
+            f"{active} id {cid}\n   {title}\n   org: `{oid}`\n   авто: {times} ({tz})"
+        )
+    text = "\n".join(lines) if len(lines) > 1 else "Пока нет подключённых групп."
+    await message.answer(text, parse_mode="Markdown")
+
+
+@dp.message(Command("orgs"))
+async def cmd_orgs(message: Message) -> None:
+    if message.chat.type != "private":
+        return
+    uid = message.from_user.id
+    if not is_global_admin(uid):
+        await message.answer("Команда только для глобального администратора бота.")
+        return
+    data = await load_data()
+    orgs = data.get("organizations", {})
+    chats = data.get("chats", {})
+    if not orgs:
+        await message.answer("Организаций пока нет. Создайте: `/create_org Название сети`", parse_mode="Markdown")
+        return
+    lines: list[str] = ["**Организации**\n"]
+    for oid, org in sorted(orgs.items(), key=lambda x: x[0]):
+        name = org.get("name", oid)
+        sub = org.get("subscription", pulse_model.SUB_ACTIVE)
+        n = sum(
+            1
+            for c, rec in chats.items()
+            if isinstance(rec, dict) and rec.get("organization_id") == oid and not rec.get("removed_at")
+        )
+        lines.append(f"• `{oid}` — **{name}**\n  подписка: `{sub}` · активных чатов: {n}\n")
+    await message.answer("\n".join(lines), parse_mode="Markdown")
+
+
+@dp.message(Command("create_org"))
+async def cmd_create_org(message: Message) -> None:
+    if message.chat.type != "private":
+        return
+    if not is_global_admin(message.from_user.id):
+        await message.answer("Команда только для глобального администратора бота.")
+        return
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].strip():
+        await message.answer("Например: `/create_org Сеть Италия`", parse_mode="Markdown")
+        return
+    name = parts[1].strip()
+    data = await load_data()
+    oid = pulse_model.create_organization(data, name)
+    await save_data(data)
+    await message.answer(
+        f"Создана организация **{name}**\n`{oid}`\n\n"
+        "В группе точки выполните `/link_org " + oid + "` (от имени админа чата или вас).",
+        parse_mode="Markdown",
+    )
+
+
+@dp.message(Command("link_manager"))
+async def cmd_link_manager(message: Message) -> None:
+    if message.chat.type != "private":
+        return
+    if not is_global_admin(message.from_user.id):
+        await message.answer("Команда только для глобального администратора бота.")
+        return
+    parts = (message.text or "").split()
+    # /link_manager USER_ID ORG_ID network
+    # /link_manager USER_ID ORG_ID location CHAT_ID
+    if len(parts) < 4:
+        await message.answer(
+            "Формат:\n"
+            "`/link_manager <telegram_id> <org_id> network` — вся сеть\n"
+            "`/link_manager <telegram_id> <org_id> location <chat_id>` — только эта группа\n\n"
+            "Узнать id: человек пишет боту `/myid`.",
+            parse_mode="Markdown",
+        )
+        return
+    try:
+        target_uid = int(parts[1])
+    except ValueError:
+        await message.answer("Первый аргумент — числовой Telegram id.")
+        return
+    org_id = parts[2]
+    mode = parts[3].lower()
+    data = await load_data()
+    if org_id not in data.get("organizations", {}):
+        await message.answer("Нет такой организации. Сначала `/create_org` или проверьте id в `/orgs`.")
+        return
+    if mode == "network":
+        pulse_model.set_manager_binding(
+            data, target_uid, org_id, pulse_model.ROLE_NETWORK_ADMIN, None
+        )
+    elif mode == "location":
+        if len(parts) < 5:
+            await message.answer("Для location укажите chat_id группы (число, часто отрицательное).")
+            return
+        try:
+            loc_cid = str(int(parts[4]))
+        except ValueError:
+            await message.answer("chat_id должен быть целым числом (id группы из /admin).")
+            return
+        pulse_model.set_manager_binding(
+            data, target_uid, org_id, pulse_model.ROLE_LOCATION_ADMIN, [loc_cid]
+        )
+    else:
+        await message.answer("Режим: `network` или `location`.", parse_mode="Markdown")
+        return
+    await save_data(data)
+    await message.answer(
+        f"Готово: пользователь `{target_uid}` привязан к `{org_id}` как **{mode}**.",
+        parse_mode="Markdown",
+    )
+
+
+@dp.message(Command("link_org"))
+async def cmd_link_org(message: Message) -> None:
+    if message.chat.type not in ("group", "supergroup"):
+        await message.answer("Команду пишут в групповом чате точки.")
+        return
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].strip():
+        await message.answer("Например: `/link_org org_a1b2c3d4` (id из /orgs в личке у админа).")
+        return
+    org_id = parts[1].strip()
+    uid = message.from_user.id
+    if not (is_global_admin(uid) or await is_chat_admin(message.chat.id, uid)):
+        await message.answer("Эту команду могут выполнить админы чата или глобальный админ бота.")
+        return
+    data = await load_data()
+    if org_id not in data.get("organizations", {}):
+        await message.answer("Нет такой организации. Проверьте id или создайте `/create_org`.")
+        return
+    cid = str(message.chat.id)
+    chats = data.setdefault("chats", {})
+    if cid not in chats:
+        chats[cid] = {
+            "title": message.chat.title or cid,
+            "type": message.chat.type,
+            "added_at": datetime.now(get_tz()).isoformat(timespec="seconds"),
+            "auto_times": [],
+            "timezone": DEFAULT_TZ,
+            "active": True,
+        }
+    chats[cid]["organization_id"] = org_id
+    await save_data(data)
+    await message.answer(
+        f"Этот чат привязан к организации `{org_id}`. Напоминания и отчёты пойдут в рамках этой сети.",
+        parse_mode="Markdown",
+    )
+
+
+@dp.message(Command("set_subscription"))
+async def cmd_set_subscription(message: Message) -> None:
+    if message.chat.type != "private":
+        return
+    if not is_global_admin(message.from_user.id):
+        await message.answer("Команда только для глобального администратора бота.")
+        return
+    parts = (message.text or "").split(maxsplit=2)
+    if len(parts) < 3:
+        await message.answer(
+            "Пример: `/set_subscription org_abcd1234 suspended`\n"
+            "Статусы: `active`, `grace`, `suspended` (при suspended напоминания в чаты сети не уходят).",
+            parse_mode="Markdown",
+        )
+        return
+    oid = parts[1].strip()
+    state = parts[2].strip().lower()
+    if state not in (pulse_model.SUB_ACTIVE, pulse_model.SUB_GRACE, pulse_model.SUB_SUSPENDED):
+        await message.answer("Укажите один из статусов: active, grace, suspended.")
+        return
+    data = await load_data()
+    org = data.get("organizations", {}).get(oid)
+    if not org:
+        await message.answer("Нет такой организации. Смотрите `/orgs`.", parse_mode="Markdown")
+        return
+    org["subscription"] = state
+    await save_data(data)
+    await message.answer(
+        f"Готово: `{oid}` → подписка **{state}**.",
+        parse_mode="Markdown",
+    )
+
+
+@dp.message(Command("settime"))
+async def cmd_settime(message: Message) -> None:
+    if message.chat.type not in ("group", "supergroup"):
+        await message.answer("Эту команду пишут в групповом чате ресторана.")
+        return
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer("Например: /settime 22:00")
+        return
+    t = parse_hhmm(parts[1])
+    if not t:
+        await message.answer("Нужен формат ЧЧ:ММ, например 09:30 или 22:00")
+        return
+    uid = message.from_user.id
+    if not (is_global_admin(uid) or await is_chat_admin(message.chat.id, uid)):
+        await message.answer("Это могут настроить админы чата.")
+        return
+
+    data = await load_data()
+    cid = str(message.chat.id)
+    chats = data.setdefault("chats", {})
+    if cid not in chats:
+        chats[cid] = {
+            "title": message.chat.title or cid,
+            "type": message.chat.type,
+            "added_at": datetime.now(get_tz()).isoformat(timespec="seconds"),
+            "auto_times": [],
+            "timezone": DEFAULT_TZ,
+        }
+    arr = chats[cid].setdefault("auto_times", [])
+    if t not in arr:
+        arr.append(t)
+        arr.sort()
+    await save_data(data)
+    await message.answer(
+        f"Готово. В **{t}** по времени «{chats[cid].get('timezone', DEFAULT_TZ)}» "
+        f"бот пришлёт в этот чат короткое напоминание и кнопку **в личку**.",
+        parse_mode="Markdown",
+    )
+
+
+@dp.message(Command("times"))
+async def cmd_times(message: Message) -> None:
+    if message.chat.type not in ("group", "supergroup"):
+        return
+    data = await load_data()
+    rec = chat_record(data, message.chat.id)
+    if not rec:
+        await message.answer("Чат ещё не в базе. Пере-добавьте бота или выполните /send_now.")
+        return
+    times = rec.get("auto_times", [])
+    tz = rec.get("timezone", DEFAULT_TZ)
+    await message.answer(
+        "Когда бот присылает напоминание со ссылкой в личку:\n"
+        f"**{', '.join(times) if times else 'пока не задано'}**\n"
+        f"Часовой пояс: `{tz}`",
+        parse_mode="Markdown",
+    )
+
+
+@dp.message(Command("deltime"))
+async def cmd_deltime(message: Message) -> None:
+    if message.chat.type not in ("group", "supergroup"):
+        return
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer("Например: /deltime 22:00")
+        return
+    t = parse_hhmm(parts[1])
+    if not t:
+        return
+    uid = message.from_user.id
+    if not (is_global_admin(uid) or await is_chat_admin(message.chat.id, uid)):
+        await message.answer("Нужны права администратора чата.")
+        return
+    data = await load_data()
+    cid = str(message.chat.id)
+    rec = data.get("chats", {}).get(cid)
+    if not rec:
+        return
+    arr = rec.get("auto_times", [])
+    if t in arr:
+        arr.remove(t)
+    await save_data(data)
+    await message.answer(f"Время {t} убрано из расписания.")
+
+
+@dp.message(Command("timezone"))
+async def cmd_timezone(message: Message) -> None:
+    if message.chat.type not in ("group", "supergroup"):
+        return
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer("Например: /timezone Europe/Moscow")
+        return
+    tz_name = parts[1].strip()
+    try:
+        ZoneInfo(tz_name)
+    except Exception:
+        if tz_name != DEFAULT_TZ:
+            await message.answer("Не нашлась такая зона. Пример: Europe/Moscow")
+            return
+    uid = message.from_user.id
+    if not (is_global_admin(uid) or await is_chat_admin(message.chat.id, uid)):
+        await message.answer("Нужны права администратора чата.")
+        return
+    data = await load_data()
+    cid = str(message.chat.id)
+    chats = data.setdefault("chats", {})
+    if cid not in chats:
+        chats[cid] = {
+            "title": message.chat.title or cid,
+            "type": message.chat.type,
+            "added_at": datetime.now(get_tz()).isoformat(timespec="seconds"),
+            "auto_times": [],
+            "timezone": tz_name,
+        }
+    else:
+        chats[cid]["timezone"] = tz_name
+    await save_data(data)
+    await message.answer(f"Часовой пояс для расписания: {tz_name}")
+
+
+@dp.message(Command("send_now", "send"))
+async def cmd_send_now(message: Message) -> None:
+    if message.chat.type not in ("group", "supergroup"):
+        text = (
+            "Напоминание с кнопкой «в личку» отправляется **из группового чата точки**:\n"
+            "откройте чат ресторана и выполните там **/send** или **/send_now** "
+            "(нужны права администратора чата).\n\n"
+            "Оценку смены сотрудники всегда начинают **из группы** — так ответ привязывается к нужной точке."
+        )
+        mk = (
+            pulse_model.manager_menu_reply_markup()
+            if await manager_ui_for_user(message.from_user.id)
+            else pulse_model.remove_reply_markup()
+        )
+        await message.answer(text, parse_mode="Markdown", reply_markup=mk)
+        return
+    uid = message.from_user.id
+    if not (is_global_admin(uid) or await is_chat_admin(message.chat.id, uid)):
+        await message.answer("Напоминание может отправить администратор чата.")
+        return
+    data = await load_data()
+    oid = pulse_model.chat_organization_id(data, message.chat.id)
+    if oid and pulse_model.is_org_billing_blocked(data, oid):
+        await message.answer(
+            "Подписка организации **приостановлена** — напоминания не отправляем, пока не возобновят доступ.",
+            parse_mode="Markdown",
+        )
+        return
+    await post_shift_reminder_to_group(message.chat.id)
+
+
+async def post_shift_reminder_to_group(chat_id: int) -> None:
+    data = await load_data()
+    oid = pulse_model.chat_organization_id(data, chat_id)
+    if oid and pulse_model.is_org_billing_blocked(data, oid):
+        print(f"[skip-suspended] chat={chat_id} org={oid}")
+        return
+    me = await bot.get_me()
+    await bot.send_message(
+        chat_id,
+        GROUP_POLL_TEXT,
+        parse_mode="Markdown",
+        reply_markup=shift_link_markup(chat_id, me.username),
+        disable_web_page_preview=True,
+    )
+
+
+async def answer_private_flow_end(message: Message, user_id: int, text: str) -> None:
+    extra: dict = {}
+    if await manager_ui_for_user(user_id):
+        extra["reply_markup"] = pulse_model.manager_menu_reply_markup()
+    await message.answer(text, **extra)
+
+
+async def scheduler_loop() -> None:
+    await asyncio.sleep(15)
+    while True:
+        try:
+            data = await load_data()
+            today = date.today().isoformat()
+            chats = data.get("chats", {})
+            sent_map = data.setdefault("last_auto_sent", {})
+            changed = False
+
+            for cid, info in list(chats.items()):
+                if info.get("removed_at") or info.get("active") is False:
+                    continue
+                oid = info.get("organization_id")
+                if oid and pulse_model.is_org_billing_blocked(data, oid):
+                    continue
+                tz_name = info.get("timezone", DEFAULT_TZ)
+                tz = get_tz(tz_name)
+                hm = datetime.now(tz).strftime("%H:%M")
+                for t in info.get("auto_times", []):
+                    if t != hm:
+                        continue
+                    key = f"{cid}|{t}|{today}"
+                    if sent_map.get(key):
+                        continue
+                    try:
+                        await post_shift_reminder_to_group(int(cid))
+                        sent_map[key] = True
+                        changed = True
+                        print(f"[auto] chat={cid} time={t}")
+                    except Exception as e:
+                        print(f"[auto-fail] {cid}: {e}")
+
+            for k in list(sent_map.keys()):
+                parts = k.split("|")
+                if len(parts) >= 3 and parts[2] < today:
+                    del sent_map[k]
+                    changed = True
+
+            if changed:
+                await save_data(data)
+        except Exception as e:
+            print(f"[scheduler] {e}")
+        await asyncio.sleep(45)
+
+
+@dp.callback_query(F.data.startswith("rating_"), lambda c: c.message.chat.type != "private")
+async def rating_wrong_chat(callback: CallbackQuery) -> None:
+    await callback.answer(
+        "Оценку нужно пройти в личке: нажмите «Оценить смену в личке» в последнем сообщении бота.",
+        show_alert=True,
+    )
+
+
+@dp.callback_query(F.data.startswith("problem_"), lambda c: c.message.chat.type != "private")
+async def problem_wrong_chat(callback: CallbackQuery) -> None:
+    await callback.answer("Продолжите в личке с ботом по ссылке из чата.", show_alert=True)
+
+
+@dp.callback_query(F.data.startswith("rating_"), lambda c: c.message.chat.type == "private")
+async def rating_handler(callback: CallbackQuery) -> None:
+    rating = int(callback.data.split("_")[1])
+    user_id = callback.from_user.id
+    data = await load_data()
+    restaurant = restaurant_label_for_log(data, user_id)
+    rest_chat = user_linked_chat.get(user_id)
+
+    print("------------")
+    print(f"LOG rating user={user_id} rest={restaurant} val={rating}")
+    print("------------")
+    await log_feedback_event(
+        {
+            "event": "rating",
+            "user_id": user_id,
+            "restaurant_chat_id": rest_chat,
+            "restaurant_label": restaurant,
+            "organization_id": org_id_for_restaurant_chat(data, rest_chat),
+            "rating": rating,
+        }
+    )
+
+    await callback.message.edit_reply_markup(reply_markup=None)
+
+    if rating == 5:
+        await answer_private_flow_end(callback.message, user_id, "Спасибо за обратную связь ❤️")
+        finish_private_flow(user_id)
+    else:
+        await callback.message.answer(
+            "Что повлияло на вашу оценку?",
+            reply_markup=problem_keyboard,
+        )
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("problem_"), lambda c: c.message.chat.type == "private")
+async def problem_handler(callback: CallbackQuery) -> None:
+    problem = callback.data.replace("problem_", "")
+    user_id = callback.from_user.id
+    data = await load_data()
+    restaurant = restaurant_label_for_log(data, user_id)
+
+    await callback.message.edit_reply_markup(reply_markup=None)
+
+    if problem == "comment":
+        waiting_for_comment.add(user_id)
+        await callback.message.answer("Напишите комментарий ✍️")
+    else:
+        print("------------")
+        print(f"LOG problem user={user_id} rest={restaurant} code={problem}")
+        print("------------")
+        await log_feedback_event(
+            {
+                "event": "problem",
+                "user_id": user_id,
+                "restaurant_chat_id": user_linked_chat.get(user_id),
+                "restaurant_label": restaurant,
+                "organization_id": org_id_for_restaurant_chat(data, user_linked_chat.get(user_id)),
+                "problem": problem,
+            }
+        )
+        await answer_private_flow_end(
+            callback.message, user_id, "Спасибо! Ваш отзыв помогает нам становиться лучше ❤️"
+        )
+        finish_private_flow(user_id)
+    await callback.answer()
+
+
+@dp.message(ManagerMenuFilter())
+async def manager_menu_handler(message: Message) -> None:
+    t = (message.text or "").strip()
+    uid = message.from_user.id
+    waiting_for_comment.discard(uid)
+    me = await bot.get_me()
+    if t == pulse_model.BTN_REPORT:
+        await message.answer(
+            pulse_model.text_report_stub(),
+            parse_mode="Markdown",
+            reply_markup=pulse_model.manager_menu_reply_markup(),
+        )
+    elif t == pulse_model.BTN_SUBSCRIPTION:
+        data = await load_data()
+        if is_global_admin(uid) and not pulse_model.manager_profiles(data, uid):
+            orgs = data.get("organizations", {})
+            if not orgs:
+                text = "Организаций пока нет. Создайте: `/create_org Название`"
+            else:
+                parts_sub = ["**Подписки (глобальный админ)**\n"]
+                for oid, org in sorted(orgs.items(), key=lambda x: x[0]):
+                    parts_sub.append(
+                        f"• `{oid}` — **{org.get('name', oid)}** · `{org.get('subscription', pulse_model.SUB_ACTIVE)}`\n"
+                    )
+                text = "\n".join(parts_sub)
+        else:
+            text = pulse_model.text_subscription_status(data, uid)
+        await message.answer(
+            text,
+            parse_mode="Markdown",
+            reply_markup=pulse_model.manager_menu_reply_markup(),
+        )
+    elif t == pulse_model.BTN_SUPPORT:
+        await message.answer(
+            pulse_model.text_support(SUPPORT_USERNAME or None),
+            parse_mode="Markdown",
+            reply_markup=pulse_model.manager_menu_reply_markup(),
+            disable_web_page_preview=True,
+        )
+    elif t == pulse_model.BTN_CONNECT:
+        await message.answer(
+            pulse_model.text_connect_point(me.username),
+            parse_mode="Markdown",
+            reply_markup=pulse_model.manager_menu_reply_markup(),
+            disable_web_page_preview=True,
+        )
+
+
+@dp.message(F.text)
+async def comment_handler(message: Message) -> None:
+    if message.chat.type != "private":
+        return
+    if not message.text or message.text.startswith("/"):
+        return
+    user_id = message.from_user.id
+    if user_id not in waiting_for_comment:
+        return
+
+    data = await load_data()
+    restaurant = restaurant_label_for_log(data, user_id)
+    comment = message.text
+    print("------------")
+    print(f"LOG comment user={user_id} rest={restaurant} text={comment!r}")
+    print("------------")
+    await log_feedback_event(
+        {
+            "event": "comment",
+            "user_id": user_id,
+            "restaurant_chat_id": user_linked_chat.get(user_id),
+            "restaurant_label": restaurant,
+            "organization_id": org_id_for_restaurant_chat(data, user_linked_chat.get(user_id)),
+            "comment": comment,
+        }
+    )
+
+    waiting_for_comment.discard(user_id)
+    finish_private_flow(user_id)
+    await answer_private_flow_end(message, user_id, "Спасибо за честную обратную связь ❤️")
+
+
+async def main() -> None:
+    asyncio.create_task(scheduler_loop())
+    me = await bot.get_me()
+    print("Бот:", me.username, "| ADMIN_IDS:", sorted(ADMIN_IDS))
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
