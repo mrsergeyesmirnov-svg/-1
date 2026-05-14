@@ -32,8 +32,13 @@ except ImportError:
 
 import pulse_model
 
-DATA_PATH = Path(__file__).resolve().parent / "bot_data.json"
-FEEDBACK_LOG_PATH = Path(__file__).resolve().parent / "feedback_log.jsonl"
+# На Railway без Volume файлы в контейнере теряются при redeploy.
+# Смонтируйте Volume и задайте PULSE_DATA_DIR=/data (или другой путь) — туда пойдут bot_data.json и feedback_log.jsonl.
+_data_root = Path(os.getenv("PULSE_DATA_DIR", "").strip() or Path(__file__).resolve().parent)
+_data_root.mkdir(parents=True, exist_ok=True)
+
+DATA_PATH = _data_root / "bot_data.json"
+FEEDBACK_LOG_PATH = _data_root / "feedback_log.jsonl"
 DATA_LOCK = asyncio.Lock()
 LOG_LOCK = asyncio.Lock()
 DEFAULT_TZ = "Europe/Moscow"
