@@ -8,6 +8,7 @@ import asyncio
 import base64
 import json
 import os
+from html import escape
 import re
 from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
@@ -220,25 +221,26 @@ PRIVATE_START_NO_LINK = (
 GROUP_JOIN_WELCOME = (
     "Привет! 👋 Рады быть в этом чате.\n\n"
     "Этот бот помогает делать смены комфортнее и улучшать рабочие процессы в ресторане. "
-    "Для нас **каждый такой чат — отдельная точка** (свой «ресторан» в системе).\n\n"
-    "Здесь можно **анонимно** делиться впечатлением от смены, проблемами, атмосферой и идеями — "
+    "Для нас <b>каждый такой чат — отдельная точка</b> (свой «ресторан» в системе).\n\n"
+    "Здесь можно <b>анонимно</b> делиться впечатлением от смены, проблемами, атмосферой и идеями — "
     "обратная связь помогает быстрее замечать сложности и беречь команду ❤️\n\n"
-    "**Как это устроено:** мы будем присылать короткие напоминания с **кнопкой в личку** — "
-    "оценка и текст идут **только в диалоге с ботом**, в этом чате никто не увидит ни звёздочек, ни ваших слов.\n\n"
-    "**Для администраторов чата:**\n"
+    "<b>Как это устроено:</b> мы будем присылать короткие напоминания с <b>кнопкой в личку</b> — "
+    "оценка и текст идут <b>только в диалоге с ботом</b>, в этом чате никто не увидит ни звёздочек, ни ваших слов.\n\n"
+    "<b>Для администраторов чата:</b>\n"
     "• /settime 22:00 — когда присылать напоминание\n"
     "• /times — расписание\n"
     "• /deltime 22:00 — убрать время\n"
     "• /timezone Europe/Moscow — часовой пояс\n"
     "• /send или /send_now — отправить напоминание сейчас\n"
-    "• /link_org org_xxxx — привязать чат к организации (после `/create_org`)\n"
+    "• /link_org org_xxxx — привязать чат к организации (после <code>/create_org</code>)\n"
     "• /smena_help — краткая справка по командам"
 )
 
 GROUP_POLL_TEXT = (
-    "✨ **Напоминание о смене**\n\n"
-    "Хотите **анонимно** поделиться, как прошла смена? Это займёт **до 10 секунд**.\n\n"
-    "**Важно:** нажмите кнопку ниже — диалог откроется **в личке с ботом**. "
+    "✨ <b>Напоминание о смене</b>\n\n"
+    "Хотите <b>анонимно</b> поделиться, как прошла смена? Это займёт <b>до 30 секунд</b>.\n\n"
+    "<b>Важно:</b> нажмите кнопку ниже — диалог откроется <b>в личке с ботом</b>. "
+    "В этом чате не будет ни звёздочек, ни текста от вас: с коллегами останется только это короткое сообщение.\n\n"
     "Так мы бережём вашу приватность и всё равно слышим команду ❤️"
 )
 
@@ -382,7 +384,7 @@ async def on_my_chat_member(event: ChatMemberUpdated) -> None:
             await bot.send_message(
                 chat.id,
                 GROUP_JOIN_WELCOME,
-                parse_mode="Markdown",
+                parse_mode="HTML",
             )
         except Exception:
             pass
@@ -403,8 +405,8 @@ async def cmd_start(message: Message) -> None:
         me = await bot.get_me()
         await message.answer(PRIVATE_WELCOME)
         await message.answer(
-            "Расскажите нам о своем дне, помогите нам стать лучше); "
-            ,
+            "Нажмите кнопку — откроется чат с ботом. Оценка и текст только там; "
+            "для аналитики ответ привяжется к этому чату.",
             reply_markup=shift_link_markup(message.chat.id, me.username),
             disable_web_page_preview=True,
         )
@@ -444,9 +446,9 @@ async def cmd_start(message: Message) -> None:
 
     if await manager_ui_for_user(uid):
         await message.answer(
-            "Пульс смен — меню ниже. Оценку смены по-прежнему начинайте из **рабочй группы** "
+            "Пульс смен — меню ниже. Оценку смены по-прежнему начинайте из <b>группы точки</b> "
             "(кнопка «Оценить смену в личке»), чтобы ответ привязался к нужному чату.",
-            parse_mode="Markdown",
+            parse_mode="HTML",
             reply_markup=pulse_model.manager_menu_reply_markup(),
         )
     else:
@@ -462,11 +464,11 @@ async def cmd_myid(message: Message) -> None:
         return
     uid = message.from_user.id
     await message.answer(
-        f"Ваш Telegram ID: `{uid}`\n\n"
-        "Если бот пишет «нет доступа» к /admin, добавьте эту строку в `.env`:\n"
-        f"`ADMIN_IDS={uid}`\n\n"
+        f"Ваш Telegram ID: <code>{uid}</code>\n\n"
+        "Если бот пишет «нет доступа» к /admin, добавьте эту строку в <code>.env</code>:\n"
+        f"<code>ADMIN_IDS={uid}</code>\n\n"
         "(несколько id через запятую без пробела)",
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
 
 
@@ -474,32 +476,32 @@ async def cmd_myid(message: Message) -> None:
 async def cmd_help(message: Message) -> None:
     if message.chat.type in ("group", "supergroup"):
         await message.answer(
-            "**Команды в этом чате**\n"
+            "<b>Команды в этом чате</b>\n"
             "/settime 22:00 — когда присылать напоминание с переходом в личку\n"
             "/times — расписание\n"
             "/deltime 22:00 — убрать время\n"
             "/timezone Europe/Moscow — часовой пояс\n"
             "/send или /send_now — напоминание в группу сейчас (со ссылкой в личку)\n"
             "/link_org org_xxxx — привязать этот чат к организации (глобальный админ или админ чата)\n"
-            "/start в этом чате — ваша личная ссылка в личку для оценки **этой** точки\n\n"
-            "Оценка всегда **в личке с ботом**, чтобы ответ привязался к этой точке.",
-            parse_mode="Markdown",
+            "/start в этом чате — ваша личная ссылка в личку для оценки <b>этой</b> точки\n\n"
+            "Оценка всегда <b>в личке с ботом</b>, чтобы ответ привязался к этой точке.",
+            parse_mode="HTML",
         )
         return
     if is_global_admin(message.from_user.id):
         await message.answer(
             "В личке:\n"
-            "**/admin** — чаты и org\n"
-            "**/orgs**, **/create_org**, **/link_manager**, **/link_org** (в группе)\n"
-            "**/set_subscription** org_id active|grace|suspended — пауза по оплате\n"
+            "<b>/admin</b> — чаты и org\n"
+            "<b>/orgs</b>, <b>/create_org</b>, <b>/link_manager</b>, <b>/link_org</b> (в группе)\n"
+            "<b>/set_subscription</b> org_id active|grace|suspended — пауза по оплате\n"
             "У менеджеров — кнопки «Отчёт», «Подписка», «Поддержка», «Как подключить точку».",
-            parse_mode="Markdown",
+            parse_mode="HTML",
         )
     elif await manager_ui_for_user(message.from_user.id):
         await message.answer(
             "У вас есть меню снизу: отчёт, подписка, поддержка, как подключить точку.\n"
-            "Оценку смены начинайте из **группы** по кнопке «в личку».",
-            parse_mode="Markdown",
+            "Оценку смены начинайте из <b>группы</b> по кнопке «в личку».",
+            parse_mode="HTML",
         )
     else:
         await message.answer(
@@ -516,11 +518,11 @@ async def cmd_admin(message: Message) -> None:
     if not is_global_admin(uid):
         await message.answer(
             "Нет доступа.\n\n"
-            f"Ваш Telegram ID: `{uid}`\n"
-            "Добавьте в файл `.env` рядом с ботом строку (можно несколько id через запятую):\n"
-            f"`ADMIN_IDS={uid}`\n"
+            f"Ваш Telegram ID: <code>{uid}</code>\n"
+            "Добавьте в файл <code>.env</code> рядом с ботом строку (можно несколько id через запятую):\n"
+            f"<code>ADMIN_IDS={uid}</code>\n"
             "и перезапустите бота.",
-            parse_mode="Markdown",
+            parse_mode="HTML",
         )
         return
     data = await load_data()
@@ -536,10 +538,11 @@ async def cmd_admin(message: Message) -> None:
         tz = info.get("timezone", DEFAULT_TZ)
         oid = info.get("organization_id") or "—"
         lines.append(
-            f"{active} id {cid}\n   {title}\n   org: `{oid}`\n   авто: {times} ({tz})"
+            f"{active} id {escape(str(cid))}\n   {escape(str(title))}\n   org: <code>{escape(str(oid))}</code>\n"
+            f"   авто: {escape(times)} ({escape(str(tz))})"
         )
     text = "\n".join(lines) if len(lines) > 1 else "Пока нет подключённых групп."
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text, parse_mode="HTML")
 
 
 @dp.message(Command("orgs"))
@@ -554,9 +557,12 @@ async def cmd_orgs(message: Message) -> None:
     orgs = data.get("organizations", {})
     chats = data.get("chats", {})
     if not orgs:
-        await message.answer("Организаций пока нет. Создайте: `/create_org Название сети`", parse_mode="Markdown")
+        await message.answer(
+            "Организаций пока нет. Создайте: <code>/create_org Название сети</code>",
+            parse_mode="HTML",
+        )
         return
-    lines: list[str] = ["**Организации**\n"]
+    lines: list[str] = ["<b>Организации</b>\n"]
     for oid, org in sorted(orgs.items(), key=lambda x: x[0]):
         name = org.get("name", oid)
         sub = org.get("subscription", pulse_model.SUB_ACTIVE)
@@ -565,8 +571,11 @@ async def cmd_orgs(message: Message) -> None:
             for c, rec in chats.items()
             if isinstance(rec, dict) and rec.get("organization_id") == oid and not rec.get("removed_at")
         )
-        lines.append(f"• `{oid}` — **{name}**\n  подписка: `{sub}` · активных чатов: {n}\n")
-    await message.answer("\n".join(lines), parse_mode="Markdown")
+        lines.append(
+            f"• <code>{escape(str(oid))}</code> — <b>{escape(str(name))}</b>\n"
+            f"  подписка: <code>{escape(str(sub))}</code> · активных чатов: {n}\n"
+        )
+    await message.answer("\n".join(lines), parse_mode="HTML")
 
 
 @dp.message(Command("create_org"))
@@ -578,16 +587,19 @@ async def cmd_create_org(message: Message) -> None:
         return
     parts = (message.text or "").split(maxsplit=1)
     if len(parts) < 2 or not parts[1].strip():
-        await message.answer("Например: `/create_org Сеть Италия`", parse_mode="Markdown")
+        await message.answer(
+            "Например: <code>/create_org Сеть Италия</code>",
+            parse_mode="HTML",
+        )
         return
     name = parts[1].strip()
     data = await load_data()
     oid = pulse_model.create_organization(data, name)
     await save_data(data)
     await message.answer(
-        f"Создана организация **{name}**\n`{oid}`\n\n"
-        "В группе точки выполните `/link_org " + oid + "` (от имени админа чата или вас).",
-        parse_mode="Markdown",
+        f"Создана организация <b>{escape(name)}</b>\n<code>{escape(oid)}</code>\n\n"
+        f"В группе точки выполните <code>/link_org {escape(oid)}</code> (от имени админа чата или вас).",
+        parse_mode="HTML",
     )
 
 
@@ -604,10 +616,10 @@ async def cmd_link_manager(message: Message) -> None:
     if len(parts) < 4:
         await message.answer(
             "Формат:\n"
-            "`/link_manager <telegram_id> <org_id> network` — вся сеть\n"
-            "`/link_manager <telegram_id> <org_id> location <chat_id>` — только эта группа\n\n"
-            "Узнать id: человек пишет боту `/myid`.",
-            parse_mode="Markdown",
+            "<code>/link_manager &lt;telegram_id&gt; &lt;org_id&gt; network</code> — вся сеть\n"
+            "<code>/link_manager &lt;telegram_id&gt; &lt;org_id&gt; location &lt;chat_id&gt;</code> — только эта группа\n\n"
+            "Узнать id: человек пишет боту <code>/myid</code>.",
+            parse_mode="HTML",
         )
         return
     try:
@@ -619,7 +631,10 @@ async def cmd_link_manager(message: Message) -> None:
     mode = parts[3].lower()
     data = await load_data()
     if org_id not in data.get("organizations", {}):
-        await message.answer("Нет такой организации. Сначала `/create_org` или проверьте id в `/orgs`.")
+        await message.answer(
+            "Нет такой организации. Сначала <code>/create_org</code> или проверьте id в <code>/orgs</code>.",
+            parse_mode="HTML",
+        )
         return
     if mode == "network":
         pulse_model.set_manager_binding(
@@ -638,12 +653,15 @@ async def cmd_link_manager(message: Message) -> None:
             data, target_uid, org_id, pulse_model.ROLE_LOCATION_ADMIN, [loc_cid]
         )
     else:
-        await message.answer("Режим: `network` или `location`.", parse_mode="Markdown")
+        await message.answer(
+            "Режим: <code>network</code> или <code>location</code>.",
+            parse_mode="HTML",
+        )
         return
     await save_data(data)
     await message.answer(
-        f"Готово: пользователь `{target_uid}` привязан к `{org_id}` как **{mode}**.",
-        parse_mode="Markdown",
+        f"Готово: пользователь <code>{target_uid}</code> привязан к <code>{escape(org_id)}</code> как <b>{escape(mode)}</b>.",
+        parse_mode="HTML",
     )
 
 
@@ -654,7 +672,10 @@ async def cmd_link_org(message: Message) -> None:
         return
     parts = (message.text or "").split(maxsplit=1)
     if len(parts) < 2 or not parts[1].strip():
-        await message.answer("Например: `/link_org org_a1b2c3d4` (id из /orgs в личке у админа).")
+        await message.answer(
+            "Например: <code>/link_org org_a1b2c3d4</code> (id из <code>/orgs</code> в личке у админа).",
+            parse_mode="HTML",
+        )
         return
     org_id = parts[1].strip()
     uid = message.from_user.id
@@ -663,7 +684,10 @@ async def cmd_link_org(message: Message) -> None:
         return
     data = await load_data()
     if org_id not in data.get("organizations", {}):
-        await message.answer("Нет такой организации. Проверьте id или создайте `/create_org`.")
+        await message.answer(
+            "Нет такой организации. Проверьте id или создайте <code>/create_org</code>.",
+            parse_mode="HTML",
+        )
         return
     cid = str(message.chat.id)
     chats = data.setdefault("chats", {})
@@ -679,8 +703,9 @@ async def cmd_link_org(message: Message) -> None:
     chats[cid]["organization_id"] = org_id
     await save_data(data)
     await message.answer(
-        f"Этот чат привязан к организации `{org_id}`. Напоминания и отчёты пойдут в рамках этой сети.",
-        parse_mode="Markdown",
+        f"Этот чат привязан к организации <code>{escape(org_id)}</code>. "
+        "Напоминания и отчёты пойдут в рамках этой сети.",
+        parse_mode="HTML",
     )
 
 
@@ -694,9 +719,10 @@ async def cmd_set_subscription(message: Message) -> None:
     parts = (message.text or "").split(maxsplit=2)
     if len(parts) < 3:
         await message.answer(
-            "Пример: `/set_subscription org_abcd1234 suspended`\n"
-            "Статусы: `active`, `grace`, `suspended` (при suspended напоминания в чаты сети не уходят).",
-            parse_mode="Markdown",
+            "Пример: <code>/set_subscription org_abcd1234 suspended</code>\n"
+            "Статусы: <code>active</code>, <code>grace</code>, <code>suspended</code> "
+            "(при suspended напоминания в чаты сети не уходят).",
+            parse_mode="HTML",
         )
         return
     oid = parts[1].strip()
@@ -707,13 +733,16 @@ async def cmd_set_subscription(message: Message) -> None:
     data = await load_data()
     org = data.get("organizations", {}).get(oid)
     if not org:
-        await message.answer("Нет такой организации. Смотрите `/orgs`.", parse_mode="Markdown")
+        await message.answer(
+            "Нет такой организации. Смотрите <code>/orgs</code>.",
+            parse_mode="HTML",
+        )
         return
     org["subscription"] = state
     await save_data(data)
     await message.answer(
-        f"Готово: `{oid}` → подписка **{state}**.",
-        parse_mode="Markdown",
+        f"Готово: <code>{escape(oid)}</code> → подписка <b>{escape(state)}</b>.",
+        parse_mode="HTML",
     )
 
 
@@ -751,10 +780,11 @@ async def cmd_settime(message: Message) -> None:
         arr.append(t)
         arr.sort()
     await save_data(data)
+    tz_disp = escape(str(chats[cid].get("timezone", DEFAULT_TZ)))
     await message.answer(
-        f"Готово. В **{t}** по времени «{chats[cid].get('timezone', DEFAULT_TZ)}» "
-        f"бот пришлёт в этот чат короткое напоминание и кнопку **в личку**.",
-        parse_mode="Markdown",
+        f"Готово. В <b>{escape(t)}</b> по времени «{tz_disp}» "
+        f"бот пришлёт в этот чат короткое напоминание и кнопку <b>в личку</b>.",
+        parse_mode="HTML",
     )
 
 
@@ -769,11 +799,12 @@ async def cmd_times(message: Message) -> None:
         return
     times = rec.get("auto_times", [])
     tz = rec.get("timezone", DEFAULT_TZ)
+    times_disp = escape(", ".join(times) if times else "пока не задано")
     await message.answer(
         "Когда бот присылает напоминание со ссылкой в личку:\n"
-        f"**{', '.join(times) if times else 'пока не задано'}**\n"
-        f"Часовой пояс: `{tz}`",
-        parse_mode="Markdown",
+        f"<b>{times_disp}</b>\n"
+        f"Часовой пояс: <code>{escape(str(tz))}</code>",
+        parse_mode="HTML",
     )
 
 
@@ -844,17 +875,17 @@ async def cmd_timezone(message: Message) -> None:
 async def cmd_send_now(message: Message) -> None:
     if message.chat.type not in ("group", "supergroup"):
         text = (
-            "Напоминание с кнопкой «в личку» отправляется **из группового чата точки**:\n"
-            "откройте чат ресторана и выполните там **/send** или **/send_now** "
+            "Напоминание с кнопкой «в личку» отправляется <b>из группового чата точки</b>:\n"
+            "откройте чат ресторана и выполните там <b>/send</b> или <b>/send_now</b> "
             "(нужны права администратора чата).\n\n"
-            "Оценку смены сотрудники всегда начинают **из группы** — так ответ привязывается к нужной точке."
+            "Оценку смены сотрудники всегда начинают <b>из группы</b> — так ответ привязывается к нужной точке."
         )
         mk = (
             pulse_model.manager_menu_reply_markup()
             if await manager_ui_for_user(message.from_user.id)
             else pulse_model.remove_reply_markup()
         )
-        await message.answer(text, parse_mode="Markdown", reply_markup=mk)
+        await message.answer(text, parse_mode="HTML", reply_markup=mk)
         return
     uid = message.from_user.id
     if not (is_global_admin(uid) or await is_chat_admin(message.chat.id, uid)):
@@ -864,8 +895,8 @@ async def cmd_send_now(message: Message) -> None:
     oid = pulse_model.chat_organization_id(data, message.chat.id)
     if oid and pulse_model.is_org_billing_blocked(data, oid):
         await message.answer(
-            "Подписка организации **приостановлена** — напоминания не отправляем, пока не возобновят доступ.",
-            parse_mode="Markdown",
+            "Подписка организации <b>приостановлена</b> — напоминания не отправляем, пока не возобновят доступ.",
+            parse_mode="HTML",
         )
         return
     await post_shift_reminder_to_group(message.chat.id)
@@ -881,7 +912,7 @@ async def post_shift_reminder_to_group(chat_id: int) -> None:
     await bot.send_message(
         chat_id,
         GROUP_POLL_TEXT,
-        parse_mode="Markdown",
+        parse_mode="HTML",
         reply_markup=shift_link_markup(chat_id, me.username),
         disable_web_page_preview=True,
     )
@@ -1030,7 +1061,7 @@ async def manager_menu_handler(message: Message) -> None:
     if t == pulse_model.BTN_REPORT:
         await message.answer(
             pulse_model.text_report_stub(),
-            parse_mode="Markdown",
+            parse_mode="HTML",
             reply_markup=pulse_model.manager_menu_reply_markup(),
         )
     elif t == pulse_model.BTN_SUBSCRIPTION:
@@ -1038,32 +1069,33 @@ async def manager_menu_handler(message: Message) -> None:
         if is_global_admin(uid) and not pulse_model.manager_profiles(data, uid):
             orgs = data.get("organizations", {})
             if not orgs:
-                text = "Организаций пока нет. Создайте: `/create_org Название`"
+                text = "Организаций пока нет. Создайте: <code>/create_org Название</code>"
             else:
-                parts_sub = ["**Подписки (глобальный админ)**\n"]
+                parts_sub = ["<b>Подписки (глобальный админ)</b>\n"]
                 for oid, org in sorted(orgs.items(), key=lambda x: x[0]):
                     parts_sub.append(
-                        f"• `{oid}` — **{org.get('name', oid)}** · `{org.get('subscription', pulse_model.SUB_ACTIVE)}`\n"
+                        f"• <code>{escape(str(oid))}</code> — <b>{escape(str(org.get('name', oid)))}</b> "
+                        f"· <code>{escape(str(org.get('subscription', pulse_model.SUB_ACTIVE)))}</code>\n"
                     )
                 text = "\n".join(parts_sub)
         else:
             text = pulse_model.text_subscription_status(data, uid)
         await message.answer(
             text,
-            parse_mode="Markdown",
+            parse_mode="HTML",
             reply_markup=pulse_model.manager_menu_reply_markup(),
         )
     elif t == pulse_model.BTN_SUPPORT:
         await message.answer(
             pulse_model.text_support(SUPPORT_USERNAME or None),
-            parse_mode="Markdown",
+            parse_mode="HTML",
             reply_markup=pulse_model.manager_menu_reply_markup(),
             disable_web_page_preview=True,
         )
     elif t == pulse_model.BTN_CONNECT:
         await message.answer(
             pulse_model.text_connect_point(me.username),
-            parse_mode="Markdown",
+            parse_mode="HTML",
             reply_markup=pulse_model.manager_menu_reply_markup(),
             disable_web_page_preview=True,
         )
