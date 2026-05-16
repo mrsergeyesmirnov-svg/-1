@@ -54,6 +54,11 @@ async def init_db(dsn: str) -> bool:
             await conn.execute(DDL_TABLE)
             await conn.execute(DDL_IDX1)
             await conn.execute(DDL_IDX2)
+            # Если таблицу создавали вручную без DEFAULT для created_at — починим для будущих INSERT.
+            await conn.execute(
+                "ALTER TABLE feedback_events "
+                "ALTER COLUMN created_at SET DEFAULT now()"
+            )
         print("[postgres] подключено, таблица feedback_events готова")
         return True
     except Exception as e:
@@ -95,10 +100,11 @@ async def insert_feedback_event(row: dict[str, Any]) -> None:
             await conn.execute(
                 """
                 INSERT INTO feedback_events (
+                    created_at,
                     telegram_user_id, organization_id, restaurant_chat_id,
                     event_type, rating, problem_code, comment_text, payload
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+                VALUES (now(), $1, $2, $3, $4, $5, $6, $7, $8::jsonb)
                 """,
                 row.get("user_id"),
                 row.get("organization_id"),
