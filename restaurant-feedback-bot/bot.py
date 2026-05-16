@@ -196,8 +196,10 @@ def decode_start_chat(token: str) -> int | None:
 user_linked_chat: dict[int, int] = {}
 # slug из /start <slug> (для старых ссылок без привязки к чату)
 user_private_slug: dict[int, str] = {}
-# ждём текст комментария в личке
+# ждём текст комментария в личке (после «Опишите подробнее»)
 waiting_for_comment: set[int] = set()
+# выбранная тема проблемы до «отправить так» / уточнения текстом
+user_pending_problem: dict[int, str] = {}
 
 
 # В группе при /start — тот же текст, что на лендинге (в личке при опросе не дублируем)
@@ -241,13 +243,29 @@ GROUP_JOIN_WELCOME = (
     "• /smena_help — краткая справка по командам"
 )
 
-GROUP_POLL_TEXT = (
-    "✨ <b>Напоминание о смене</b>\n\n"
-    "Хотите <b>анонимно</b> поделиться, как прошла смена? Это займёт <b>до 30 секунд</b>.\n\n"
-    "<b>Важно:</b> нажмите кнопку ниже — диалог откроется <b>в личке с ботом</b>. "
-    "В этом чате не будет ни звёздочек, ни текста от вас: с коллегами останется только это короткое сообщение.\n\n"
-    "Так мы бережём вашу приватность и всё равно слышим команду ❤️"
+# /send и авто-напоминание — коротко, без длинного приветствия (оно на /start и при входе бота)
+GROUP_REMINDER_TEXT = (
+    "✨ <b>Pulse-check смены</b> — анонимно, до 30 секунд. "
+    "Нажмите кнопку: оценка только <b>в личке</b> с ботом ❤️"
 )
+
+PROBLEM_LABELS = {
+    "kitchen": "медленная кухня",
+    "conflict": "конфликт / напряжение",
+    "staff": "нехватка персонала",
+    "management": "плохая организация",
+    "stress": "сильная нагрузка",
+    "comment": "свой комментарий",
+}
+
+
+def problem_followup_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✍️ Опишите подробнее", callback_data="problem_more")],
+            [InlineKeyboardButton(text="Пропустить", callback_data="problem_send")],
+        ]
+    )
 
 
 rating_keyboard = InlineKeyboardMarkup(
@@ -318,6 +336,8 @@ def restaurant_label_for_log(data: dict, user_id: int) -> str:
 def finish_private_flow(user_id: int) -> None:
     user_linked_chat.pop(user_id, None)
     user_private_slug.pop(user_id, None)
+    user_pending_problem.pop(user_id, None)
+    waiting_for_comment.discard(user_id)
 
 
 async def is_chat_admin(chat_id: int, user_id: int) -> bool:
@@ -451,8 +471,9 @@ async def cmd_start(message: Message) -> None:
 
     if await manager_ui_for_user(uid):
         await message.answer(
-            "Пульс смен — меню ниже. Оценку смены по-прежнему начинайте из <b>группы точки</b> "
-            "(кнопка «Оценить смену в личке»), чтобы ответ привязался к нужному чату.",
+            "Пульс смен — меню ниже.\n"
+            "Оценку рабочего дня по-прежнему начинайте из <b>рабочей группы</b> "
+            "(кнопка «Оценить смену в личке»).",
             parse_mode="HTML",
             reply_markup=pulse_model.manager_menu_reply_markup(),
         )
@@ -916,7 +937,7 @@ async def post_shift_reminder_to_group(chat_id: int) -> None:
     me = await bot.get_me()
     await bot.send_message(
         chat_id,
-        GROUP_POLL_TEXT,
+        GROUP_REMINDER_TEXT,
         parse_mode="HTML",
         reply_markup=shift_link_markup(chat_id, me.username),
         disable_web_page_preview=True,
@@ -1026,34 +1047,59 @@ async def rating_handler(callback: CallbackQuery) -> None:
 
 @dp.callback_query(F.data.startswith("problem_"), lambda c: c.message.chat.type == "private")
 async def problem_handler(callback: CallbackQuery) -> None:
-    problem = callback.data.replace("problem_", "")
+    action = callback.data.replace("problem_", "")
     user_id = callback.from_user.id
     data = await load_data()
     restaurant = restaurant_label_for_log(data, user_id)
+    rest_chat = user_linked_chat.get(user_id)
+    org_id = org_id_for_restaurant_chat(data, rest_chat)
 
     await callback.message.edit_reply_markup(reply_markup=None)
 
-    if problem == "comment":
+    if action == "more":
+        if user_id not in user_pending_problem:
+            await callback.answer("Сначала выберите тему из списка выше.", show_alert=True)
+            return
         waiting_for_comment.add(user_id)
-        await callback.message.answer("Напишите комментарий ✍️")
-    else:
-        print("------------")
-        print(f"LOG problem user={user_id} rest={restaurant} code={problem}")
-        print("------------")
+        await callback.message.answer("Опишите ситуацию подробнее ✍️")
+        await callback.answer()
+        return
+
+    if action == "send":
+        code = user_pending_problem.pop(user_id, None)
+        if not code:
+            await callback.answer("Сначала выберите тему из списка.", show_alert=True)
+            return
         await log_feedback_event(
             {
                 "event": "problem",
                 "user_id": user_id,
-                "restaurant_chat_id": user_linked_chat.get(user_id),
+                "restaurant_chat_id": rest_chat,
                 "restaurant_label": restaurant,
-                "organization_id": org_id_for_restaurant_chat(data, user_linked_chat.get(user_id)),
-                "problem": problem,
+                "organization_id": org_id,
+                "problem": code,
             }
         )
+        finish_private_flow(user_id)
         await answer_private_flow_end(
             callback.message, user_id, "Спасибо! Ваш отзыв помогает нам становиться лучше ❤️"
         )
-        finish_private_flow(user_id)
+        await callback.answer()
+        return
+
+    if action not in PROBLEM_LABELS:
+        await callback.answer()
+        return
+
+    user_pending_problem[user_id] = action
+    waiting_for_comment.discard(user_id)
+    label = PROBLEM_LABELS.get(action, action)
+    await callback.message.answer(
+        f"Вы выбрали: <b>{escape(label)}</b>\n\n"
+        "Можете <b>описать подробнее</b> или нажать <b>Пропустить</b> — без дополнительного текста.",
+        parse_mode="HTML",
+        reply_markup=problem_followup_keyboard(),
+    )
     await callback.answer()
 
 
@@ -1062,6 +1108,7 @@ async def manager_menu_handler(message: Message) -> None:
     t = (message.text or "").strip()
     uid = message.from_user.id
     waiting_for_comment.discard(uid)
+    user_pending_problem.pop(uid, None)
     me = await bot.get_me()
     if t == pulse_model.BTN_REPORT:
         await message.answer(
@@ -1100,50 +1147,3 @@ async def manager_menu_handler(message: Message) -> None:
     elif t == pulse_model.BTN_CONNECT:
         await message.answer(
             pulse_model.text_connect_point(me.username),
-            parse_mode="HTML",
-            reply_markup=pulse_model.manager_menu_reply_markup(),
-            disable_web_page_preview=True,
-        )
-
-
-@dp.message(F.text)
-async def comment_handler(message: Message) -> None:
-    if message.chat.type != "private":
-        return
-    if not message.text or message.text.startswith("/"):
-        return
-    user_id = message.from_user.id
-    if user_id not in waiting_for_comment:
-        return
-
-    data = await load_data()
-    restaurant = restaurant_label_for_log(data, user_id)
-    comment = message.text
-    print("------------")
-    print(f"LOG comment user={user_id} rest={restaurant} text={comment!r}")
-    print("------------")
-    await log_feedback_event(
-        {
-            "event": "comment",
-            "user_id": user_id,
-            "restaurant_chat_id": user_linked_chat.get(user_id),
-            "restaurant_label": restaurant,
-            "organization_id": org_id_for_restaurant_chat(data, user_linked_chat.get(user_id)),
-            "comment": comment,
-        }
-    )
-
-    waiting_for_comment.discard(user_id)
-    finish_private_flow(user_id)
-    await answer_private_flow_end(message, user_id, "Спасибо за честную обратную связь ❤️")
-
-
-async def main() -> None:
-    asyncio.create_task(scheduler_loop())
-    me = await bot.get_me()
-    print("Бот:", me.username, "| ADMIN_IDS:", sorted(ADMIN_IDS))
-    await dp.start_polling(bot)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
