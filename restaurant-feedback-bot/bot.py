@@ -1147,3 +1147,64 @@ async def manager_menu_handler(message: Message) -> None:
     elif t == pulse_model.BTN_CONNECT:
         await message.answer(
             pulse_model.text_connect_point(me.username),
+            parse_mode="HTML",
+            reply_markup=pulse_model.manager_menu_reply_markup(),
+            disable_web_page_preview=True,
+        )
+
+
+@dp.message(F.text)
+async def comment_handler(message: Message) -> None:
+    if message.chat.type != "private":
+        return
+    if not message.text or message.text.startswith("/"):
+        return
+    user_id = message.from_user.id
+    if user_id not in waiting_for_comment:
+        return
+
+    data = await load_data()
+    restaurant = restaurant_label_for_log(data, user_id)
+    comment = message.text
+    rest_chat = user_linked_chat.get(user_id)
+    org_id = org_id_for_restaurant_chat(data, rest_chat)
+    pending = user_pending_problem.pop(user_id, None)
+
+    if pending:
+        await log_feedback_event(
+            {
+                "event": "problem",
+                "user_id": user_id,
+                "restaurant_chat_id": rest_chat,
+                "restaurant_label": restaurant,
+                "organization_id": org_id,
+                "problem": pending,
+                "comment": comment,
+            }
+        )
+    else:
+        await log_feedback_event(
+            {
+                "event": "comment",
+                "user_id": user_id,
+                "restaurant_chat_id": rest_chat,
+                "restaurant_label": restaurant,
+                "organization_id": org_id,
+                "comment": comment,
+            }
+        )
+
+    waiting_for_comment.discard(user_id)
+    finish_private_flow(user_id)
+    await answer_private_flow_end(message, user_id, "Спасибо за честную обратную связь ❤️")
+
+
+async def main() -> None:
+    asyncio.create_task(scheduler_loop())
+    me = await bot.get_me()
+    print("Бот:", me.username, "| ADMIN_IDS:", sorted(ADMIN_IDS))
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
