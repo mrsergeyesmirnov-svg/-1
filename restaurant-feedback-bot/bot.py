@@ -203,6 +203,8 @@ user_private_slug: dict[int, str] = {}
 waiting_for_comment: set[int] = set()
 # выбранная тема проблемы до «отправить так» / уточнения текстом
 user_pending_problem: dict[int, str] = {}
+# выбранная точка для отчёта (chat_id или "all")
+user_report_pick: dict[int, str] = {}
 
 
 # В группе при /start — тот же текст, что на лендинге (в личке при опросе не дублируем)
@@ -1114,11 +1116,34 @@ async def manager_menu_handler(message: Message) -> None:
     user_pending_problem.pop(uid, None)
     me = await bot.get_me()
     if t == pulse_model.BTN_REPORT:
-        await message.answer(
-            "<b>Отчёт</b>\n\nВыберите период:",
-            parse_mode="HTML",
-            reply_markup=report_pulse.report_period_keyboard(),
+        data = await load_data()
+        scope = report_pulse.chat_scope_for_user(
+            data, uid, is_global_admin=is_global_admin(uid)
         )
+        if not scope:
+            await message.answer(
+                "Нет подключённых точек для отчёта.",
+                reply_markup=pulse_model.manager_menu_reply_markup(),
+            )
+            return
+        if is_global_admin(uid) and len(scope) > 1:
+            await message.answer(
+                "<b>Отчёт</b>\n\nВыберите ресторан (точку):",
+                parse_mode="HTML",
+                reply_markup=report_pulse.report_location_keyboard(
+                    scope, include_all=True
+                ),
+            )
+        else:
+            if len(scope) == 1:
+                user_report_pick[uid] = scope[0][0]
+            else:
+                user_report_pick.pop(uid, None)
+            await message.answer(
+                "<b>Отчёт</b>\n\nВыберите период:",
+                parse_mode="HTML",
+                reply_markup=report_pulse.report_period_keyboard(),
+            )
     elif t == pulse_model.BTN_SUBSCRIPTION:
         data = await load_data()
         if is_global_admin(uid) and not pulse_model.manager_profiles(data, uid):
@@ -1156,6 +1181,33 @@ async def manager_menu_handler(message: Message) -> None:
         )
 
 
+@dp.callback_query(F.data.startswith("report_r:"))
+async def report_location_handler(callback: CallbackQuery) -> None:
+    if callback.message.chat.type != "private":
+        await callback.answer()
+        return
+    uid = callback.from_user.id
+    if not is_global_admin(uid):
+        await callback.answer("Доступно только главному администратору.", show_alert=True)
+        return
+    pick = (callback.data or "").split(":", 1)[-1]
+    if pick == "__skip__":
+        await callback.answer("Смотрите полный список чатов: /admin", show_alert=True)
+        return
+    data = await load_data()
+    scope = report_pulse.chat_scope_for_user(data, uid, is_global_admin=True)
+    if pick != "all" and not any(str(cid) == pick for cid, _ in scope):
+        await callback.answer("Точка не найдена.", show_alert=True)
+        return
+    user_report_pick[uid] = pick
+    await callback.answer()
+    await callback.message.answer(
+        "<b>Отчёт</b>\n\nТеперь выберите период:",
+        parse_mode="HTML",
+        reply_markup=report_pulse.report_period_keyboard(),
+    )
+
+
 @dp.callback_query(F.data.startswith("report_p:"))
 async def report_period_handler(callback: CallbackQuery) -> None:
     if callback.message.chat.type != "private":
@@ -1170,6 +1222,10 @@ async def report_period_handler(callback: CallbackQuery) -> None:
     if period not in (report_pulse.PERIOD_SHIFT, report_pulse.PERIOD_WEEK, report_pulse.PERIOD_MONTH):
         await callback.answer()
         return
+    pick = user_report_pick.pop(uid, None)
+    if is_global_admin(uid) and pick is None:
+        await callback.answer("Сначала выберите ресторан.", show_alert=True)
+        return
     await callback.answer("Собираю отчёт…")
     parts = await report_pulse.build_reports_for_manager(
         data,
@@ -1178,6 +1234,7 @@ async def report_period_handler(callback: CallbackQuery) -> None:
         is_global_admin=is_global_admin(uid),
         tz_name=DEFAULT_TZ,
         jsonl_path=FEEDBACK_LOG_PATH,
+        selected_chat=pick,
     )
     mk = pulse_model.manager_menu_reply_markup()
     for i, chunk in enumerate(parts):
