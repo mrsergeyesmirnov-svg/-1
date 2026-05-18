@@ -65,6 +65,46 @@ def report_period_keyboard():
     )
 
 
+def report_location_keyboard(
+    scope: list[tuple[str, str]],
+    *,
+    include_all: bool = False,
+) -> Any:
+    """Выбор точки перед периодом (для главного админа)."""
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    rows: list[list] = []
+    if include_all and len(scope) > 1:
+        rows.append(
+            [InlineKeyboardButton(text="📊 Все точки", callback_data="report_r:all")]
+        )
+    for cid, title in scope[:20]:
+        label = title if len(title) <= 36 else title[:33] + "…"
+        rows.append(
+            [InlineKeyboardButton(text=f"📍 {label}", callback_data=f"report_r:{cid}")]
+        )
+    if len(scope) > 20:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="… остальные в /admin",
+                    callback_data="report_r:__skip__",
+                )
+            ]
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def narrow_scope(
+    scope: list[tuple[str, str]],
+    selected: str | None,
+) -> list[tuple[str, str]]:
+    """selected: None — как есть; 'all' — все; иначе один chat_id."""
+    if not selected or selected == "all":
+        return scope
+    return [(cid, title) for cid, title in scope if str(cid) == str(selected)]
+
+
 def chat_scope_for_user(
     data: dict[str, Any],
     user_id: int,
@@ -378,8 +418,10 @@ async def build_reports_for_manager(
     is_global_admin: bool,
     tz_name: str,
     jsonl_path: Path | None,
+    selected_chat: str | None = None,
 ) -> list[str]:
-    scope = chat_scope_for_user(data, user_id, is_global_admin=is_global_admin)
+    full_scope = chat_scope_for_user(data, user_id, is_global_admin=is_global_admin)
+    scope = narrow_scope(full_scope, selected_chat)
     if not scope:
         return [
             "Нет привязанных точек для отчёта. "
@@ -402,7 +444,8 @@ async def build_reports_for_manager(
             "Попросите команду пройти check-in из рабочей группы (кнопка «Оценить смену в личке»)."
         ]
 
-    if len(scope) == 1:
+    multi = len(scope) > 1 and (selected_chat in (None, "all"))
+    if not multi:
         cid, title = scope[0]
         body = build_report_html(
             period_label=plabel,
