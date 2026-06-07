@@ -1951,7 +1951,7 @@ async def problems_callback_handler(callback: CallbackQuery) -> None:
         )
         return
 
-        if action == "sync":
+    if action == "sync":
         await callback.answer("Обновляю…")
         rec = chat_record(data, chat_id) or {}
         changes = await problems_pulse.sync_problems_from_period(
@@ -1981,6 +1981,8 @@ async def problems_callback_handler(callback: CallbackQuery) -> None:
         await callback.message.answer(mgr_text, parse_mode="HTML")
         await _show_problems_for_manager(callback.message, uid, chat_id)
         return
+
+    if action == "v" and len(parts) > 2:
         
     if action == "v" and len(parts) > 2:
         pid = parts[2]
