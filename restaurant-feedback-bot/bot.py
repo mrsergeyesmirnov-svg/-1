@@ -1951,7 +1951,7 @@ async def problems_callback_handler(callback: CallbackQuery) -> None:
         )
         return
 
-    if action == "sync":
+        if action == "sync":
         await callback.answer("Обновляю…")
         rec = chat_record(data, chat_id) or {}
         changes = await problems_pulse.sync_problems_from_period(
@@ -1963,25 +1963,25 @@ async def problems_callback_handler(callback: CallbackQuery) -> None:
             days=problems_pulse.SIGNALS_SYNC_DAYS,
         )
         await save_data(data)
-    active_rows = await problems_pulse.list_problems_for_chat(data, chat_id)
-    archive = await problems_pulse.list_problems_for_chat(
-        data, chat_id, view=problems_pulse.VIEW_ARCHIVE
-    )
-    title = rec.get("title", str(chat_id))
-    notes = [
-        (f"Новая: {r.title}" if c else f"Обновлено: {r.title}")
-        for r, c in changes
-    ]
-    mgr_text = problems_pulse.format_manager_problems_report(
-        str(title), active_rows, sync_notes=notes or ["Без изменений по порогам"]
-    )
-    await _notify_managers_problem_report(
-        data, chat_id, mgr_text, exclude_uid=uid, archive_count=len(archive)
-    )
+        active_rows = await problems_pulse.list_problems_for_chat(data, chat_id)
+        archive = await problems_pulse.list_problems_for_chat(
+            data, chat_id, view=problems_pulse.VIEW_ARCHIVE
+        )
+        title = rec.get("title", str(chat_id))
+        notes = [
+            (f"Новая: {r.title}" if c else f"Обновлено: {r.title}")
+            for r, c in changes
+        ]
+        mgr_text = problems_pulse.format_manager_problems_report(
+            str(title), active_rows, sync_notes=notes or ["Без изменений по порогам"]
+        )
+        await _notify_managers_problem_report(
+            data, chat_id, mgr_text, exclude_uid=uid, archive_count=len(archive)
+        )
         await callback.message.answer(mgr_text, parse_mode="HTML")
         await _show_problems_for_manager(callback.message, uid, chat_id)
         return
-
+        
     if action == "v" and len(parts) > 2:
         pid = parts[2]
         prob = await problems_pulse.get_problem(data, pid)
