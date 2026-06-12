@@ -1,0 +1,40 @@
+Лендинг PulseTeam — файл index.html
+
+═══════════════════════════════════════════════════════
+САМЫЙ ПРОСТОЙ СПОСОБ (если не видите папку .cursor)
+═══════════════════════════════════════════════════════
+
+1) Нажмите Win+R
+2) Скопируйте и вставьте целиком, нажмите Enter — откроется папка с лендингом:
+
+   %USERPROFILE%\.cursor\projects\empty-window\pulse-team-landing
+
+3) Дважды щёлкните по файлу index.html — откроется в браузере.
+
+
+═══════════════════════════════════════════════════════
+СКОПИРОВАТЬ РЯДОМ С БОТОМ (PowerShell)
+═══════════════════════════════════════════════════════
+
+Откройте PowerShell и выполните одну строку:
+
+powershell -NoProfile -Command "$d=Join-Path $env:USERPROFILE 'Desktop\restaurant-feedback-bot\landing'; New-Item -ItemType Directory -Force -Path $d | Out-Null; Copy-Item -Force (Join-Path $env:USERPROFILE '.cursor\projects\empty-window\pulse-team-landing\index.html') (Join-Path $d 'index.html'); explorer $d"
+
+После этого лендинг будет здесь:
+   %USERPROFILE%\Desktop\restaurant-feedback-bot\landing\index.html
+
+
+═══════════════════════════════════════════════════════
+ПОЛНЫЙ ПУТЬ (как текст)
+═══════════════════════════════════════════════════════
+
+   C:\Users\eugen\.cursor\projects\empty-window\pulse-team-landing\index.html
+
+Если имя пользователя другое — замените eugen на своё или используйте %USERPROFILE% как выше.
+
+
+═══════════════════════════════════════════════════════
+В CURSOR
+═══════════════════════════════════════════════════════
+
+Ctrl+O (Open File) → вставьте путь из блока выше → Enter.
