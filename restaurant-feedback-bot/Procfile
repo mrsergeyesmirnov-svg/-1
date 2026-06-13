@@ -1,2 +1,0 @@
-# Основной pulse-бот (смены). На Railway задайте переменные BOT_TOKEN, ADMIN_IDS.
-worker: python bot.py
