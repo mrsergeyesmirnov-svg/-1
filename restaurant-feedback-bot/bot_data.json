@@ -1,0 +1,40 @@
+{
+  "chats": {
+    "-5126869718": {
+      "title": "italy",
+      "type": "group",
+      "added_at": "2026-05-11T03:41:47+03:00",
+      "auto_times": [
+        "03:42"
+      ],
+      "timezone": "Europe/Moscow",
+      "organization_id": "org_0c01ed74"
+    },
+    "-5180581902": {
+      "title": "серёжа, Смена Фидбек и янковский",
+      "type": "group",
+      "added_at": "2026-05-12T23:35:07+03:00",
+      "auto_times": [
+        "23:40"
+      ],
+      "timezone": "Europe/Moscow",
+      "active": true,
+      "organization_id": "org_6ed8dbe2"
+    }
+  },
+  "private_slugs": {},
+  "last_auto_sent": {},
+  "organizations": {
+    "org_0c01ed74": {
+      "name": "Организация (миграция)",
+      "subscription": "active",
+      "created_at": "2026-05-12T23:22:37+03:00"
+    },
+    "org_6ed8dbe2": {
+      "name": "МОДЖО",
+      "subscription": "active",
+      "created_at": "2026-05-12T23:34:38+03:00"
+    }
+  },
+  "managers": {}
+}
