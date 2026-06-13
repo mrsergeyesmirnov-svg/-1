@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PulseTeam — pitch deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,400;0,500;0,600;0,700;0,800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #faf7f3;
+      --surface: #ffffff;
+      --ink: #1c1917;
+      --muted: #57534e;
+      --line: #e7e2dc;
+      --accent: #ff5a1f;
+      --accent-soft: rgba(255, 90, 31, 0.14);
+      --calm: #0d9488;
+      --calm-soft: rgba(13, 148, 136, 0.12);
+      --radius-lg: 24px;
+      --radius-md: 16px;
+      --shadow: 0 4px 24px rgba(28, 25, 23, 0.07);
+      --max: 960px;
+      --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: "Mulish", system-ui, sans-serif;
+      font-size: clamp(15px, 1.35vw, 18px);
+      line-height: 1.55;
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .deck {
+      height: 100vh;
+      overflow-y: auto;
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+    }
+
+    .slide {
+      min-height: 100vh;
+      scroll-snap-align: start;
+      padding: clamp(32px, 5vw, 56px) clamp(24px, 4vw, 48px) 100px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide::before {
+      content: "";
+      position: absolute;
+      top: -15%;
+      right: -8%;
+      width: min(45vw, 420px);
+      aspect-ratio: 1;
+      background: radial-gradient(circle, var(--accent-soft) 0%, transparent 68%);
+      pointer-events: none;
+    }
+    .slide::after {
+      content: "";
+      position: absolute;
+      bottom: 5%;
+      left: -12%;
+      width: min(38vw, 340px);
+      aspect-ratio: 1;
+      background: radial-gradient(circle, var(--calm-soft) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .slide-inner {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: var(--max);
+      margin: 0 auto;
+    }
+
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px clamp(20px, 3vw, 40px);
+      background: rgba(250, 247, 243, 0.88);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--line);
+    }
+    .logo { font-weight: 800; font-size: 1rem; letter-spacing: -0.02em; color: var(--ink); }
+    .logo span { color: var(--accent); }
+    .counter { font-size: 0.8125rem; font-weight: 700; color: var(--muted); }
+
+    .eyebrow {
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--calm);
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4.5vw, 3.25rem);
+      font-weight: 800;
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+      margin: 0 0 20px;
+    }
+    h1 .accent { color: var(--accent); }
+
+    h2 {
+      font-size: clamp(1.65rem, 3vw, 2.35rem);
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      line-height: 1.12;
+      margin: 0 0 20px;
+    }
+
+    .lead {
+      font-size: 1.08rem;
+      color: var(--muted);
+      max-width: 38em;
+      margin: 0 0 28px;
+    }
+
+    .list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 10px;
+    }
+    .list li {
+      position: relative;
+      padding-left: 28px;
+      color: var(--ink);
+    }
+    .list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.38em;
+      width: 10px;
+      height: 10px;
+      border-radius: 4px;
+      background: var(--accent-soft);
+      border: 2px solid var(--accent);
+    }
+    .list.muted li { color: var(--muted); font-size: 0.95rem; }
+    .list.muted li::before {
+      border-color: var(--calm);
+      background: var(--calm-soft);
+    }
+
+    .grid-2 {
+      display: grid;
+      gap: 20px;
+    }
+    @media (min-width: 720px) {
+      .grid-2 { grid-template-columns: 1fr 1fr; gap: 24px; }
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 22px 24px;
+      box-shadow: var(--shadow);
+    }
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .card p { margin: 0; font-size: 0.92rem; color: var(--muted); line-height: 1.5; }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .pill {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .steps {
+      display: grid;
+      gap: 16px;
+      margin-top: 8px;
+    }
+    .step {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 16px;
+      align-items: start;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+    }
+    .step-num {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+    }
+    .step strong { display: block; margin-bottom: 4px; font-size: 0.98rem; }
+    .step span { font-size: 0.88rem; color: var(--muted); }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 14px 24px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.9375rem;
+      text-decoration: none;
+      transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(255, 90, 31, 0.35);
+    }
+    .btn-primary:hover { transform: translateY(-2px); }
+    .btn-ghost {
+      background: var(--surface);
+      color: var(--ink);
+      border: 2px solid var(--line);
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      padding: 12px clamp(20px, 3vw, 40px);
+      font-size: 0.75rem;
+      color: var(--muted);
+      background: rgba(250, 247, 243, 0.92);
+      border-top: 1px solid var(--line);
+      text-align: center;
+    }
+    .hint kbd {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      font-family: inherit;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+
+    @media print {
+      .topbar, .hint { display: none; }
+      .deck { height: auto; overflow: visible; scroll-snap-type: none; }
+      .slide { min-height: auto; page-break-after: always; padding: 48px 40px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo">Pulse<span>Team</span></div>
+    <div class="counter" id="counter">1 / 12</div>
+  </header>
+
+  <main class="deck" id="deck" tabindex="0">
+    <!-- 1 -->
+    <section class="slide" data-i="1">
+      <div class="slide-inner">
+        <p class="eyebrow">Pitch deck · HoReCa</p>
+        <h1><span class="accent">PulseTeam</span></h1>
+        <p class="lead" style="font-size:1.15rem;color:var(--ink);max-width:32em;">
+          Система аналитики рабочей среды и настроения персонала для ресторанов и сетей.
+          Сигналы о выгорании и напряжённых сменах — до удара по сервису и выручке.
+        </p>
+        <p class="lead">Telegram-first · без отдельного приложения для линии · AI-инсайты</p>
+        <div class="pill-row">
+          <span class="pill">&lt;10 с на check-in</span>
+          <span class="pill">пилот за короткий цикл</span>
+          <span class="pill">сеть и точка</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section class="slide" data-i="2">
+      <div class="slide-inner">
+        <p class="eyebrow">Проблема</p>
+        <h2>Команда «ломается» раньше, чем это видно в цифрах смены</h2>
+        <p class="lead">Текучка, выгорание, токсичные паттерны, потеря мотивации — сервис и маржа уже просели, когда руководство начинает разбираться.</p>
+        <ul class="list muted">
+          <li>Сотрудник выгорает и уходит · менеджер давит на смену · конфликты дозревают до кассы и отзывов</li>
+          <li>Классический HR и редкие опросы не дают ежедневной картины по сменам — только постфактум</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section class="slide" data-i="3">
+      <div class="slide-inner">
+        <p class="eyebrow">Рынок</p>
+        <h2>Нет лёгкого daily-инструмента под операционку ресторана</h2>
+        <div class="grid-2" style="margin-top:8px;">
+          <div class="card">
+            <h3>Что есть сейчас</h3>
+            <p>Тяжёлые HRM и корпоративные платформы плохо приживаются у линейного персонала. Разовые опросы не ловят динамику смен.</p>
+          </div>
+          <div class="card">
+            <h3>Что нужно рынку</h3>
+            <p>Быстро, с телефона, каждый день. Минимум трения для сотрудника. Понятные инсайты для владельца и управляющего. Масштаб на сеть без второго «проекта внедрения».</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section class="slide" data-i="4">
+      <div class="slide-inner">
+        <p class="eyebrow">Решение</p>
+        <h2>Короткий check-in в Telegram + аналитика для руководства</h2>
+        <p class="lead">PulseTeam собирает регулярные сигналы о настроении и напряжении команды, качестве смен и вовлечённости — и превращает их в дашборд, алерты и AI-сводки.</p>
+        <ul class="list">
+          <li>Динамика по менеджерам и точкам · повторяющиеся «боли» смен</li>
+          <li>Картина по сети вместо разрозненных отзывов и чатов</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 5 -->
+    <section class="slide" data-i="5">
+      <div class="slide-inner">
+        <p class="eyebrow">Продукт</p>
+        <h2>Ценность для линии, управления и сети</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>Сотрудники</h3>
+            <p>Pulse-check и анонимная обратная связь. Telegram без отдельного приложения. Меньше 10 секунд на ответ — без обучения «ещё одной системе».</p>
+          </div>
+          <div class="card">
+            <h3>Управляющие</h3>
+            <p>Дашборд по сменам, проблемные сигналы, weekly-отчёты, heatmap настроения, сравнение филиалов.</p>
+          </div>
+          <div class="card" style="grid-column:1/-1;">
+            <h3>Сеть</h3>
+            <p>Multi-location аналитика, роли, единая модель данных по ресторанам.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section class="slide" data-i="6">
+      <div class="slide-inner">
+        <p class="eyebrow">Как работает</p>
+        <h2>От подключения до инсайтов</h2>
+        <div class="steps">
+          <div class="step"><div class="step-num">1</div><div><strong>Подключение</strong><span>Структура команды и роли.</span></div></div>
+          <div class="step"><div class="step-num">2</div><div><strong>Check-in в Telegram</strong><span>5–10 секунд до или после смены.</span></div></div>
+          <div class="step"><div class="step-num">3</div><div><strong>Анализ</strong><span>Негативные тренды и узкие места.</span></div></div>
+          <div class="step"><div class="step-num">4</div><div><strong>Инсайты</strong><span>Дашборд, отчёты, сигналы о рисках.</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7 -->
+    <section class="slide" data-i="7">
+      <div class="slide-inner">
+        <p class="eyebrow">Для руководства</p>
+        <h2>Не сырые ответы — смысл на одном экране</h2>
+        <ul class="list">
+          <li>Проблемные смены и просадки настроения · риски выгорания</li>
+          <li>Зоны ответственности менеджеров по обратной связи</li>
+          <li>Heatmap по точкам сети · AI summary по неделе вместо ручного разбора</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 8 -->
+    <section class="slide" data-i="8">
+      <div class="slide-inner">
+        <p class="eyebrow">Аудитория</p>
+        <h2>Кто платит и почему линия отвечает</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>Сегменты</h3>
+            <p>Рестораны и сети, кофейни, бары, dark kitchen, delivery-команды.</p>
+            <p style="margin-top:10px;">Владелец — текучка и сервис. Управляющий — атмосфера смен. HR / опердиректор — вовлечённость.</p>
+          </div>
+          <div class="card">
+            <h3>Почему отвечают</h3>
+            <p>Привычный Telegram, мало вопросов, можно анонимно. Не конкурирует с тяжёлыми HR-системами.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9 -->
+    <section class="slide" data-i="9">
+      <div class="slide-inner">
+        <p class="eyebrow">Монетизация</p>
+        <h2>SaaS + подключение сети</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>Тарифы (ориентиры)</h3>
+            <p>Подключение сети — от <strong>30 000 ₽</strong>.</p>
+            <p style="margin-top:8px;">До 15 сотр. — <strong>4 900 ₽/мес</strong> · 16–40 — <strong>9 900 ₽/мес</strong> · 40+ индивидуально.</p>
+          </div>
+          <div class="card">
+            <h3>Масштаб (иллюстрация)</h3>
+            <p>200 точек × ~8 000 ₽ ≈ <strong>1,6 млн ₽</strong> MRR. 1 000 точек — порядка <strong>8 млн ₽</strong> MRR при сопоставимом ARPA.</p>
+            <p style="margin-top:8px;">Высокая маржа SaaS при умеренной нагрузке на инфраструктуру.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 10 -->
+    <section class="slide" data-i="10">
+      <div class="slide-inner">
+        <p class="eyebrow">Тайминг · отстройка</p>
+        <h2>Почему сейчас и почему не «ещё один HR-SaaS»</h2>
+        <div class="grid-2">
+          <ul class="list">
+            <li>Кадровый дефицит и текучка в HoReCa</li>
+            <li>Telegram уже стандарт на сменах</li>
+            <li>AI удешевляет разбор сигналов</li>
+            <li>Фокус на retention, не только найм</li>
+          </ul>
+          <ul class="list muted">
+            <li>Узкий фокус: смены, атмосфера, операционная аналитика</li>
+            <li>Нативный Telegram, ежедневный сценарий</li>
+            <li>AI поверх регулярных коротких данных</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 11 -->
+    <section class="slide" data-i="11">
+      <div class="slide-inner">
+        <p class="eyebrow">Видение</p>
+        <h2>От обратной связи к predictive-слою</h2>
+        <p class="lead">Прогноз ухода, рисковые смены, связь настроения с операционными метриками — дальше AI-assistant для управленческих решений в ресторане.</p>
+      </div>
+    </section>
+
+    <!-- 12 -->
+    <section class="slide" data-i="12">
+      <div class="slide-inner">
+        <p class="eyebrow">Запрос · контакты</p>
+        <h2>Пилоты, партнёры, smart money, доступ к сетям</h2>
+        <p class="lead">Ближайший фокус: серия пилотов → кейсы → рефералы внутри отрасли; затем региональные сети и enterprise-формат.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://t.me/plsbuyit" target="_blank" rel="noopener">Заявки · t.me/plsbuyit</a>
+          <a class="btn btn-ghost" href="https://t.me/smena_feedback_bot" target="_blank" rel="noopener">Бот линии · smena_feedback_bot</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="hint">
+    <kbd>↓</kbd> <kbd>Space</kbd> следующий слайд · <kbd>↑</kbd> предыдущий · <kbd>F</kbd> полный экран · Печать в PDF: Ctrl+P
+  </div>
+
+  <script>
+    (function () {
+      var deck = document.getElementById("deck");
+      var slides = [].slice.call(document.querySelectorAll(".slide"));
+      var counter = document.getElementById("counter");
+      var n = slides.length;
+
+      function idx() {
+        var top = deck.scrollTop + window.innerHeight * 0.35;
+        for (var i = 0; i < n; i++) {
+          var s = slides[i];
+          if (s.offsetTop + s.offsetHeight > top) return i;
+        }
+        return n - 1;
+      }
+
+      function go(i) {
+        i = Math.max(0, Math.min(n - 1, i));
+        slides[i].scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      function updateCounter() {
+        counter.textContent = idx() + 1 + " / " + n;
+      }
+
+      deck.addEventListener("scroll", function () {
+        requestAnimationFrame(updateCounter);
+      });
+      window.addEventListener("resize", updateCounter);
+      updateCounter();
+
+      deck.addEventListener("keydown", function (e) {
+        var i = idx();
+        if (e.key === "ArrowDown" || e.key === "PageDown" || e.key === " " || e.key === "ArrowRight") {
+          e.preventDefault();
+          go(i + 1);
+        } else if (e.key === "ArrowUp" || e.key === "PageUp" || e.key === "ArrowLeft") {
+          e.preventDefault();
+          go(i - 1);
+        } else if (e.key === "f" || e.key === "F") {
+          e.preventDefault();
+          if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(function () {});
+          else document.exitFullscreen();
+        }
+      });
+      deck.focus({ preventScroll: true });
+    })();
+  </script>
+</body>
+</html>
