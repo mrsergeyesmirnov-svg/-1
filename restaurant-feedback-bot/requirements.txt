@@ -1,5 +1,0 @@
-aiogram>=3.13,<4
-python-dotenv>=1.0,<2
-tzdata>=2024.1
-asyncpg>=0.29,<0.31
-fpdf2>=2.8,<3
