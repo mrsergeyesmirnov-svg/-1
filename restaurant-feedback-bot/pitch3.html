@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pulse Team — питч: система управления сменой</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,400;0,600;0,700;0,800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #faf7f3;
+      --surface: #ffffff;
+      --ink: #1c1917;
+      --muted: #57534e;
+      --line: #e7e2dc;
+      --accent: #ff5a1f;
+      --accent-soft: rgba(255, 90, 31, 0.14);
+      --calm: #0d9488;
+      --calm-soft: rgba(13, 148, 136, 0.12);
+      --radius-lg: 24px;
+      --radius-md: 16px;
+      --shadow: 0 4px 24px rgba(28, 25, 23, 0.07);
+      --max: 980px;
+      --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: "Mulish", system-ui, sans-serif;
+      font-size: clamp(15px, 1.35vw, 18px);
+      line-height: 1.55;
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+    .deck {
+      height: 100vh;
+      overflow-y: auto;
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+    }
+    .slide {
+      min-height: 100vh;
+      scroll-snap-align: start;
+      padding: clamp(32px, 5vw, 56px) clamp(24px, 4vw, 48px) 100px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .slide::before {
+      content: "";
+      position: absolute;
+      top: -15%;
+      right: -8%;
+      width: min(45vw, 420px);
+      aspect-ratio: 1;
+      background: radial-gradient(circle, var(--accent-soft) 0%, transparent 68%);
+      pointer-events: none;
+    }
+    .slide::after {
+      content: "";
+      position: absolute;
+      bottom: 5%;
+      left: -12%;
+      width: min(38vw, 340px);
+      aspect-ratio: 1;
+      background: radial-gradient(circle, var(--calm-soft) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .slide-inner {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: var(--max);
+      margin: 0 auto;
+    }
+    .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px clamp(20px, 3vw, 40px);
+      background: rgba(250, 247, 243, 0.88);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--line);
+    }
+    .logo { font-weight: 800; font-size: 1rem; letter-spacing: -0.02em; }
+    .logo span { color: var(--accent); }
+    .counter { font-size: 0.8125rem; font-weight: 700; color: var(--muted); }
+    .eyebrow {
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--calm);
+      margin-bottom: 14px;
+    }
+    h1 {
+      font-size: clamp(2rem, 4.5vw, 3.1rem);
+      font-weight: 800;
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+      margin: 0 0 20px;
+    }
+    h1 .accent { color: var(--accent); }
+    h2 {
+      font-size: clamp(1.55rem, 3vw, 2.2rem);
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      line-height: 1.12;
+      margin: 0 0 20px;
+    }
+    .lead {
+      font-size: 1.08rem;
+      color: var(--muted);
+      max-width: 40em;
+      margin: 0 0 28px;
+    }
+    .lead strong { color: var(--ink); }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .pill {
+      font-size: 0.8125rem;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      color: var(--ink);
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 720px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 20px 22px;
+      box-shadow: var(--shadow);
+    }
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+    .card p { margin: 0; font-size: 0.9375rem; color: var(--muted); }
+    .card.was { border-left: 4px solid var(--muted); opacity: 0.92; }
+    .card.now { border-left: 4px solid var(--accent); }
+    .card.ops { border-left: 4px solid var(--calm); }
+    .layer-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 0.8125rem;
+      margin-bottom: 10px;
+    }
+    .timeline {
+      display: grid;
+      gap: 0;
+      margin-top: 8px;
+    }
+    .tl-row {
+      display: grid;
+      grid-template-columns: 100px 1fr;
+      gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .tl-row:last-child { border-bottom: none; }
+    .tl-time {
+      font-size: 0.8125rem;
+      font-weight: 800;
+      color: var(--accent);
+      padding-top: 2px;
+    }
+    .tl-body strong { display: block; margin-bottom: 4px; }
+    .tl-body span { font-size: 0.9rem; color: var(--muted); }
+    .loop {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin: 20px 0;
+      font-size: 0.9375rem;
+      font-weight: 700;
+    }
+    .loop span {
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+    }
+    .loop .arrow { color: var(--accent); border: none; background: none; padding: 0; }
+    .hero-dark {
+      background: linear-gradient(135deg, #1c1917 0%, #292524 100%);
+      color: #fff;
+      border-radius: var(--radius-lg);
+      padding: 32px 28px;
+      margin-bottom: 20px;
+    }
+    .hero-dark p { margin: 0; color: rgba(255,255,255,0.88); font-size: 1.05rem; max-width: 48ch; }
+    .list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 10px;
+    }
+    .list li {
+      position: relative;
+      padding-left: 28px;
+    }
+    .list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.55em;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .list.muted li { color: var(--muted); }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 14px 24px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.9375rem;
+      text-decoration: none;
+      transition: transform 0.2s var(--ease);
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(255, 90, 31, 0.35);
+    }
+    .btn-ghost {
+      background: var(--surface);
+      color: var(--ink);
+      border: 2px solid var(--line);
+    }
+    .hint {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 20;
+      padding: 12px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      background: rgba(250, 247, 243, 0.92);
+      border-top: 1px solid var(--line);
+      text-align: center;
+    }
+    .hint kbd {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      font-family: inherit;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+    @media print {
+      .topbar, .hint { display: none; }
+      .deck { height: auto; overflow: visible; scroll-snap-type: none; }
+      .slide { min-height: auto; page-break-after: always; padding: 48px 40px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo">Pulse<span>Team</span> <span style="font-weight:600;color:var(--muted);font-size:0.75rem;">· pitch v3</span></div>
+    <div class="counter" id="counter">1 / 11</div>
+  </header>
+
+  <main class="deck" id="deck" tabindex="0">
+
+    <!-- 1 -->
+    <section class="slide" data-i="1">
+      <div class="slide-inner">
+        <p class="eyebrow">HoReCa · Telegram-first</p>
+        <h1>Мы выросли из <span class="accent">сбора отзывов</span> в систему управления сменой</h1>
+        <div class="hero-dark">
+          <p>Один бот в Telegram: пульс команды, операционный день, кухня и аналитика для руководства — без второго приложения и без «ещё одного внедрения на полгода».</p>
+        </div>
+        <div class="pill-row">
+          <span class="pill">зал + кухня</span>
+          <span class="pill">сигнал → действие → ответ команде</span>
+          <span class="pill">пилот 14 дней</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 Эволюция -->
+    <section class="slide" data-i="2">
+      <div class="slide-inner">
+        <p class="eyebrow">Наш путь</p>
+        <h2>От «как прошла смена?» — к полному циклу управления точкой</h2>
+        <div class="grid-2" style="margin-top:12px;">
+          <div class="card was">
+            <h3>Было: бот обратной связи</h3>
+            <p>Оценка после смены, кнопки «что мешало», анонимный комментарий. Полезно — но ответы умирали в переписке, руководитель не видел систему.</p>
+          </div>
+          <div class="card now">
+            <h3>Стало: Pulse Team</h3>
+            <p><strong>Четыре слоя в одном Telegram:</strong> пульс зала и кухни, операционный день (чек-листы, план, закрытие), горящие вопросы со статусами, отчёты и PDF для собственника.</p>
+          </div>
+        </div>
+        <div class="loop">
+          <span>Сигнал смены</span>
+          <span class="arrow">→</span>
+          <span>Смысл для управляющего</span>
+          <span class="arrow">→</span>
+          <span>Действие</span>
+          <span class="arrow">→</span>
+          <span>Команда видит реакцию</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 Боль -->
+    <section class="slide" data-i="3">
+      <div class="slide-inner">
+        <p class="eyebrow">Почему этого мало</p>
+        <h2>Собрать отзыв — полдела. Управлять сменой — другое</h2>
+        <p class="lead">В ресторане каждый день одновременно живут <strong>люди</strong>, <strong>процессы</strong> и <strong>цифры смены</strong>. Если инструмент закрывает только «опрос раз в неделю», половина боли остаётся в голове менеджера и в чатах.</p>
+        <div class="grid-3">
+          <div class="card">
+            <h3>Люди</h3>
+            <p>Усталость, конфликты, нехватка рук — видно поздно, когда уже текучка и просадка сервиса.</p>
+          </div>
+          <div class="card">
+            <h3>Процессы</h3>
+            <p>План не опубликовали, стоп не согласовали, смену не закрыли — узнаёте постфактум, не в моменте.</p>
+          </div>
+          <div class="card">
+            <h3>Решения</h3>
+            <p>Жалобы есть, действий нет — команда перестаёт верить, что обратная связь что-то меняет.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 Оффер -->
+    <section class="slide" data-i="4">
+      <div class="slide-inner">
+        <p class="eyebrow">Оффер</p>
+        <h2>Один Telegram — четыре слоя управления</h2>
+        <p class="lead" style="margin-bottom:20px;">Не замена iiko и не корпоративный HR. <strong>Операционная нервная система смены</strong> — от линии до собственника.</p>
+        <div class="grid-2">
+          <div class="card now">
+            <div class="layer-num">1</div>
+            <h3>Пульс команды</h3>
+            <p>Зал: оценка и «что мешало» за ~10 сек, анонимно. Кухня: стоп-лист и оценка смены шефа в личке. Два потока — одна картина.</p>
+          </div>
+          <div class="card ops">
+            <div class="layer-num">2</div>
+            <h3>Операционный день</h3>
+            <p>Чек-листы открытия и закрытия, план дня в группу, итоги вечером. Без галочек — план и закрытие не уходят. Алерт, если смену не открывали 3 дня.</p>
+          </div>
+          <div class="card ops">
+            <div class="layer-num">3</div>
+            <h3>Горящие вопросы</h3>
+            <p>Повторяющиеся темы из отметок → статусы «новая / в работе / решена». Управляющий комментирует — команда в группе видит прогресс, не сырой негатив.</p>
+          </div>
+          <div class="card now">
+            <div class="layer-num">4</div>
+            <h3>Аналитика и PDF</h3>
+            <p>Отчёты: зал, кухня или весь ресторан. Готовые выводы для планёрки, яркие комментарии, дашборд-PDF одной кнопкой. Неделя, 3 недели, календарный месяц.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 День точки -->
+    <section class="slide" data-i="5">
+      <div class="slide-inner">
+        <p class="eyebrow">Как это выглядит</p>
+        <h2>Один день на точке — без лишних созвонов</h2>
+        <div class="timeline">
+          <div class="tl-row">
+            <div class="tl-time">Утро</div>
+            <div class="tl-body">
+              <strong>Менеджер: чек-лист + план дня</strong>
+              <span>Открытие смены, план в группу. Шеф публикует стоп из лички — сразу в чат смены.</span>
+            </div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-time">Смена</div>
+            <div class="tl-body">
+              <strong>Линия и кухня работают</strong>
+              <span>Сотрудник жмёт «Рассказать в личке» — 10 секунд, без стыда и без «кабинета».</span>
+            </div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-time">Вечер</div>
+            <div class="tl-body">
+              <strong>Закрытие дня</strong>
+              <span>Чек-лист закрытия, выручка, итог в группу. Видно дисциплину смен в отчёте.</span>
+            </div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-time">Понедельник</div>
+            <div class="tl-body">
+              <strong>Управляющий получает цикл</strong>
+              <span>Горящие вопросы + сводка за 3 недели + PDF для собственника. Команда — короткий дайджест «что изменилось».</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 Для кого -->
+    <section class="slide" data-i="6">
+      <div class="slide-inner">
+        <p class="eyebrow">Роли</p>
+        <h2>Каждый видит своё — без перегруза</h2>
+        <div class="grid-3">
+          <div class="card">
+            <h3>Линия · шеф</h3>
+            <p>Телефон, привычный Telegram, секунды на ответ. Анонимность зала. Шеф — стоп и кухня без отдельного чата.</p>
+          </div>
+          <div class="card">
+            <h3>Менеджер точки</h3>
+            <p>Смена: день, стоп, кухня, план. Аналитика: отчёты, горящие вопросы, статусы и комментарий команде.</p>
+          </div>
+          <div class="card">
+            <h3>Собственник · сеть</h3>
+            <p>Сводки по точкам, PDF для совета, сравнение филиалов. Не читает чаты — видит тренды и повторяющиеся темы.</p>
+          </div>
+        </div>
+        <p class="lead" style="margin-top:20px;margin-bottom:0;font-size:0.98rem;">
+          <strong>Принцип:</strong> ищем причины проблем, а не виноватых. Обратная связь должна заканчиваться действием — иначе это просто ещё один опрос.
+        </p>
+      </div>
+    </section>
+
+    <!-- 7 Отстройка -->
+    <section class="slide" data-i="7">
+      <div class="slide-inner">
+        <p class="eyebrow">Позиционирование</p>
+        <h2>Чем мы не являемся — и почему это плюс</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>Не HR-платформа</h3>
+            <p>Не KPI, не аттестации, не «кабинет сотрудника». Узкая задача: <strong>смена, атмосфера, операционка</strong> — то, что бьёт по выручке завтра.</p>
+          </div>
+          <div class="card">
+            <h3>Не ещё один опрос</h3>
+            <p>Ежедневные короткие данные + статусы по темам + операционный день. Замкнутый цикл, а не форма раз в квартал.</p>
+          </div>
+          <div class="card">
+            <h3>Не замена учётной системы</h3>
+            <p>Не лезем в склад и кассу. Дополняем то, чего нет в iiko: <strong>настроение смены, дисциплина открытия/закрытия, голос кухни</strong>.</p>
+          </div>
+          <div class="card">
+            <h3>Не «внедрение на полгода»</h3>
+            <p>Бот в группу, роли, пилот 14 дней. Линия уже в Telegram — порог входа минимальный.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8 Экономика -->
+    <section class="slide" data-i="8">
+      <div class="slide-inner">
+        <p class="eyebrow">Экономика</p>
+        <h2>Дешевле одного ухода — дороже, чем игнорировать смену</h2>
+        <ul class="list muted" style="margin-bottom:20px;">
+          <li>Текучка линии в HoReCa — часто <strong>60–100%+</strong> в год.</li>
+          <li>Замена одного человека — ориентир <strong>40–120 тыс. ₽</strong> (подбор, ввод, ошибки на смене).</li>
+          <li>Подписка <strong>4,9–12,9 тыс. ₽/мес</strong> на точку — меньше <strong>одного</strong> цикла найма в год.</li>
+        </ul>
+        <p class="lead" style="margin:0;">
+          Удержать <strong>2–3 человека</strong> в год за счёт ранних сигналов и нормальной реакции на «горящие» темы — типично <strong>в разы</strong> выгоднее подписки. Плюс меньше срывов сервиса, которые не видны в P&amp;L сразу.
+        </p>
+      </div>
+    </section>
+
+    <!-- 9 Тарифы -->
+    <section class="slide" data-i="9">
+      <div class="slide-inner">
+        <p class="eyebrow">Монетизация</p>
+        <h2>Простая модель — масштабируется на сеть</h2>
+        <div class="grid-2">
+          <div class="card">
+            <h3>Тарифы (ориентир)</h3>
+            <p>Подключение сети — от <strong>30 000 ₽</strong>.<br /><br />
+            До 10 чел. — <strong>4 900 ₽/мес</strong><br />
+            11–25 — <strong>9 900 ₽/мес</strong><br />
+            26–40 — <strong>12 900 ₽/мес</strong><br />
+            40+ — индивидуально</p>
+          </div>
+          <div class="card">
+            <h3>Кто покупает</h3>
+            <p><strong>Владелец</strong> — текучка, стабильность, прозрачность по точкам.<br /><br />
+            <strong>Управляющий</strong> — смена под контролем без микроменеджмента в чатах.<br /><br />
+            <strong>Опердиректор сети</strong> — единый стандарт смены и сравнение филиалов.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 10 Дорожная карта -->
+    <section class="slide" data-i="10">
+      <div class="slide-inner">
+        <p class="eyebrow">Уже есть · дальше</p>
+        <h2>Продукт живой — не слайд на будущее</h2>
+        <div class="grid-2">
+          <div class="card now">
+            <h3>Уже в проде</h3>
+            <p>Check-in зала и кухни · операционный день · стоп-лист · чек-листы · горящие вопросы · отчёты зал/кухня/всё · PDF-дашборд · автосводки по понедельникам · multi-location и роли.</p>
+          </div>
+          <div class="card ops">
+            <h3>Следующий слой</h3>
+            <p>Прогноз «тяжёлых» смен и риска ухода · связка настроения с выручкой и дисциплиной · AI-подсказки «что сделать на этой неделе» — не чёрный ящик, а помощник управляющему.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 11 CTA -->
+    <section class="slide" data-i="11">
+      <div class="slide-inner">
+        <p class="eyebrow">Следующий шаг</p>
+        <h2>14 дней пилота на вашей точке</h2>
+        <p class="lead">Подключим бота, настроим чек-листы и кнопки под ваш ресторан. За две недели увидите реальные смены — не демо на выдуманных данных.</p>
+        <p class="lead" style="margin-bottom:20px;font-size:0.98rem;">
+          <strong>Демо на сайте:</strong> <a href="https://www.pulseteam.online/demo.html" style="color:var(--calm);font-weight:700;">pulseteam.online/demo</a><br />
+          <strong>Диалог и пилот:</strong> <a href="https://t.me/yank0vski" target="_blank" rel="noopener" style="color:var(--calm);font-weight:700;">t.me/yank0vski</a><br />
+          <strong>Бот для смены:</strong> <a href="https://t.me/smena_feedback_bot" target="_blank" rel="noopener" style="color:var(--calm);font-weight:700;">@smena_feedback_bot</a>
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://t.me/yank0vski" target="_blank" rel="noopener">Запустить пилот</a>
+          <a class="btn btn-ghost" href="https://www.pulseteam.online/demo.html" target="_blank" rel="noopener">Открыть демо</a>
+          <a class="btn btn-ghost" href="https://www.pulseteam.online/one-pager.html" target="_blank" rel="noopener">One-pager PDF</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="hint">
+    <kbd>↓</kbd> <kbd>Space</kbd> — следующий слайд · <strong>pitch3.html</strong> — система управления · v2: <strong>pitch2.html</strong>
+  </div>
+
+  <script>
+    (function () {
+      var deck = document.getElementById("deck");
+      var slides = [].slice.call(document.querySelectorAll(".slide"));
+      var counter = document.getElementById("counter");
+      var n = slides.length;
+      function idx() {
+        var top = deck.scrollTop + window.innerHeight * 0.35;
+        for (var i = 0; i < n; i++) {
+          if (slides[i].offsetTop + slides[i].offsetHeight > top) return i;
+        }
+        return n - 1;
+      }
+      function go(i) {
+        slides[Math.max(0, Math.min(n - 1, i))].scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      function updateCounter() { counter.textContent = idx() + 1 + " / " + n; }
+      deck.addEventListener("scroll", function () { requestAnimationFrame(updateCounter); });
+      window.addEventListener("resize", updateCounter);
+      updateCounter();
+      deck.addEventListener("keydown", function (e) {
+        var i = idx();
+        if (e.key === "ArrowDown" || e.key === "PageDown" || e.key === " " || e.key === "ArrowRight") {
+          e.preventDefault(); go(i + 1);
+        } else if (e.key === "ArrowUp" || e.key === "PageUp" || e.key === "ArrowLeft") {
+          e.preventDefault(); go(i - 1);
+        }
+      });
+      deck.focus();
+    })();
+  </script>
+</body>
+</html>
