@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PulseTeam · Стоп-лист</title>
+  <link rel="stylesheet" href="assets/reel.css" />
+</head>
+<body>
+  <div class="stage">
+    <div class="eyebrow" id="eyebrow">Онбординг · Смена → Стоп</div>
+    <div class="brand" id="brand">Pulse<span>Team</span></div>
+    <div class="caption" id="caption">
+      <div class="slide on" data-i="0">
+        <h1>Стоп в одном месте</h1>
+        <p>Менеджер или шеф пишут позиции — бот публикует в группу.</p>
+      </div>
+      <div class="slide" data-i="1">
+        <h1>Актуальный стоп</h1>
+        <p>Всегда можно подтянуть текущий список, не искать в истории.</p>
+      </div>
+      <div class="slide" data-i="2">
+        <h1>Добавить позицию</h1>
+        <p>Дописали — смена видит обновление без отдельного пинга.</p>
+      </div>
+      <div class="slide" data-i="3">
+        <h1>В отчёте — частота</h1>
+        <p>Что чаще всего в стопе за период — видно управляющему.</p>
+      </div>
+    </div>
+    <div class="phone-wrap" id="phoneWrap">
+      <div class="phone">
+        <div class="screen">
+          <div class="tg-top">
+            <div class="avatar">PT</div>
+            <div>
+              <div class="name">PulseTeam</div>
+              <div class="sub">бот · стоп</div>
+            </div>
+          </div>
+          <div class="chat" id="chat">
+
+            <div class="daychip" data-el="day">суббота · 11:40</div>
+            <div class="bubble" data-el="ask">
+              🛑 <strong>Стоп-лист на смену</strong><br />
+              Напишите позиции или откройте актуальный стоп.
+            </div>
+            <div class="bubble mine" data-el="out">
+              тунец до 15:00 · ризотто с морепродуктами
+            </div>
+            <div class="bubble" data-el="ok">
+              Стоп опубликован в группу смены ✅
+            </div>
+            <div class="replybar">
+              <div class="row">
+                <div class="chip" data-el="s1">🛑 Стоп-лист</div>
+                <div class="chip" data-el="s2">➕ В стоп-лист</div>
+              </div>
+              <div class="row">
+                <div class="chip" data-el="s3">Актуальный стоп</div>
+              </div>
+            </div>
+            <div class="finger" id="finger"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="progress" id="progress"><i></i><i></i><i></i><i></i></div>
+    <p class="hint">Онбординг · полный ролик · не для публичного сайта</p>
+    <div class="controls" id="controls">
+      <button type="button" id="replay">↻ Ещё раз</button>
+      <a class="ghost" href="demo-manager-kitchen.html">Кухня →</a>
+      <a class="ghost" href="index.html">Все ролики</a>
+    </div>
+  </div>
+  <script>
+    const TIMELINE = [{"t": 500, "cap": 0, "on": ["day", "ask", "s1", "s2", "s3"]}, {"t": 1800, "cap": 1, "hi": "s3", "tap": "s3"}, {"t": 3200, "cap": 2, "hi": "s2", "unhi": "s3", "tap": "s2", "on": ["out"]}, {"t": 4600, "on": ["ok"]}, {"t": 6000, "cap": 3}, {"t": 9500, "loop": true}];
+    const $ = (id) => document.getElementById(id);
+    const el = (name) => document.querySelector('[data-el="' + name + '"]');
+    const slides = [...document.querySelectorAll(".caption .slide")];
+    const dots = [...document.querySelectorAll("#progress i")];
+    let timers = [];
+    const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+    function clear() { timers.forEach(clearTimeout); timers = []; }
+    function cap(i) {
+      slides.forEach((s) => s.classList.toggle("on", Number(s.dataset.i) === i));
+      dots.forEach((d, n) => d.classList.toggle("on", n === i));
+    }
+    function reset() {
+      document.querySelectorAll("[data-el]").forEach((n) => {
+        n.classList.remove("on", "pressed", "hi", "done", "flash");
+        if (n.dataset.orig) n.innerHTML = n.dataset.orig;
+      });
+      document.querySelectorAll("[data-el]").forEach((n) => {
+        if (!n.dataset.orig) n.dataset.orig = n.innerHTML;
+      });
+      $("finger").classList.remove("flash");
+    }
+    function tapOn(name) {
+      const node = el(name);
+      if (!node) return;
+      const f = $("finger");
+      const chat = $("chat").getBoundingClientRect();
+      const r = node.getBoundingClientRect();
+      f.style.left = (r.left - chat.left + r.width * 0.55) + "px";
+      f.style.top = (r.top - chat.top + r.height * 0.5) + "px";
+      f.classList.remove("flash");
+      void f.offsetWidth;
+      f.classList.add("flash");
+    }
+    function apply(step) {
+      if (step.cap !== undefined) cap(step.cap);
+      (step.on || []).forEach((n) => el(n)?.classList.add("on"));
+      (step.off || []).forEach((n) => el(n)?.classList.remove("on"));
+      if (step.hi) {
+        document.querySelectorAll(".chip.hi,.cell.hi").forEach((n) => n.classList.remove("hi"));
+        el(step.hi)?.classList.add("hi");
+      }
+      if (step.unhi) el(step.unhi)?.classList.remove("hi");
+      if (step.press) el(step.press)?.classList.add("pressed");
+      if (step.tap) tapOn(step.tap);
+      if (step.text) {
+        const [name, html] = step.text;
+        const n = el(name);
+        if (n) n.innerHTML = html;
+      }
+      if (step.cls) {
+        const [name, c] = step.cls;
+        el(name)?.classList.add(c);
+      }
+      if (step.loop) play();
+    }
+    function play() {
+      clear();
+      reset();
+      cap(0);
+      ["eyebrow","brand","phoneWrap","controls"].forEach((id) => $(id).classList.add("on"));
+      TIMELINE.forEach((step) => at(step.t, () => apply(step)));
+    }
+    document.querySelectorAll("[data-el]").forEach((n) => { n.dataset.orig = n.innerHTML; });
+    $("replay").addEventListener("click", play);
+    requestAnimationFrame(() => play());
+  </script>
+</body>
+</html>

@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pulse Team — демо в Telegram</title>
+  <meta name="description" content="Pulse Team в Telegram: линия отвечает за секунды, управляющий видит сигнал, смена чувствует реакцию. Полный сценарий — только на пилоте." />
+  <meta name="robots" content="index,follow" />
+  <link rel="canonical" href="https://www.pulseteam.online/demo.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #070a0f;
+      --slide: linear-gradient(160deg, #0c121c 0%, #141c28 42%, #0a1018 100%);
+      --accent: #ff5a1f;
+      --accent-2: #5ec8ff;
+      --text: #f4f1ea;
+      --muted: #9aa3b2;
+      --phone: #151d28;
+      --chat: #0b121a;
+      --bubble: #1a2430;
+      --veil: rgba(7, 10, 15, 0.55);
+      --font: "Manrope", system-ui, sans-serif;
+      --display: "Syne", "Manrope", sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+    .topbar {
+      position: fixed; inset: 0 0 auto; z-index: 40;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px;
+      background: rgba(7, 10, 15, 0.82);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .topbar a { color: var(--text); text-decoration: none; font-weight: 700; font-size: 0.9rem; }
+    .topbar .logo span { color: var(--accent); }
+    .topbar-actions { display: flex; gap: 10px; }
+    .btn-sm {
+      font-family: inherit; font-weight: 700; font-size: 0.8rem;
+      padding: 9px 15px; border-radius: 999px; border: none; cursor: pointer;
+      text-decoration: none; display: inline-flex; align-items: center;
+    }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid rgba(255,255,255,0.12); }
+    .btn-accent { background: var(--accent); color: #fff; }
+
+    .slides {
+      scroll-snap-type: y mandatory;
+      overflow-y: auto;
+      height: 100vh;
+      padding-top: 56px;
+    }
+    .slide {
+      scroll-snap-align: start;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 28px 20px 48px;
+      background: var(--slide);
+      position: relative;
+      overflow: hidden;
+    }
+    .slide::before {
+      content: "";
+      position: absolute;
+      width: 70%; max-width: 520px; aspect-ratio: 1;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,90,31,0.14) 0%, transparent 70%);
+      top: 0; right: -18%;
+      pointer-events: none;
+    }
+    .slide.cool::before {
+      background: radial-gradient(circle, rgba(94,200,255,0.12) 0%, transparent 70%);
+      left: -18%; right: auto;
+    }
+    .copy {
+      text-align: center; max-width: 520px; margin-bottom: 26px;
+      position: relative; z-index: 1;
+    }
+    .tag {
+      display: inline-block;
+      font-size: 0.72rem; font-weight: 800; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--accent-2); margin-bottom: 12px;
+    }
+    .copy h1 {
+      margin: 0 0 12px;
+      font-family: var(--display);
+      font-size: clamp(1.55rem, 4.8vw, 2.35rem);
+      font-weight: 800; letter-spacing: -0.03em; line-height: 1.12;
+    }
+    .copy p {
+      margin: 0; font-size: 1rem; color: var(--muted); line-height: 1.55;
+    }
+
+    .phone {
+      width: min(100%, 300px);
+      background: var(--phone);
+      border-radius: 40px;
+      box-shadow:
+        0 0 0 2px rgba(255,255,255,0.06),
+        0 28px 80px rgba(0,0,0,0.55);
+      overflow: hidden;
+      position: relative;
+      z-index: 1;
+    }
+    .notch {
+      height: 26px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px;
+    }
+    .notch span {
+      width: 70px; height: 5px; background: rgba(0,0,0,0.35); border-radius: 99px;
+    }
+    .head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px 12px 10px;
+      border-bottom: 1px solid rgba(0,0,0,0.2);
+    }
+    .av {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #ff8a4d);
+      display: grid; place-items: center;
+      font-size: 0.7rem; font-weight: 800; color: #fff;
+    }
+    .av.g { background: linear-gradient(135deg, #3b82f6, #06b6d4); }
+    .head strong { display: block; font-size: 0.9rem; }
+    .head small { color: var(--muted); font-size: 0.7rem; }
+    .chat {
+      background: var(--chat);
+      min-height: 340px; max-height: 380px;
+      padding: 14px 12px 18px;
+      display: flex; flex-direction: column; gap: 10px;
+      position: relative;
+    }
+    .bubble {
+      align-self: flex-start;
+      max-width: 92%;
+      background: var(--bubble);
+      border-radius: 16px 16px 16px 5px;
+      padding: 11px 12px;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      color: #dce6ef;
+    }
+    .bubble.out {
+      align-self: flex-end;
+      background: #2a5070;
+      border-radius: 16px 16px 5px 16px;
+    }
+    .bubble b { color: #fff; }
+    .soft { color: #8092a3; }
+    .metric {
+      display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;
+    }
+    .metric span {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      padding: 5px 8px;
+      font-size: 0.7rem;
+      color: #b7c5d3;
+    }
+    .metric b { color: #ffb08a; }
+    .quote {
+      margin-top: 8px; padding: 7px 9px;
+      border-left: 2px solid var(--accent);
+      background: rgba(255,255,255,0.03);
+      border-radius: 0 8px 8px 0;
+      font-size: 0.72rem; color: #c4d0db;
+    }
+    .veil {
+      position: absolute; inset: auto 0 0 0;
+      height: 42%;
+      background: linear-gradient(to top, rgba(7,10,15,0.92), rgba(7,10,15,0.35), transparent);
+      display: flex; align-items: flex-end; justify-content: center;
+      padding: 16px;
+      pointer-events: none;
+    }
+    .veil span {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: #d7dde6;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 8px 12px; border-radius: 999px;
+      backdrop-filter: blur(8px);
+    }
+    .blur-block {
+      filter: blur(3.5px);
+      user-select: none;
+      opacity: 0.72;
+    }
+    .ghost-row {
+      display: flex; flex-direction: column; gap: 6px; margin-top: 8px;
+    }
+    .ghost-row i {
+      display: block; height: 28px; border-radius: 10px;
+      background: rgba(42,171,238,0.12);
+      filter: blur(1.5px);
+    }
+    .chips {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
+    }
+    .chips span {
+      background: rgba(255,255,255,0.05);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 0.68rem;
+      color: #a9b7c6;
+    }
+    .status {
+      display: inline-block;
+      font-size: 0.68rem; font-weight: 700;
+      padding: 3px 8px; border-radius: 999px;
+      background: rgba(234,179,8,.18); color: #facc15;
+      margin-bottom: 4px;
+    }
+
+    .dots {
+      position: fixed; right: 14px; top: 50%; transform: translateY(-50%);
+      z-index: 30; display: flex; flex-direction: column; gap: 8px;
+    }
+    .dots a {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: rgba(255,255,255,0.18);
+      text-indent: -999px; overflow: hidden;
+    }
+    .dots a.active { background: var(--accent); transform: scale(1.25); }
+
+    .final {
+      text-align: center; max-width: 480px; position: relative; z-index: 1;
+    }
+    .final h1 {
+      font-family: var(--display);
+      font-size: clamp(1.6rem, 5vw, 2.4rem);
+      margin: 0 0 14px; letter-spacing: -0.03em;
+    }
+    .final p { color: var(--muted); margin: 0 0 22px; line-height: 1.55; }
+    .final .btns { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    .btn-lg {
+      font-family: inherit; font-weight: 700; font-size: 0.95rem;
+      padding: 14px 22px; border-radius: 999px; text-decoration: none;
+    }
+    .btn-lg.primary { background: var(--accent); color: #fff; }
+    .btn-lg.secondary {
+      background: transparent; color: var(--muted);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14);
+    }
+    .note {
+      margin-top: 22px; font-size: 0.78rem; color: var(--muted); line-height: 1.5;
+    }
+    .note a { color: var(--muted); }
+
+    .teaser-links {
+      display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+      margin-top: 18px;
+    }
+    .teaser-links a {
+      font-size: 0.78rem; font-weight: 650;
+      color: #c9d4e0; text-decoration: none;
+      padding: 8px 12px; border-radius: 999px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    @media (max-width: 640px) {
+      .dots { display: none; }
+      .chat { min-height: 300px; max-height: 340px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="logo" href="index.html">← Pulse<span>Team</span></a>
+    <div class="topbar-actions">
+      <a class="btn-sm btn-ghost" href="demos/">Короткие тизеры</a>
+      <a class="btn-sm btn-accent" href="https://t.me/yank0vski" target="_blank" rel="noopener">Пилот</a>
+    </div>
+  </header>
+
+  <nav class="dots" aria-label="Слайды">
+    <a href="#s1" class="active">1</a>
+    <a href="#s2">2</a>
+    <a href="#s3">3</a>
+    <a href="#s4">4</a>
+    <a href="#s5">5</a>
+    <a href="#s6">6</a>
+    <a href="#s7">7</a>
+  </nav>
+
+  <main class="slides" id="slides">
+    <section class="slide" id="s1">
+      <div class="copy">
+        <span class="tag">Линия · секунды</span>
+        <h1>Смена отвечает. Имена не всплывают.</h1>
+        <p>Короткий check-in после смены. В рабочем чате не видно, кто что отметил.</p>
+      </div>
+      <div class="phone">
+        <div class="notch"><span></span></div>
+        <div class="head">
+          <div class="av">PT</div>
+          <div><strong>Pulse Team</strong><small>бот</small></div>
+        </div>
+        <div class="chat">
+          <div class="bubble">
+            <b>Как прошёл день?</b><br />
+            <span class="soft">Одна оценка — и дальше только то, что мешало.</span>
+          </div>
+          <div class="chips">
+            <span>★★★★☆</span>
+            <span>тема смены</span>
+            <span>комментарий</span>
+          </div>
+          <div class="blur-block">
+            <div class="ghost-row"><i></i><i></i><i></i></div>
+          </div>
+          <div class="veil"><span>детали — на пилоте</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide cool" id="s2">
+      <div class="copy">
+        <span class="tag">Управляющий · push</span>
+        <h1>Не ищет отчёт. Получает сигнал.</h1>
+        <p>Когда смена уже «красная», бот пишет в личку: цифры, голос линии, одно действие.</p>
+      </div>
+      <div class="phone">
+        <div class="notch"><span></span></div>
+        <div class="head">
+          <div class="av">PT</div>
+          <div><strong>Pulse Team</strong><small>сигнал</small></div>
+        </div>
+        <div class="chat">
+          <div class="bubble">
+            🚨 <b>Тема резко выросла</b><br />
+            <span class="soft">точка · последние смены</span>
+            <div class="metric">
+              <span>отметки <b>×2.7</b></span>
+              <span>оценка <b>↓</b></span>
+            </div>
+            <div class="quote">«…на пике не успевают…»</div>
+          </div>
+          <div class="blur-block" style="margin-top:6px">
+            <div class="ghost-row"><i style="height:34px"></i><i style="height:34px"></i></div>
+          </div>
+          <div class="veil"><span>логика порогов — внутри</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="s3">
+      <div class="copy">
+        <span class="tag">Реакция</span>
+        <h1>Одно нажатие — статус общий</h1>
+        <p>Менеджеры точки видят одно и то же. В чат смены уходит прогресс — без имён руководства.</p>
+      </div>
+      <div class="phone">
+        <div class="notch"><span></span></div>
+        <div class="head">
+          <div class="av g">SM</div>
+          <div><strong>Смена · точка</strong><small>группа</small></div>
+        </div>
+        <div class="chat">
+          <div class="bubble">
+            📢 <b>Обновление по отклику</b><br /><br />
+            <span class="status">в работе</span><br />
+            Тема с пика → взяли<br />
+            <span class="soft">без имён · без оценок людей</span>
+          </div>
+          <div class="bubble out">видим, что не в пустоту</div>
+          <div class="veil" style="height:28%"><span>формулировки — на пилоте</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide cool" id="s4">
+      <div class="copy">
+        <span class="tag">Операционный контур</span>
+        <h1>День точки — не разрозненные чаты</h1>
+        <p>Утро, стоп, кухня, вечер: один бот вместо «куда это писать?».</p>
+      </div>
+      <div class="phone">
+        <div class="notch"><span></span></div>
+        <div class="head">
+          <div class="av">PT</div>
+          <div><strong>Pulse Team</strong><small>менеджер</small></div>
+        </div>
+        <div class="chat">
+          <div class="bubble">
+            <b>Смена</b><br />
+            <span class="soft">четыре зоны — одна логика</span>
+            <div class="chips">
+              <span>день</span>
+              <span>стоп</span>
+              <span>кухня</span>
+              <span>план</span>
+            </div>
+          </div>
+          <div class="blur-block">
+            <div class="ghost-row"><i></i><i></i><i style="height:48px"></i></div>
+          </div>
+          <div class="veil"><span>меню и чек-листы — в онбординге</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="s5">
+      <div class="copy">
+        <span class="tag">Сводка</span>
+        <h1>Выводы для планёрки — не лента сообщений</h1>
+        <p>Зал / кухня / всё. Что повторяется. Что проверить. PDF — когда нужно сети.</p>
+      </div>
+      <div class="phone">
+        <div class="notch"><span></span></div>
+        <div class="head">
+          <div class="av">PT</div>
+          <div><strong>Pulse Team</strong><small>сводка</small></div>
+        </div>
+        <div class="chat">
+          <div class="bubble">
+            <b>Неделя · точка</b>
+            <div class="metric">
+              <span>оценка <b>···</b></span>
+              <span>темы <b>···</b></span>
+            </div>
+            <div class="quote">Готовый вывод для планёрки — без поиска виноватых</div>
+          </div>
+          <div class="blur-block">
+            <div class="ghost-row"><i style="height:56px"></i><i></i></div>
+          </div>
+          <div class="veil"><span>метрики и PDF — на пилоте</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide cool" id="s6">
+      <div class="copy">
+        <span class="tag">Завеса</span>
+        <h1>Сайт показывает эффект. Не инструкцию.</h1>
+        <p>Полный маршрут менеджера, пороги алертов и чек-листы открываем на пилоте и в онбординг-чате — не как публичную «открытую книгу».</p>
+      </div>
+      <div class="phone">
+        <div class="notch"><span></span></div>
+        <div class="head">
+          <div class="av">PT</div>
+          <div><strong>Pulse Team</strong><small>тизер</small></div>
+        </div>
+        <div class="chat">
+          <div class="bubble">
+            <b>Что увидите на пилоте</b><br />
+            карта меню · сигналы · день · доступ<br />
+            <span class="soft">ролики и живой разбор под вашу сеть</span>
+          </div>
+          <div class="blur-block" style="flex:1">
+            <div class="ghost-row" style="margin-top:16px">
+              <i style="height:40px"></i>
+              <i style="height:40px"></i>
+              <i style="height:64px"></i>
+            </div>
+          </div>
+          <div class="veil"><span>SOP только внутри пилота</span></div>
+        </div>
+      </div>
+      <div class="teaser-links">
+        <a href="demos/teaser-signal.html">Тизер · сигнал</a>
+        <a href="demos/teaser-line.html">Тизер · линия</a>
+        <a href="demos/teaser-day.html">Тизер · день</a>
+      </div>
+    </section>
+
+    <section class="slide" id="s7">
+      <div class="final">
+        <span class="tag">14 дней</span>
+        <h1>Посмотреть на своей точке</h1>
+        <p>Пилот бесплатно: линия, кухня, операционный день и сигналы управляющему — на реальных сменах.</p>
+        <div class="btns">
+          <a class="btn-lg primary" href="https://t.me/yank0vski" target="_blank" rel="noopener">Запустить пилот</a>
+          <a class="btn-lg secondary" href="index.html">На главную</a>
+        </div>
+        <p class="note">
+          Выдуманные кадры · без пошагового SOP на сайте<br />
+          <a href="privacy.html">Конфиденциальность</a> · @smena_feedback_bot
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var slides = document.getElementById("slides");
+      var dots = document.querySelectorAll(".dots a");
+      var sections = document.querySelectorAll(".slide");
+      function setActive(id) {
+        dots.forEach(function (d) {
+          d.classList.toggle("active", d.getAttribute("href") === "#" + id);
+        });
+      }
+      if ("IntersectionObserver" in window) {
+        var obs = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
+            if (e.isIntersecting && e.intersectionRatio > 0.45) setActive(e.target.id);
+          });
+        }, { root: slides, threshold: [0.45, 0.6] });
+        sections.forEach(function (s) { obs.observe(s); });
+      }
+      dots.forEach(function (d) {
+        d.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          var el = document.querySelector(d.getAttribute("href"));
+          if (el) el.scrollIntoView({ behavior: "smooth" });
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

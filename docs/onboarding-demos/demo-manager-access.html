@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PulseTeam · Доступ и подключение</title>
+  <link rel="stylesheet" href="assets/reel.css" />
+</head>
+<body>
+  <div class="stage">
+    <div class="eyebrow" id="eyebrow">Онбординг · Ещё</div>
+    <div class="brand" id="brand">Pulse<span>Team</span></div>
+    <div class="caption" id="caption">
+      <div class="slide on" data-i="0">
+        <h1>Ещё → доступ</h1>
+        <p>Подключить менеджера или отозвать — без правки чатов руками.</p>
+      </div>
+      <div class="slide" data-i="1">
+        <h1>Как подключить точку</h1>
+        <p>Группа смены + бот + привязка организации — короткий чеклист.</p>
+      </div>
+      <div class="slide" data-i="2">
+        <h1>Роли</h1>
+        <p>Менеджер точки, старший, шеф — разные кнопки, одна точка.</p>
+      </div>
+      <div class="slide" data-i="3">
+        <h1>Поддержка рядом</h1>
+        <p>Если застряли — «Поддержка» в той же папке.</p>
+      </div>
+    </div>
+    <div class="phone-wrap" id="phoneWrap">
+      <div class="phone">
+        <div class="screen">
+          <div class="tg-top">
+            <div class="avatar">PT</div>
+            <div>
+              <div class="name">PulseTeam</div>
+              <div class="sub">бот · ещё</div>
+            </div>
+          </div>
+          <div class="chat" id="chat">
+
+            <div class="daychip" data-el="day">настройка доступа</div>
+            <div class="bubble" data-el="more">
+              <strong>⚙️ Ещё</strong><br />
+              Доступ, материалы, подписка, поддержка, подключение.
+            </div>
+            <div class="replybar">
+              <div class="row">
+                <div class="chip" data-el="a1">Подключить доступ</div>
+                <div class="chip" data-el="a2">Отозвать доступ</div>
+              </div>
+              <div class="row">
+                <div class="chip" data-el="a3">📚 Материалы</div>
+              </div>
+              <div class="row">
+                <div class="chip" data-el="a4">Как подключить точку</div>
+              </div>
+              <div class="row">
+                <div class="chip" data-el="a5">Подписка/статус</div>
+                <div class="chip" data-el="a6">Поддержка</div>
+              </div>
+            </div>
+            <div class="bubble" data-el="conn">
+              <strong>Как подключить точку</strong><br />
+              1. Группа смены<br />
+              2. Добавить бота<br />
+              3. Привязка к организации<br />
+              4. Время напоминания<br />
+              <span class="soft">Оценки — только в личке по кнопке из группы</span>
+            </div>
+            <div class="finger" id="finger"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="progress" id="progress"><i></i><i></i><i></i><i></i></div>
+    <p class="hint">Онбординг · полный ролик · не для публичного сайта</p>
+    <div class="controls" id="controls">
+      <button type="button" id="replay">↻ Ещё раз</button>
+      <a class="ghost" href="demo-manager-materials.html">Материалы →</a>
+      <a class="ghost" href="index.html">Все ролики</a>
+    </div>
+  </div>
+  <script>
+    const TIMELINE = [{"t": 500, "cap": 0, "on": ["day", "more", "a1", "a2", "a3", "a4", "a5", "a6"]}, {"t": 2000, "hi": "a1", "tap": "a1"}, {"t": 3400, "cap": 1, "hi": "a4", "unhi": "a1", "tap": "a4", "on": ["conn"]}, {"t": 5200, "cap": 2}, {"t": 6800, "cap": 3, "hi": "a6", "unhi": "a4", "tap": "a6"}, {"t": 10000, "loop": true}];
+    const $ = (id) => document.getElementById(id);
+    const el = (name) => document.querySelector('[data-el="' + name + '"]');
+    const slides = [...document.querySelectorAll(".caption .slide")];
+    const dots = [...document.querySelectorAll("#progress i")];
+    let timers = [];
+    const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+    function clear() { timers.forEach(clearTimeout); timers = []; }
+    function cap(i) {
+      slides.forEach((s) => s.classList.toggle("on", Number(s.dataset.i) === i));
+      dots.forEach((d, n) => d.classList.toggle("on", n === i));
+    }
+    function reset() {
+      document.querySelectorAll("[data-el]").forEach((n) => {
+        n.classList.remove("on", "pressed", "hi", "done", "flash");
+        if (n.dataset.orig) n.innerHTML = n.dataset.orig;
+      });
+      document.querySelectorAll("[data-el]").forEach((n) => {
+        if (!n.dataset.orig) n.dataset.orig = n.innerHTML;
+      });
+      $("finger").classList.remove("flash");
+    }
+    function tapOn(name) {
+      const node = el(name);
+      if (!node) return;
+      const f = $("finger");
+      const chat = $("chat").getBoundingClientRect();
+      const r = node.getBoundingClientRect();
+      f.style.left = (r.left - chat.left + r.width * 0.55) + "px";
+      f.style.top = (r.top - chat.top + r.height * 0.5) + "px";
+      f.classList.remove("flash");
+      void f.offsetWidth;
+      f.classList.add("flash");
+    }
+    function apply(step) {
+      if (step.cap !== undefined) cap(step.cap);
+      (step.on || []).forEach((n) => el(n)?.classList.add("on"));
+      (step.off || []).forEach((n) => el(n)?.classList.remove("on"));
+      if (step.hi) {
+        document.querySelectorAll(".chip.hi,.cell.hi").forEach((n) => n.classList.remove("hi"));
+        el(step.hi)?.classList.add("hi");
+      }
+      if (step.unhi) el(step.unhi)?.classList.remove("hi");
+      if (step.press) el(step.press)?.classList.add("pressed");
+      if (step.tap) tapOn(step.tap);
+      if (step.text) {
+        const [name, html] = step.text;
+        const n = el(name);
+        if (n) n.innerHTML = html;
+      }
+      if (step.cls) {
+        const [name, c] = step.cls;
+        el(name)?.classList.add(c);
+      }
+      if (step.loop) play();
+    }
+    function play() {
+      clear();
+      reset();
+      cap(0);
+      ["eyebrow","brand","phoneWrap","controls"].forEach((id) => $(id).classList.add("on"));
+      TIMELINE.forEach((step) => at(step.t, () => apply(step)));
+    }
+    document.querySelectorAll("[data-el]").forEach((n) => { n.dataset.orig = n.innerHTML; });
+    $("replay").addEventListener("click", play);
+    requestAnimationFrame(() => play());
+  </script>
+</body>
+</html>

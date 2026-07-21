@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PulseTeam · День: план и чек-листы</title>
+  <link rel="stylesheet" href="assets/reel.css" />
+</head>
+<body>
+  <div class="stage">
+    <div class="eyebrow" id="eyebrow">Онбординг · Смена → День</div>
+    <div class="brand" id="brand">Pulse<span>Team</span></div>
+    <div class="caption" id="caption">
+      <div class="slide on" data-i="0">
+        <h1>Смена → День</h1>
+        <p>План дня, чек-листы, сообщение шефу — в одной папке.</p>
+      </div>
+      <div class="slide" data-i="1">
+        <h1>Сначала галочки открытия</h1>
+        <p>Пока чек-лист не закрыт — план в группу не уйдёт.</p>
+      </div>
+      <div class="slide" data-i="2">
+        <h1>План уходит в смену</h1>
+        <p>Команда видит фокус дня: усиление, банкет, стоп.</p>
+      </div>
+      <div class="slide" data-i="3">
+        <h1>📣 Шефу и менеджерам</h1>
+        <p>Короткий оперсигнал без отдельного «рабочего чата».</p>
+      </div>
+    </div>
+    <div class="phone-wrap" id="phoneWrap">
+      <div class="phone">
+        <div class="screen">
+          <div class="tg-top">
+            <div class="avatar">PT</div>
+            <div>
+              <div class="name">PulseTeam</div>
+              <div class="sub">бот · смена</div>
+            </div>
+          </div>
+          <div class="chat" id="chat">
+
+            <div class="daychip" data-el="day">суббота · 10:40</div>
+            <div class="bubble" data-el="cl">
+              <strong>☀️ Открытие смены</strong><br />
+              <span class="soft">Бистро на Невском</span>
+              <ul>
+                <li class="done" data-el="i1">☑️ Зал и санузлы</li>
+                <li class="done" data-el="i2">☑️ Касса и терминалы</li>
+                <li data-el="i3">☐ Стоп согласован с кухней</li>
+              </ul>
+            </div>
+            <div class="replybar">
+              <div class="row">
+                <div class="chip" data-el="p1">☀️ План дня</div>
+                <div class="chip" data-el="p2">📋 Чек-листы</div>
+              </div>
+              <div class="row">
+                <div class="chip" data-el="p3">📣 Шефу и менеджерам</div>
+              </div>
+            </div>
+            <div class="bubble" data-el="plan">
+              📋 <strong>План на субботу</strong><br />
+              Усиление зала с 19:00 · стол №4 · стоп: тунец до 15:00
+            </div>
+            <div class="toast" data-el="toast">Опубликовано в группу смены</div>
+            <div class="finger" id="finger"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="progress" id="progress"><i></i><i></i><i></i><i></i></div>
+    <p class="hint">Онбординг · полный ролик · не для публичного сайта</p>
+    <div class="controls" id="controls">
+      <button type="button" id="replay">↻ Ещё раз</button>
+      <a class="ghost" href="demo-manager-close.html">Закрытие →</a>
+      <a class="ghost" href="index.html">Все ролики</a>
+    </div>
+  </div>
+  <script>
+    const TIMELINE = [{"t": 500, "cap": 0, "on": ["day", "cl", "i1", "i2", "i3", "p1", "p2", "p3"]}, {"t": 2000, "cap": 1, "tap": "i3", "text": ["i3", "☑️ Стоп согласован с кухней"], "cls": ["i3", "done"]}, {"t": 3600, "cap": 2, "hi": "p1", "tap": "p1", "on": ["plan"]}, {"t": 5200, "on": ["toast"]}, {"t": 6600, "cap": 3, "hi": "p3", "unhi": "p1", "tap": "p3"}, {"t": 10000, "loop": true}];
+    const $ = (id) => document.getElementById(id);
+    const el = (name) => document.querySelector('[data-el="' + name + '"]');
+    const slides = [...document.querySelectorAll(".caption .slide")];
+    const dots = [...document.querySelectorAll("#progress i")];
+    let timers = [];
+    const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+    function clear() { timers.forEach(clearTimeout); timers = []; }
+    function cap(i) {
+      slides.forEach((s) => s.classList.toggle("on", Number(s.dataset.i) === i));
+      dots.forEach((d, n) => d.classList.toggle("on", n === i));
+    }
+    function reset() {
+      document.querySelectorAll("[data-el]").forEach((n) => {
+        n.classList.remove("on", "pressed", "hi", "done", "flash");
+        if (n.dataset.orig) n.innerHTML = n.dataset.orig;
+      });
+      document.querySelectorAll("[data-el]").forEach((n) => {
+        if (!n.dataset.orig) n.dataset.orig = n.innerHTML;
+      });
+      $("finger").classList.remove("flash");
+    }
+    function tapOn(name) {
+      const node = el(name);
+      if (!node) return;
+      const f = $("finger");
+      const chat = $("chat").getBoundingClientRect();
+      const r = node.getBoundingClientRect();
+      f.style.left = (r.left - chat.left + r.width * 0.55) + "px";
+      f.style.top = (r.top - chat.top + r.height * 0.5) + "px";
+      f.classList.remove("flash");
+      void f.offsetWidth;
+      f.classList.add("flash");
+    }
+    function apply(step) {
+      if (step.cap !== undefined) cap(step.cap);
+      (step.on || []).forEach((n) => el(n)?.classList.add("on"));
+      (step.off || []).forEach((n) => el(n)?.classList.remove("on"));
+      if (step.hi) {
+        document.querySelectorAll(".chip.hi,.cell.hi").forEach((n) => n.classList.remove("hi"));
+        el(step.hi)?.classList.add("hi");
+      }
+      if (step.unhi) el(step.unhi)?.classList.remove("hi");
+      if (step.press) el(step.press)?.classList.add("pressed");
+      if (step.tap) tapOn(step.tap);
+      if (step.text) {
+        const [name, html] = step.text;
+        const n = el(name);
+        if (n) n.innerHTML = html;
+      }
+      if (step.cls) {
+        const [name, c] = step.cls;
+        el(name)?.classList.add(c);
+      }
+      if (step.loop) play();
+    }
+    function play() {
+      clear();
+      reset();
+      cap(0);
+      ["eyebrow","brand","phoneWrap","controls"].forEach((id) => $(id).classList.add("on"));
+      TIMELINE.forEach((step) => at(step.t, () => apply(step)));
+    }
+    document.querySelectorAll("[data-el]").forEach((n) => { n.dataset.orig = n.innerHTML; });
+    $("replay").addEventListener("click", play);
+    requestAnimationFrame(() => play());
+  </script>
+</body>
+</html>

@@ -573,13 +573,14 @@ def format_problem_card(p: ProblemRow) -> str:
     fd = p.first_detected_at.strftime("%d.%m.%Y") if p.first_detected_at else "—"
     ld = p.last_detected_at.strftime("%d.%m.%Y") if p.last_detected_at else "—"
     st = STATUS_RU.get(p.status, p.status)
+    em = STATUS_EMOJI.get(p.status, "🔴")
     lines = [
         f"<b>{escape(p.title)}</b>",
         "",
         f"Упоминаний: <b>{p.mentions_count}</b>",
         f"Первое упоминание: {fd}",
         f"Последнее упоминание: {ld}",
-        f"Статус: <b>{escape(st)}</b>",
+        f"Статус: {em} <b>{escape(st)}</b>",
     ]
     if p.manager_comment:
         lines.append("")
@@ -587,13 +588,43 @@ def format_problem_card(p: ProblemRow) -> str:
     return "\n".join(lines)
 
 
+def format_manager_peer_status_update(
+    p: ProblemRow,
+    *,
+    restaurant_title: str,
+    actor_label: str,
+) -> str:
+    """Уведомление другим менеджерам: кто сменил статус и на какой."""
+    st = STATUS_RU.get(p.status, p.status)
+    em = STATUS_EMOJI.get(p.status, "🔴")
+    verb = {
+        STATUS_IN_PROGRESS: "взял(а) в работу",
+        STATUS_RESOLVED: "отметил(а) как решённую",
+        STATUS_IGNORED: "снял(а) с контроля (игнор)",
+        STATUS_NEW: "вернул(а) в новые",
+    }.get(p.status, "обновил(а) статус")
+    lines = [
+        f"👤 <b>{escape(actor_label)}</b> {verb}",
+        f"📍 {escape(restaurant_title)}",
+        "",
+        f"{em} <b>{escape(p.title)}</b> → <b>{escape(st)}</b>",
+    ]
+    if p.manager_comment:
+        lines.append("")
+        lines.append(f"Комментарий: {escape(p.manager_comment)}")
+    lines.append("")
+    lines.append("<i>Можно открыть карточку ниже — статус уже общий для всех менеджеров.</i>")
+    return "\n".join(lines)
+
+
 def format_group_status_post(p: ProblemRow) -> str:
+    """Пост в группу смены: только факт смены статуса, без имён менеджеров."""
     st = STATUS_RU.get(p.status, p.status)
     icon = {"in_progress": "🔄", "resolved": "✅", "ignored": "⏸", "new": "📌"}.get(
         p.status, "📢"
     )
     lines = [
-        "📢 <b>Обновление по вашим отзывам</b>",
+        "📢 <b>Обновление по вашим отметкам</b>",
         "",
         f"{icon} <b>{escape(p.title)}</b>",
         "",
@@ -601,7 +632,7 @@ def format_group_status_post(p: ProblemRow) -> str:
     ]
     if p.manager_comment and p.status in (STATUS_IN_PROGRESS, STATUS_RESOLVED):
         lines.append("")
-        lines.append("Комментарий руководителя:")
+        lines.append("Комментарий для команды:")
         lines.append(escape(p.manager_comment))
     lines.append("")
     lines.append(

@@ -34,6 +34,7 @@ import pulse_model
 import db_pulse
 import report_pulse
 import problems_pulse
+import manager_alerts
 import survey_buttons
 import chef_survey
 import shift_checklists
@@ -43,6 +44,7 @@ import ops_day
 import monthly_ops
 import staff_assign
 import training_materials
+import onboarding_reels
 
 # На Railway без Volume файлы в контейнере теряются при redeploy.
 # Смонтируйте Volume и задайте PULSE_DATA_DIR=/data (или другой путь) — туда пойдут bot_data.json и feedback_log.jsonl.
@@ -360,6 +362,14 @@ async def log_feedback_event(entry: dict) -> None:
             asyncio.create_task(_check_tariff_limit_for_chat(int(rest_chat)))
         except (TypeError, ValueError):
             pass
+    if rest_chat is not None:
+        try:
+            et = str(entry.get("event") or "")
+            asyncio.create_task(
+                _maybe_manager_alerts_after_event(int(rest_chat), et)
+            )
+        except (TypeError, ValueError):
+            pass
 
 
 def chat_record(data: dict, chat_id: int) -> dict | None:
@@ -398,6 +408,8 @@ user_private_slug: dict[int, str] = {}
 waiting_for_comment: set[int] = set()
 # выбранная тема проблемы до «отправить так» / уточнения текстом
 user_pending_problem: dict[int, str] = {}
+# последняя тема смены — привязка комментария к кнопке для алертов менеджеру
+user_last_problem_code: dict[int, str] = {}
 # выбранная точка для отчёта (chat_id или "all")
 user_report_pick: dict[int, str] = {}
 # зал / кухня / весь ресторан
@@ -473,11 +485,14 @@ async def _show_training_manager_menu(message: Message, uid: int, chat_id: int) 
         return
     rec = chat_record(data, chat_id) or {}
     title = str(rec.get("title", chat_id))
-    await message.answer(
-        training_materials.format_manager_menu(rec, title),
-        parse_mode="HTML",
-        reply_markup=training_materials.manager_menu_keyboard(chat_id, rec),
+    text = onboarding_reels.enrich_manager_menu_text(
+        training_materials.format_manager_menu(rec, title)
     )
+    kb = onboarding_reels.patch_manager_menu_keyboard(
+        training_materials.manager_menu_keyboard(chat_id, rec),
+        chat_id,
+    )
+    await message.answer(text, parse_mode="HTML", reply_markup=kb)
 
 
 async def _show_training_staff_menu(message: Message, uid: int) -> None:
@@ -871,6 +886,7 @@ def finish_private_flow(user_id: int) -> None:
     user_linked_chat.pop(user_id, None)
     user_private_slug.pop(user_id, None)
     user_pending_problem.pop(user_id, None)
+    user_last_problem_code.pop(user_id, None)
     waiting_for_comment.discard(user_id)
 
 
@@ -1085,6 +1101,75 @@ async def _notify_network_stale_problems(data: dict, *, week_key: str) -> None:
                 print(f"[net-stale] org={oid} mid={mid}: {e}")
         sent_map[nkey] = True
         print(f"[net-stale] org={oid} recipients={len(recipients)}")
+
+
+async def _run_manager_alerts_for_chat(
+    data: dict,
+    cid: str,
+    info: dict,
+    *,
+    force: bool = False,
+) -> int:
+    """Push-алерты менеджерам, когда порог уже пробит. force=True — без cooldown (админ)."""
+    if info.get("removed_at") or info.get("active") is False:
+        return 0
+    oid = info.get("organization_id")
+    if oid and pulse_model.is_org_billing_blocked(data, oid):
+        return 0
+    chat_id = int(cid)
+    tz_name = info.get("timezone", DEFAULT_TZ)
+    packed = await manager_alerts.build_alerts_for_chat(
+        data,
+        chat_id,
+        jsonl_path=FEEDBACK_LOG_PATH,
+        tz_name=tz_name,
+    )
+    if not packed:
+        return 0
+    managers = _chat_managers_only(data, chat_id)
+    if not managers:
+        print(f"[manager-alerts] chat={cid}: нет менеджеров")
+        return 0
+    sent_map = data.setdefault("last_auto_sent", {})
+    now = datetime.now(get_tz(tz_name))
+    sent = 0
+    for alert, html, kb in packed:
+        key = manager_alerts.alert_dedupe_key(chat_id, alert.kind, alert.code)
+        if not force and manager_alerts.alert_recently_sent(
+            sent_map, key, now=now
+        ):
+            continue
+        delivered = False
+        for mid in managers:
+            manager_problem_chat[mid] = chat_id
+            try:
+                await bot.send_message(
+                    mid, html, parse_mode="HTML", reply_markup=kb
+                )
+                sent += 1
+                delivered = True
+            except Exception as e:
+                print(f"[manager-alert] mid={mid} chat={cid}: {e}")
+        if delivered:
+            manager_alerts.mark_alert_sent(sent_map, key, now=now)
+    return sent
+
+
+async def _maybe_manager_alerts_after_event(chat_id: int, event_type: str) -> None:
+    """Сразу после сигнала линии — проверить порог и при необходимости пнуть менеджера."""
+    if event_type not in manager_alerts.TRIGGER_EVENTS:
+        return
+    try:
+        data = await load_data()
+        info = chat_record(data, chat_id)
+        if not info:
+            return
+        n = await _run_manager_alerts_for_chat(data, str(chat_id), info)
+        if n:
+            await save_data(data)
+            print(f"[manager-alerts-trigger] chat={chat_id} event={event_type} msgs={n}")
+    except Exception as e:
+        print(f"[manager-alerts-trigger-fail] {chat_id}: {e}")
 
 
 async def _show_problems_for_manager(
@@ -2020,6 +2105,7 @@ async def cmd_help(message: Message) -> None:
             "<b>/set_tariff</b> chat_id t10|t25|t40|enterprise — тариф точки\n"
             "<b>/metrics</b> — уникальные пользователи и тарифы по точкам\n"
             "<b>/tariff_history</b> chat_id — история смен тарифа\n"
+            "<b>/send_alerts_now</b> — сразу push-алерты менеджерам по сигналам смен\n"
             "Алерт в личку, если точка превысила лимит тарифа (после нового ответа сотрудника)\n"
             "<b>/broadcast</b> — сообщение всем менеджерам об изменениях сервиса\n"
             f"Полный справочник — кнопка «{pulse_model.BTN_COMMANDS}» в главном меню.\n"
@@ -2489,6 +2575,37 @@ async def cmd_set_subscription(message: Message) -> None:
     await save_data(data)
     await message.answer(
         f"Готово: <code>{escape(oid)}</code> → подписка <b>{escape(state)}</b>.",
+        parse_mode="HTML",
+    )
+
+
+@dp.message(Command("send_alerts_now"))
+async def cmd_send_alerts_now(message: Message) -> None:
+    """Глобальный админ: сразу посчитать и отправить manager push-алерты."""
+    if message.chat.type != "private":
+        return
+    if not is_global_admin(message.from_user.id):
+        await message.answer("Команда только для глобального администратора бота.")
+        return
+    data = await load_data()
+    total_msgs = 0
+    chats_hit = 0
+    for cid, info in list((data.get("chats") or {}).items()):
+        if not isinstance(info, dict):
+            continue
+        try:
+            n = await _run_manager_alerts_for_chat(data, cid, info, force=True)
+            if n:
+                chats_hit += 1
+                total_msgs += n
+        except Exception as e:
+            print(f"[send_alerts_now] {cid}: {e}")
+    await save_data(data)
+    await message.answer(
+        f"Алерты: точек с сигналом <b>{chats_hit}</b>, сообщений менеджерам "
+        f"<b>{total_msgs}</b>.\n"
+        f"В бою уходят <b>сразу</b>, когда порог пробит "
+        f"(антидубль {manager_alerts.ALERT_COOLDOWN_HOURS} ч на тему).",
         parse_mode="HTML",
     )
 
@@ -3278,10 +3395,15 @@ async def scheduler_loop() -> None:
                 print(f"[net-stale-fail] {e}")
 
             for k in list(sent_map.keys()):
+                if "|mgr_alert|" in str(k):
+                    continue
                 parts = k.split("|")
                 if len(parts) >= 3 and parts[2] < today:
                     del sent_map[k]
                     changed = True
+
+            if manager_alerts.prune_alert_sent_map(sent_map):
+                changed = True
 
             if changed:
                 await save_data(data)
@@ -3418,6 +3540,7 @@ async def problem_handler(callback: CallbackQuery) -> None:
             "department": chef_survey.DEPARTMENT_FLOOR,
         }
     )
+    user_last_problem_code[user_id] = action
     user_pending_problem.pop(user_id, None)
     waiting_for_comment.discard(user_id)
     await callback.answer()
@@ -3585,6 +3708,30 @@ async def problems_callback_handler(callback: CallbackQuery) -> None:
                 await callback.answer("Нет доступа к точке.", show_alert=True)
                 return
             manager_problem_chat[uid] = chat_id
+            if prob.status == status:
+                st_ru = problems_pulse.STATUS_RU.get(status, status)
+                await callback.answer(f"Уже: {st_ru}", show_alert=True)
+                await callback.message.answer(
+                    problems_pulse.format_problem_card(prob),
+                    parse_mode="HTML",
+                    reply_markup=problems_pulse.problem_card_keyboard(
+                        pid, prob.status, chat_id
+                    ),
+                )
+                return
+            if (
+                status == problems_pulse.STATUS_IN_PROGRESS
+                and prob.status == problems_pulse.STATUS_IN_PROGRESS
+            ):
+                await callback.answer("Уже в работе у команды", show_alert=True)
+                await callback.message.answer(
+                    problems_pulse.format_problem_card(prob),
+                    parse_mode="HTML",
+                    reply_markup=problems_pulse.problem_card_keyboard(
+                        pid, prob.status, chat_id
+                    ),
+                )
+                return
             manager_problem_pending[uid] = (pid, status)
             await callback.answer()
             st_ru = problems_pulse.STATUS_RU.get(status, status)
@@ -4414,6 +4561,60 @@ async def training_callback_handler(callback: CallbackQuery) -> None:
             await callback.message.answer("Не удалось отправить файл.")
         return
 
+    if action == "ob":
+        # tr:ob:list:{chat_id} | tr:ob:s:{chat_id}:{reel_id}
+        sub = parts[2] if len(parts) > 2 else ""
+        if sub == "list" and len(parts) > 3:
+            try:
+                chat_id = int(parts[3])
+            except ValueError:
+                await callback.answer()
+                return
+            if not await _manager_can_access_chat(data, uid, chat_id):
+                await callback.answer("Нет доступа.", show_alert=True)
+                return
+            await callback.answer()
+            await callback.message.edit_text(
+                onboarding_reels.format_onboarding_menu(),
+                parse_mode="HTML",
+                reply_markup=onboarding_reels.onboarding_list_keyboard(chat_id),
+            )
+            return
+        if sub == "s" and len(parts) > 4:
+            try:
+                chat_id = int(parts[3])
+            except ValueError:
+                await callback.answer()
+                return
+            reel_id = parts[4]
+            if not await _manager_can_access_chat(data, uid, chat_id):
+                await callback.answer("Нет доступа.", show_alert=True)
+                return
+            path = onboarding_reels.reel_path(reel_id)
+            if path is None:
+                await callback.answer("Ролик не найден", show_alert=True)
+                return
+            await callback.answer()
+            from aiogram.types import FSInputFile
+
+            media = FSInputFile(path)
+            caption = onboarding_reels.caption_for(reel_id)
+            try:
+                # mute MP4 as animation — autoplays in Telegram like a GIF
+                await callback.message.answer_animation(media, caption=caption)
+            except Exception as e:
+                print(f"[onboarding-reel-anim] {e}")
+                try:
+                    await callback.message.answer_video(media, caption=caption)
+                except Exception as e2:
+                    print(f"[onboarding-reel-video] {e2}")
+                    await callback.message.answer(
+                        "Не удалось отправить ролик. Попробуйте ещё раз."
+                    )
+            return
+        await callback.answer()
+        return
+
     if action == "mm" and len(parts) > 2:
         if not await _manager_can_access_chat(data, uid, int(parts[2])):
             await callback.answer("Нет доступа.", show_alert=True)
@@ -4422,11 +4623,14 @@ async def training_callback_handler(callback: CallbackQuery) -> None:
         rec = chat_record(data, chat_id) or {}
         title = str(rec.get("title", chat_id))
         await callback.answer()
-        await callback.message.edit_text(
-            training_materials.format_manager_menu(rec, title),
-            parse_mode="HTML",
-            reply_markup=training_materials.manager_menu_keyboard(chat_id, rec),
+        text = onboarding_reels.enrich_manager_menu_text(
+            training_materials.format_manager_menu(rec, title)
         )
+        kb = onboarding_reels.patch_manager_menu_keyboard(
+            training_materials.manager_menu_keyboard(chat_id, rec),
+            chat_id,
+        )
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
         return
 
     if action == "mfold" and len(parts) > 3:
@@ -4507,11 +4711,14 @@ async def training_callback_handler(callback: CallbackQuery) -> None:
         await save_data(data)
         title = str(rec.get("title", chat_id))
         await callback.answer("Папка удалена")
-        await callback.message.edit_text(
-            training_materials.format_manager_menu(rec, title),
-            parse_mode="HTML",
-            reply_markup=training_materials.manager_menu_keyboard(chat_id, rec),
+        text = onboarding_reels.enrich_manager_menu_text(
+            training_materials.format_manager_menu(rec, title)
         )
+        kb = onboarding_reels.patch_manager_menu_keyboard(
+            training_materials.manager_menu_keyboard(chat_id, rec),
+            chat_id,
+        )
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
         return
 
     await callback.answer()
@@ -5075,6 +5282,19 @@ async def ops_callback_handler(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+async def _manager_actor_label(user) -> str:
+    if not user:
+        return "менеджер"
+    if getattr(user, "username", None):
+        return f"@{user.username}"
+    parts = [
+        (getattr(user, "first_name", None) or "").strip(),
+        (getattr(user, "last_name", None) or "").strip(),
+    ]
+    name = " ".join(p for p in parts if p).strip()
+    return name or f"id {user.id}"
+
+
 async def _apply_problem_status_change(
     message: Message,
     uid: int,
@@ -5091,8 +5311,10 @@ async def _apply_problem_status_change(
         return
     await save_data(data)
     st_ru = problems_pulse.STATUS_RU.get(status, status)
+    actor = await _manager_actor_label(message.from_user)
     await message.answer(
-        f"Готово: <b>{escape(prob.title)}</b> → {escape(st_ru)}",
+        f"Готово: <b>{escape(prob.title)}</b> → {escape(st_ru)}\n"
+        f"<i>Другие менеджеры точки уже видят это обновление.</i>",
         parse_mode="HTML",
         reply_markup=pulse_model.manager_menu_reply_markup(),
     )
@@ -5105,13 +5327,30 @@ async def _apply_problem_status_change(
             problems_pulse.format_group_status_post(prob),
         )
     rec = chat_record(data, prob.restaurant_chat_id) or {}
-    mgr_note = (
-        f"🔥 <b>Обновление темы</b> — {escape(str(rec.get('title', prob.restaurant_chat_id)))}\n\n"
-        f"{problems_pulse.format_problem_card(prob)}"
+    title = str(rec.get("title", prob.restaurant_chat_id))
+    mgr_note = problems_pulse.format_manager_peer_status_update(
+        prob,
+        restaurant_title=title,
+        actor_label=actor,
     )
-    await _notify_managers_problem_report(
-        data, prob.restaurant_chat_id, mgr_note, exclude_uid=uid
+    # Текст + актуальная карточка с кнопками под новый статус
+    admins = _chat_managers_only(data, prob.restaurant_chat_id)
+    kb = problems_pulse.problem_card_keyboard(
+        prob.id, prob.status, prob.restaurant_chat_id
     )
+    for mid in admins:
+        if mid == uid:
+            continue
+        manager_problem_chat[mid] = prob.restaurant_chat_id
+        try:
+            await bot.send_message(
+                mid,
+                mgr_note,
+                parse_mode="HTML",
+                reply_markup=kb,
+            )
+        except Exception as e:
+            print(f"[notify-manager-status] {mid}: {e}")
     manager_problem_chat[uid] = prob.restaurant_chat_id
 
 
@@ -6133,10 +6372,17 @@ async def comment_handler(message: Message) -> None:
             return
         await save_data(data)
         title = str(rec.get("title", chat_id))
+        kb = onboarding_reels.patch_manager_menu_keyboard(
+            training_materials.manager_menu_keyboard(chat_id, rec),
+            chat_id,
+        )
         await message.answer(
-            f"✅ Папка «<b>{escape(text_in.strip()[:60])}</b>» создана.",
+            f"✅ Папка «<b>{escape(text_in.strip()[:60])}</b>» создана.\n\n"
+            + onboarding_reels.enrich_manager_menu_text(
+                training_materials.format_manager_menu(rec, title)
+            ),
             parse_mode="HTML",
-            reply_markup=training_materials.manager_menu_keyboard(chat_id, rec),
+            reply_markup=kb,
         )
         return
 
@@ -6633,18 +6879,22 @@ async def comment_handler(message: Message) -> None:
     comment = message.text
     rest_chat = user_linked_chat.get(user_id)
     org_id = org_id_for_restaurant_chat(data, rest_chat)
-    user_pending_problem.pop(user_id, None)
-    await log_feedback_event(
-        {
-            "event": "comment",
-            "user_id": user_id,
-            "restaurant_chat_id": rest_chat,
-            "restaurant_label": restaurant,
-            "organization_id": org_id,
-            "comment": comment,
-            "department": chef_survey.DEPARTMENT_FLOOR,
-        }
+    problem_code = user_last_problem_code.get(user_id) or user_pending_problem.get(
+        user_id
     )
+    user_pending_problem.pop(user_id, None)
+    entry: dict = {
+        "event": "comment",
+        "user_id": user_id,
+        "restaurant_chat_id": rest_chat,
+        "restaurant_label": restaurant,
+        "organization_id": org_id,
+        "comment": comment,
+        "department": chef_survey.DEPARTMENT_FLOOR,
+    }
+    if problem_code:
+        entry["problem"] = problem_code
+    await log_feedback_event(entry)
 
     waiting_for_comment.discard(user_id)
     finish_private_flow(user_id)

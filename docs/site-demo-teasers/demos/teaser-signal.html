@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PulseTeam · тизер · сигнал</title>
+  <link rel="stylesheet" href="reel.css" />
+  <style>
+    .veil-soft {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 38%;
+      background: linear-gradient(to top, rgba(6,8,12,0.95), transparent);
+      display: grid; place-items: end center; padding: 14px;
+      pointer-events: none;
+    }
+    .veil-soft span {
+      font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase;
+      color: #c9d4e0; background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 7px 10px; border-radius: 999px;
+    }
+    .hint { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="eyebrow" id="eyebrow">Тизер · сайт</div>
+    <div class="brand" id="brand">Pulse<span>Team</span></div>
+    <div class="caption">
+      <div class="slide on" data-i="0"><h1>Сигнал, не дайджест</h1><p>Когда смена красная — бот сам пишет в личку.</p></div>
+      <div class="slide" data-i="1"><h1>Цифры и голос линии</h1><p>Дальше — одно действие. Пороги остаются за кадром.</p></div>
+      <div class="slide" data-i="2"><h1>Статус без имён</h1><p>Команда видит реакцию. Кто нажал — не светится в группе.</p></div>
+    </div>
+    <div class="phone-wrap" id="phoneWrap">
+      <div class="phone">
+        <div class="screen">
+          <div class="tg-top">
+            <div class="avatar">PT</div>
+            <div><div class="name">PulseTeam</div><div class="sub">сигнал</div></div>
+          </div>
+          <div class="chat" id="chat">
+            <div class="daychip" id="day">сегодня</div>
+            <div class="bubble" id="alert">
+              🚨 <strong>Тема резко выросла</strong><br />
+              <span class="soft">точка · последние смены</span>
+              <div class="metric">
+                <span class="warn on" id="m1">динамика <b>···</b></span>
+                <span class="warn on" id="m2">оценка <b>↓</b></span>
+              </div>
+              <div class="quote on" id="q1">«…на пике не успевают…»</div>
+              <div class="actions" style="margin-top:10px">
+                <div class="btn primary on" id="btn">В работу</div>
+              </div>
+            </div>
+            <div class="toast" id="toast">в группу — без имён</div>
+            <div class="veil-soft"><span>пороги · на пилоте</span></div>
+            <div class="finger" id="finger"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="progress" id="progress"><i></i><i></i><i></i></div>
+    <p class="hint">Публичный тизер · не полный SOP</p>
+    <div class="controls" id="controls">
+      <button type="button" id="replay">↻ Ещё раз</button>
+      <a class="ghost" href="teaser-line.html">Линия →</a>
+      <a class="ghost" href="index.html">Тизеры</a>
+    </div>
+  </div>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const slides = [...document.querySelectorAll(".caption .slide")];
+    const dots = [...document.querySelectorAll("#progress i")];
+    let timers = [];
+    const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+    function clear() { timers.forEach(clearTimeout); timers = []; }
+    function cap(i) {
+      slides.forEach((s) => s.classList.toggle("on", Number(s.dataset.i) === i));
+      dots.forEach((d, n) => d.classList.toggle("on", n === i));
+    }
+    function play() {
+      clear();
+      ["day","alert","toast"].forEach((id) => $(id).classList.remove("on","pressed"));
+      $("btn").classList.remove("pressed");
+      $("btn").textContent = "В работу";
+      cap(0);
+      ["eyebrow","brand","phoneWrap","controls"].forEach((id) => $(id).classList.add("on"));
+      at(600, () => { $("day").classList.add("on"); $("alert").classList.add("on"); });
+      at(2200, () => cap(1));
+      at(3600, () => {
+        const btn = $("btn");
+        const r = btn.getBoundingClientRect();
+        const chat = $("chat").getBoundingClientRect();
+        const f = $("finger");
+        f.style.left = (r.left - chat.left + r.width * 0.6) + "px";
+        f.style.top = (r.top - chat.top + r.height * 0.5) + "px";
+        f.classList.remove("flash"); void f.offsetWidth; f.classList.add("flash");
+        btn.classList.add("pressed");
+        btn.textContent = "✓ В работе";
+      });
+      at(4800, () => { cap(2); $("toast").classList.add("on"); });
+      at(9000, () => play());
+    }
+    $("replay").addEventListener("click", play);
+    requestAnimationFrame(() => play());
+  </script>
+</body>
+</html>

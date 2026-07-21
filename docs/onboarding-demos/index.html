@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PulseTeam · онбординг менеджера · все ролики</title>
+  <style>
+    :root { --accent: #ff5a1f; --ink: #f3efe8; --muted: #9a938a; --card: rgba(255,255,255,0.04); }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: ui-sans-serif, "Segoe UI", Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(900px 400px at 50% 0%, rgba(255,90,31,0.16), transparent 55%),
+        #06080c;
+      padding: max(28px, env(safe-area-inset-top)) 18px max(40px, env(safe-area-inset-bottom));
+    }
+    main { max-width: 640px; margin: 0 auto; }
+    h1 {
+      font-weight: 800; letter-spacing: -0.04em; font-size: clamp(1.55rem, 5vw, 2rem);
+      margin: 0 0 8px;
+    }
+    h1 span { color: var(--accent); }
+    .lead { color: var(--muted); margin: 0 0 22px; line-height: 1.55; }
+    h2 {
+      margin: 28px 0 12px; font-size: 0.78rem; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--muted); font-weight: 700;
+    }
+    a.card {
+      display: block; text-decoration: none; color: inherit;
+      padding: 15px 16px; margin-bottom: 10px; border-radius: 16px;
+      background: var(--card);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+    }
+    a.card strong { display: block; margin-bottom: 4px; font-size: 1rem; }
+    a.card span { color: var(--muted); font-size: 0.88rem; line-height: 1.4; display: block; }
+    .box {
+      margin-top: 26px; padding: 16px 18px; border-radius: 16px;
+      background: rgba(255,255,255,0.03);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+      color: var(--muted); font-size: 0.88rem; line-height: 1.55;
+    }
+    .box b { color: var(--ink); font-weight: 650; }
+    .warn {
+      margin-top: 12px; padding: 14px 16px; border-radius: 14px;
+      background: rgba(255,90,31,0.08);
+      box-shadow: inset 0 0 0 1px rgba(255,90,31,0.22);
+      color: #ffc9b0; font-size: 0.86rem; line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Pulse<span>Team</span></h1>
+    <p class="lead">Полный набор роликов для менеджера. В боте: Ещё → 📚 Материалы → 📖 Инструкция по пользованию — приходят как видео (гифка). Здесь — HTML-превью.</p>
+
+    <h2>01 · Старт</h2>
+    <a class="card" href="demo-manager-menu.html">
+      <strong>Карта меню</strong>
+      <span>Аналитика · Смена · Ещё — куда нажимать, чтобы не потеряться</span>
+    </a>
+    <a class="card" href="demo-manager-materials.html">
+      <strong>📚 Материалы</strong>
+      <span>Где лежат ролики внутри бота и как вернуться к шпаргалке</span>
+    </a>
+
+    <h2>02 · Аналитика</h2>
+    <a class="card" href="demo-manager-report.html">
+      <strong>Отчёт</strong>
+      <span>Точка → отдел → период → выводы → PDF</span>
+    </a>
+    <a class="card" href="demo-manager-signals.html">
+      <strong>Горящие вопросы</strong>
+      <span>Статусы, комментарий команде, синхрон между менеджерами</span>
+    </a>
+    <a class="card" href="demo-manager-alert.html">
+      <strong>Push-алерт</strong>
+      <span>Бот сам пишет в личку при спайке · «В работу» · статус без имён в чате</span>
+    </a>
+
+    <h2>03 · Смена</h2>
+    <a class="card" href="demo-manager-day.html">
+      <strong>День · план и чек-листы</strong>
+      <span>Открытие → план в группу · без галочек план не уйдёт</span>
+    </a>
+    <a class="card" href="demo-manager-broadcast.html">
+      <strong>📣 Шефу и менеджерам</strong>
+      <span>Оперсвязь управленческому контуру — не в чат линии</span>
+    </a>
+    <a class="card" href="demo-manager-close.html">
+      <strong>Закрытие дня</strong>
+      <span>Вечерний чек-лист · дисциплина в отчёте · закрытие за дату</span>
+    </a>
+    <a class="card" href="demo-manager-stop.html">
+      <strong>Стоп-лист</strong>
+      <span>Добавить · актуальный · публикация в группу · частота в сводке</span>
+    </a>
+    <a class="card" href="demo-manager-kitchen.html">
+      <strong>Кухня · оценка смены</strong>
+      <span>Отдельный контур от зала · темы кухни в отчёте</span>
+    </a>
+    <a class="card" href="demo-manager-plan.html">
+      <strong>План · задания и кадры</strong>
+      <span>Месяц · задания · уход кадра · закрыть за дату</span>
+    </a>
+
+    <h2>04 · Доступ</h2>
+    <a class="card" href="demo-manager-access.html">
+      <strong>Доступ и подключение точки</strong>
+      <span>Подключить / отозвать · как завести группу · поддержка</span>
+    </a>
+
+    <h2>05 · Линия</h2>
+    <a class="card" href="demo-waiter-checkin.html">
+      <strong>Официант · 10 секунд</strong>
+      <span>Оценка → тема → комментарий · анонимно для рабочего чата</span>
+    </a>
+
+    <div class="box">
+      <b>Куда класть</b><br />
+      1) в боте «📚 Материалы» — менеджеру при подключении<br />
+      2) закреп в Telegram онбординг-чата сети<br />
+      3) пакет партнёру (CosmicMind) — только короткие экраны<br />
+      4) <b>не</b> выкладывать полный набор на публичный сайт
+    </div>
+    <div class="warn">
+      На pulseteam.online — только тизеры с завесой: ценность и атмосфера, без пошагового SOP. Полная «открытая книга» остаётся здесь и в боте.
+    </div>
+  </main>
+</body>
+</html>

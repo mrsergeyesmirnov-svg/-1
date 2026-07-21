@@ -1,0 +1,46 @@
+diff --git a/index.html b/index.html
+index 6e53146..e7506e3 100644
+--- a/index.html
++++ b/index.html
+@@ -954,7 +954,7 @@
+               <div class="insight-card ok"><span>PDF</span>Отчёт для собственника — скачивается из сводки в один клик</div>
+             </div>
+             <div class="hero-actions" style="margin-top: 24px; margin-bottom: 0;">
+-              <a class="btn btn-primary" href="demo.html">10 экранов — в демо</a>
++              <a class="btn btn-primary" href="demo.html">Смотреть демо</a>
+             </div>
+           </div>
+         </div>
+@@ -1180,7 +1180,7 @@
+           <div class="faq-item">
+             <button type="button" class="faq-q" aria-expanded="false">Можно посмотреть до пилота?</button>
+             <div class="faq-a">
+-              <div class="faq-a-inner">Да — <a href="demo.html">интерактивное демо</a> на выдуманных данных: опрос в Telegram, операционный день, кухня, отчёты и «горящие вопросы». Пилот 14 дней бесплатно.</div>
++              <div class="faq-a-inner">Да — <a href="demo.html">короткое демо</a> на выдуманных кадрах: линия, сигнал управляющему, реакция смены. Полный маршрут и настройки открываем на пилоте. 14 дней бесплатно.</div>
+             </div>
+           </div>
+             </div>
+diff --git a/sitemap.xml b/sitemap.xml
+index e6f8b36..681432e 100644
+--- a/sitemap.xml
++++ b/sitemap.xml
+@@ -8,7 +8,7 @@
+   </url>
+   <url>
+     <loc>https://www.pulseteam.online/demo.html</loc>
+-    <lastmod>2026-06-03</lastmod>
++    <lastmod>2026-07-21</lastmod>
+     <changefreq>monthly</changefreq>
+     <priority>0.9</priority>
+   </url>
+@@ -30,4 +30,10 @@
+     <changefreq>yearly</changefreq>
+     <priority>0.5</priority>
+   </url>
++
++  <url>
++    <loc>https://www.pulseteam.online/demos/</loc>
++    <changefreq>monthly</changefreq>
++    <priority>0.6</priority>
++  </url>
+ </urlset>

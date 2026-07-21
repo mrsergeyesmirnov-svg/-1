@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PulseTeam · Алерт менеджеру</title>
+  <style>
+    :root {
+      --ink: #f3efe8;
+      --muted: #9a938a;
+      --accent: #ff5a1f;
+      --accent2: #ff8f5a;
+      --tg: #2aabee;
+      --ok: #2dd4bf;
+      --bubble: #1a2430;
+      --chat: #0c121a;
+      --top: #151e28;
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: ui-sans-serif, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1000px 520px at 50% -8%, rgba(255, 90, 31, 0.2), transparent 55%),
+        radial-gradient(700px 420px at 85% 100%, rgba(42, 171, 238, 0.1), transparent 50%),
+        #06080c;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    .stage {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: max(20px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
+      gap: 22px;
+    }
+    .eyebrow {
+      font-size: 0.72rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: 0.7s var(--ease);
+    }
+    .eyebrow.on { opacity: 1; transform: none; }
+    .brand {
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      font-size: clamp(1.55rem, 4vw, 2.1rem);
+      line-height: 1;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: 0.8s var(--ease);
+    }
+    .brand.on { opacity: 1; transform: none; }
+    .brand span { color: var(--accent); }
+    .caption {
+      width: min(24rem, 92vw);
+      text-align: center;
+      min-height: 4.6em;
+      position: relative;
+    }
+    .caption .slide {
+      position: absolute; inset: 0;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.55s var(--ease-soft), transform 0.55s var(--ease);
+      pointer-events: none;
+    }
+    .caption .slide.on {
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
+    }
+    .caption h1 {
+      font-size: clamp(1.15rem, 2.8vw, 1.4rem);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      margin: 0 0 8px;
+      line-height: 1.25;
+    }
+    .caption p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+    .phone-wrap {
+      opacity: 0;
+      transform: translateY(28px) scale(0.94);
+      transition: 1.1s var(--ease);
+    }
+    .phone-wrap.on { opacity: 1; transform: none; }
+    .phone {
+      width: min(310px, 84vw);
+      aspect-ratio: 9 / 19.4;
+      border-radius: 38px;
+      padding: 11px;
+      background: linear-gradient(145deg, #323843, #14171c 42%, #090b0e);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.07),
+        0 30px 60px rgba(0,0,0,0.45),
+        0 60px 100px rgba(0,0,0,0.35);
+      position: relative;
+    }
+    .phone::before {
+      content: "";
+      position: absolute;
+      top: 18px; left: 50%; transform: translateX(-50%);
+      width: 92px; height: 24px;
+      background: #000;
+      border-radius: 20px;
+      z-index: 6;
+    }
+    .screen {
+      height: 100%;
+      border-radius: 30px;
+      overflow: hidden;
+      background: var(--chat);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .tg-top {
+      background: var(--top);
+      padding: 46px 14px 11px;
+      display: flex; gap: 10px; align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .avatar {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: grid; place-items: center;
+      font-weight: 800; font-size: 0.72rem; color: #fff;
+      flex-shrink: 0;
+    }
+    .tg-top .name { font-weight: 650; font-size: 0.95rem; }
+    .tg-top .sub { color: #6a7c8d; font-size: 0.7rem; margin-top: 2px; }
+    .chat {
+      flex: 1;
+      padding: 12px 10px 34px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      overflow: hidden;
+      position: relative;
+    }
+    .daychip {
+      align-self: center;
+      background: rgba(255,255,255,0.06);
+      color: #93a4b4;
+      font-size: 0.68rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: 0.5s var(--ease);
+    }
+    .daychip.on { opacity: 1; transform: none; }
+    .bubble {
+      align-self: flex-start;
+      max-width: 94%;
+      background: var(--bubble);
+      border-radius: 16px 16px 16px 5px;
+      padding: 11px 12px;
+      font-size: 0.76rem;
+      line-height: 1.48;
+      color: #dce6ef;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.22);
+      opacity: 0;
+      transform: translateY(16px) scale(0.985);
+      transition: opacity 0.65s var(--ease), transform 0.65s var(--ease);
+      will-change: transform, opacity;
+    }
+    .bubble.on { opacity: 1; transform: none; }
+    .bubble strong { color: #fff; font-weight: 650; }
+    .bubble .soft { color: #8092a3; }
+    .metric {
+      display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;
+    }
+    .metric span {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      padding: 6px 8px;
+      font-size: 0.7rem;
+      color: #b7c5d3;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: 0.45s var(--ease);
+    }
+    .metric span.on { opacity: 1; transform: none; }
+    .metric span b { color: #fff; }
+    .metric span.warn b { color: #ffb08a; }
+    .quote {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-left: 2px solid var(--accent);
+      background: rgba(255,255,255,0.03);
+      border-radius: 0 8px 8px 0;
+      color: #c4d0db;
+      font-size: 0.72rem;
+      opacity: 0;
+      transform: translateX(-6px);
+      transition: 0.5s var(--ease);
+    }
+    .quote.on { opacity: 1; transform: none; }
+    .reco {
+      margin-top: 10px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: 0.5s var(--ease);
+    }
+    .reco.on { opacity: 1; transform: none; }
+    .actions { display: flex; flex-direction: column; gap: 6px; margin-top: 11px; }
+    .btn {
+      background: rgba(42, 171, 238, 0.13);
+      color: #79c9f4;
+      border-radius: 11px;
+      padding: 9px 10px;
+      font-size: 0.76rem;
+      font-weight: 650;
+      text-align: center;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: 0.45s var(--ease), background 0.35s ease, color 0.35s ease, transform 0.25s ease;
+    }
+    .btn.on { opacity: 1; transform: none; }
+    .btn.primary { background: rgba(255, 90, 31, 0.16); color: #ffb394; }
+    .btn.pressed {
+      background: rgba(45, 212, 191, 0.2);
+      color: #99f6e4;
+      transform: scale(0.975);
+    }
+    .bubble.peer {
+      background: #203041;
+    }
+    .toast {
+      align-self: center;
+      margin-top: 4px;
+      background: rgba(255,255,255,0.08);
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      color: #d5dee8;
+      opacity: 0;
+      transform: translateY(12px) scale(0.96);
+      transition: 0.55s var(--ease);
+    }
+    .toast.on { opacity: 1; transform: none; }
+    .progress {
+      display: flex; gap: 5px; justify-content: center;
+    }
+    .progress i {
+      height: 4px; width: 14px; border-radius: 99px;
+      background: rgba(255,255,255,0.12);
+      transition: 0.45s var(--ease);
+    }
+    .progress i.on {
+      width: 28px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+    }
+    .controls {
+      display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+      opacity: 0; transform: translateY(8px);
+      transition: 0.7s var(--ease) 0.4s;
+    }
+    .controls.on { opacity: 1; transform: none; }
+    .controls button, .controls a {
+      appearance: none; border: 0; cursor: pointer;
+      font: inherit; font-weight: 650; font-size: 0.84rem;
+      padding: 11px 16px; border-radius: 999px;
+      text-decoration: none; color: #0b0d10;
+      background: var(--ink);
+    }
+    .controls a.ghost, .controls button.ghost {
+      background: transparent; color: var(--muted);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14);
+    }
+    .finger {
+      position: absolute;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.35);
+      box-shadow: 0 0 0 8px rgba(255,255,255,0.08);
+      pointer-events: none;
+      opacity: 0;
+      z-index: 8;
+      transition: opacity 0.25s ease;
+    }
+    .finger.flash { opacity: 1; animation: tap 0.55s var(--ease); }
+    @keyframes tap {
+      0% { transform: scale(0.6); opacity: 0; }
+      40% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(1.2); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="eyebrow" id="eyebrow">Обновление · для управляющих</div>
+    <div class="brand" id="brand">Pulse<span>Team</span></div>
+    <div class="caption" id="caption">
+      <div class="slide on" data-i="0">
+        <h1>Менеджер не ищет отчёт</h1>
+        <p>Бот сам пишет в личку, когда смена уже «красная».</p>
+      </div>
+      <div class="slide" data-i="1">
+        <h1>Спайк кухни за 3 смены</h1>
+        <p>Сначала цифры: упоминания, динамика, просадка оценки.</p>
+      </div>
+      <div class="slide" data-i="2">
+        <h1>Голос линии рядом</h1>
+        <p>Не сухая аналитика — яркие анонимные комментарии к теме.</p>
+      </div>
+      <div class="slide" data-i="3">
+        <h1>Одно действие</h1>
+        <p>«В работу» — и тема общая для всех менеджеров точки.</p>
+      </div>
+      <div class="slide" data-i="4">
+        <h1>Смена видит прогресс</h1>
+        <p>В общий чат — только статус. Без имён и без деанона.</p>
+      </div>
+    </div>
+
+    <div class="phone-wrap" id="phoneWrap">
+      <div class="phone">
+        <div class="screen">
+          <div class="tg-top">
+            <div class="avatar">PT</div>
+            <div>
+              <div class="name">PulseTeam</div>
+              <div class="sub">бот · сигналы смен</div>
+            </div>
+          </div>
+          <div class="chat">
+            <div class="daychip" id="day">сегодня · 22:14</div>
+            <div class="bubble" id="alert">
+              🚨 <strong>Резко выросли жалобы: медленная кухня</strong><br />
+              <span class="soft">точка · зал + кухня</span>
+              <div class="metric" id="metrics">
+                <span class="warn" id="m1"><b>8</b> отметок · +170%</span>
+                <span class="warn" id="m2">оценка <b>4,3 → 3,6</b></span>
+              </div>
+              <div class="quote" id="q1">«Очень долго ждут горячее на раздаче»</div>
+              <div class="quote" id="q2">«На пике кухня не успевает, очередь растёт»</div>
+              <div class="reco" id="reco"><strong>Что сделать:</strong> разберите отдачу с шефом до пятничного пика.</div>
+              <div class="actions">
+                <div class="btn primary" id="btnWork">В работу</div>
+                <div class="btn" id="btnList">🔥 Горящие вопросы</div>
+              </div>
+            </div>
+            <div class="bubble peer" id="peer">
+              👤 <strong>коллега</strong> видит то же обновление<br />
+              🟡 Медленная кухня → <strong>В работе</strong><br />
+              <span class="soft">Можно не дублировать — статус уже общий.</span>
+            </div>
+            <div class="toast" id="toast">В группу смены — без имён менеджеров</div>
+            <div class="finger" id="finger"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="progress" id="progress">
+      <i></i><i></i><i></i><i></i><i></i>
+    </div>
+    <div class="controls" id="controls">
+      <button type="button" id="replay">↻ Ещё раз</button>
+      <a class="ghost" href="demo-manager-day.html">Смена →</a>
+      <a class="ghost" href="index.html">Все ролики</a>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const slides = [...document.querySelectorAll(".caption .slide")];
+    const dots = [...document.querySelectorAll("#progress i")];
+    let timers = [];
+    const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+
+    function clear() { timers.forEach(clearTimeout); timers = []; }
+
+    function cap(i) {
+      slides.forEach((s) => s.classList.toggle("on", Number(s.dataset.i) === i));
+      dots.forEach((d, n) => d.classList.toggle("on", n === i));
+    }
+
+    function on(el, cls = "on") { el.classList.add(cls); }
+    function offAll() {
+      ["day","alert","m1","m2","q1","q2","reco","btnWork","btnList","peer","toast"]
+        .forEach((id) => $(id).classList.remove("on", "pressed"));
+      $("btnWork").textContent = "В работу";
+      $("finger").classList.remove("flash");
+    }
+
+    function tap(x, y) {
+      const f = $("finger");
+      f.style.left = x + "px";
+      f.style.top = y + "px";
+      f.classList.remove("flash");
+      void f.offsetWidth;
+      f.classList.add("flash");
+    }
+
+    function play() {
+      clear();
+      offAll();
+      cap(0);
+      ["eyebrow","brand","phoneWrap","controls"].forEach((id) => on($(id)));
+
+      at(700, () => { on($("day")); });
+      at(1200, () => { on($("alert")); cap(0); });
+      at(2200, () => { cap(1); on($("m1")); });
+      at(2700, () => { on($("m2")); });
+      at(3500, () => { cap(2); on($("q1")); });
+      at(4200, () => { on($("q2")); });
+      at(5000, () => { on($("reco")); });
+      at(5600, () => { on($("btnWork")); on($("btnList")); });
+      at(6400, () => {
+        cap(3);
+        const btn = $("btnWork");
+        const r = btn.getBoundingClientRect();
+        const chat = document.querySelector(".chat").getBoundingClientRect();
+        tap(r.left - chat.left + r.width * 0.7, r.top - chat.top + r.height * 0.5);
+        btn.classList.add("pressed");
+        btn.textContent = "✓ В работе";
+      });
+      at(7300, () => { on($("peer")); });
+      at(8200, () => { cap(4); on($("toast")); });
+      at(12500, () => play());
+    }
+
+    $("replay").addEventListener("click", play);
+    requestAnimationFrame(() => play());
+  </script>
+</body>
+</html>
