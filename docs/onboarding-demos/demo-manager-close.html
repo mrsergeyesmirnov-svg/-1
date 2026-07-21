@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PulseTeam · Закрытие дня</title>
+  <link rel="stylesheet" href="assets/reel.css" />
+</head>
+<body>
+  <div class="stage">
+    <div class="eyebrow" id="eyebrow">Онбординг · Смена → День</div>
+    <div class="brand" id="brand">Pulse<span>Team</span></div>
+    <div class="caption" id="caption">
+      <div class="slide on" data-i="0">
+        <h1>Вечер — закрытие</h1>
+        <p>Чек-лист закрытия + итоги дня. Дисциплина видна в отчёте.</p>
+      </div>
+      <div class="slide" data-i="1">
+        <h1>Без «забыли закрыть»</h1>
+        <p>Дни без закрытия копятся в сводке — сеть это видит.</p>
+      </div>
+      <div class="slide" data-i="2">
+        <h1>Закрыть за дату</h1>
+        <p>Если вчера уехали без закрытия — догоняете из «План».</p>
+      </div>
+      <div class="slide" data-i="3">
+        <h1>Привычка смены</h1>
+        <p>Открытие утром · закрытие вечером · линия отвечает после смены.</p>
+      </div>
+    </div>
+    <div class="phone-wrap" id="phoneWrap">
+      <div class="phone">
+        <div class="screen">
+          <div class="tg-top">
+            <div class="avatar">PT</div>
+            <div>
+              <div class="name">PulseTeam</div>
+              <div class="sub">бот · закрытие</div>
+            </div>
+          </div>
+          <div class="chat" id="chat">
+
+            <div class="daychip" data-el="day">суббота · 23:55</div>
+            <div class="bubble" data-el="cl">
+              <strong>🌙 Закрытие смены</strong><br />
+              <span class="soft">чек-лист · 4 пункта</span>
+              <ul>
+                <li class="done" data-el="i1">☑️ Касса сверена</li>
+                <li class="done" data-el="i2">☑️ Зал сдан</li>
+                <li data-el="i3">☐ Итоги дня заполнены</li>
+              </ul>
+            </div>
+            <div class="bubble" data-el="sum">
+              <strong>Закрытие дня</strong><br />
+              Выручка · метрика · короткий комментарий<br />
+              <span class="soft">После галочек уходит в учёт точки</span>
+            </div>
+            <div class="kbd">
+              <div class="kbtn primary" data-el="btn">✅ Закрыть день</div>
+              <div class="kbtn" data-el="past">Закрыть за дату</div>
+            </div>
+            <div class="toast" data-el="toast">День закрыт · дисциплина +1</div>
+            <div class="finger" id="finger"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="progress" id="progress"><i></i><i></i><i></i><i></i></div>
+    <p class="hint">Онбординг · полный ролик · не для публичного сайта</p>
+    <div class="controls" id="controls">
+      <button type="button" id="replay">↻ Ещё раз</button>
+      <a class="ghost" href="demo-manager-stop.html">Стоп-лист →</a>
+      <a class="ghost" href="index.html">Все ролики</a>
+    </div>
+  </div>
+  <script>
+    const TIMELINE = [{"t": 500, "cap": 0, "on": ["day", "cl", "i1", "i2", "i3"]}, {"t": 2000, "cap": 1, "on": ["sum", "btn", "past"]}, {"t": 3400, "tap": "i3", "text": ["i3", "☑️ Итоги дня заполнены"], "cls": ["i3", "done"]}, {"t": 4600, "cap": 2, "tap": "btn", "press": "btn"}, {"t": 5600, "cap": 3, "on": ["toast"]}, {"t": 9500, "loop": true}];
+    const $ = (id) => document.getElementById(id);
+    const el = (name) => document.querySelector('[data-el="' + name + '"]');
+    const slides = [...document.querySelectorAll(".caption .slide")];
+    const dots = [...document.querySelectorAll("#progress i")];
+    let timers = [];
+    const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+    function clear() { timers.forEach(clearTimeout); timers = []; }
+    function cap(i) {
+      slides.forEach((s) => s.classList.toggle("on", Number(s.dataset.i) === i));
+      dots.forEach((d, n) => d.classList.toggle("on", n === i));
+    }
+    function reset() {
+      document.querySelectorAll("[data-el]").forEach((n) => {
+        n.classList.remove("on", "pressed", "hi", "done", "flash");
+        if (n.dataset.orig) n.innerHTML = n.dataset.orig;
+      });
+      document.querySelectorAll("[data-el]").forEach((n) => {
+        if (!n.dataset.orig) n.dataset.orig = n.innerHTML;
+      });
+      $("finger").classList.remove("flash");
+    }
+    function tapOn(name) {
+      const node = el(name);
+      if (!node) return;
+      const f = $("finger");
+      const chat = $("chat").getBoundingClientRect();
+      const r = node.getBoundingClientRect();
+      f.style.left = (r.left - chat.left + r.width * 0.55) + "px";
+      f.style.top = (r.top - chat.top + r.height * 0.5) + "px";
+      f.classList.remove("flash");
+      void f.offsetWidth;
+      f.classList.add("flash");
+    }
+    function apply(step) {
+      if (step.cap !== undefined) cap(step.cap);
+      (step.on || []).forEach((n) => el(n)?.classList.add("on"));
+      (step.off || []).forEach((n) => el(n)?.classList.remove("on"));
+      if (step.hi) {
+        document.querySelectorAll(".chip.hi,.cell.hi").forEach((n) => n.classList.remove("hi"));
+        el(step.hi)?.classList.add("hi");
+      }
+      if (step.unhi) el(step.unhi)?.classList.remove("hi");
+      if (step.press) el(step.press)?.classList.add("pressed");
+      if (step.tap) tapOn(step.tap);
+      if (step.text) {
+        const [name, html] = step.text;
+        const n = el(name);
+        if (n) n.innerHTML = html;
+      }
+      if (step.cls) {
+        const [name, c] = step.cls;
+        el(name)?.classList.add(c);
+      }
+      if (step.loop) play();
+    }
+    function play() {
+      clear();
+      reset();
+      cap(0);
+      ["eyebrow","brand","phoneWrap","controls"].forEach((id) => $(id).classList.add("on"));
+      TIMELINE.forEach((step) => at(step.t, () => apply(step)));
+    }
+    document.querySelectorAll("[data-el]").forEach((n) => { n.dataset.orig = n.innerHTML; });
+    $("replay").addEventListener("click", play);
+    requestAnimationFrame(() => play());
+  </script>
+</body>
+</html>
