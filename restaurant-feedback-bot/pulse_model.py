@@ -51,6 +51,7 @@ BTN_STAFF_REMOVE = "Отозвать доступ"
 BTN_TRAINING_MGR = "📚 Материалы"
 BTN_TRAINING = "📚 Обучение"
 BTN_DAY_CLOSE_PAST = "Закрыть за дату"
+BTN_REMINDERS = "⏰ Напоминания"
 
 MANAGER_ROOT_BUTTONS = frozenset(
     {BTN_FOLDER_ANALYTICS, BTN_FOLDER_SHIFT, BTN_FOLDER_INBOX, BTN_FOLDER_MORE}
@@ -86,6 +87,7 @@ MANAGER_ACTION_BUTTONS = frozenset(
         BTN_STAFF_REMOVE,
         BTN_TRAINING_MGR,
         BTN_DAY_CLOSE_PAST,
+        BTN_REMINDERS,
         BTN_MENU_HOME,
     }
 ) | SHIFT_FOLDER_BUTTONS
@@ -683,7 +685,8 @@ def text_connect_point(bot_username: str) -> str:
         "2. Добавьте в чат бота.\n"
         "3. Администратор Pulse привяжет чат к вашей <b>организации</b> командой <code>/link_org …</code> в этом чате "
         "(или заранее через поддержку).\n"
-        "4. В чате задайте время напоминания: <code>/settime 22:00</code> и при необходимости "
+        "4. В чате или в личке: «⏰ Напоминания» — время опроса смены; "
+        "либо <code>/settime 22:00</code> и при необходимости "
         "<code>/timezone Europe/Moscow</code>.\n\n"
         f'<a href="https://t.me/{un_e}?startgroup=open">добавить @{un_e} в группу</a>\n\n'
         "Оценки сотрудников идут <b>только в личку</b> по кнопке из группы — так ответ привязан к точке."
@@ -841,6 +844,7 @@ def manager_menu_more_markup(*, show_staff_assign: bool = False):
         rows.append([KeyboardButton(text=BTN_TRAINING_MGR)])
     rows.extend(
         [
+            [KeyboardButton(text=BTN_REMINDERS)],
             [KeyboardButton(text=BTN_SUBSCRIPTION), KeyboardButton(text=BTN_SUPPORT)],
             [KeyboardButton(text=BTN_CONNECT)],
             [KeyboardButton(text=BTN_MENU_HOME)],
@@ -918,7 +922,8 @@ def admin_commands_reference_chunks() -> list[str]:
             f"· {BTN_FOLDER_SHIFT_STOP} — {BTN_STOP_LIST}, {BTN_STOP_ADD}, {BTN_STOP_CURRENT}\n"
             f"· {BTN_FOLDER_SHIFT_KITCHEN} — {BTN_RATE_SHIFT}\n"
             f"· {BTN_FOLDER_SHIFT_PLAN} — {BTN_MONTH_PLAN}, {BTN_STAFF_OUT}, {BTN_TASKS}\n"
-            f"<b>{BTN_FOLDER_MORE}</b> — {BTN_STAFF_ASSIGN}, {BTN_SUBSCRIPTION}, {BTN_SUPPORT}, {BTN_CONNECT}\n\n"
+            f"<b>{BTN_FOLDER_MORE}</b> — {BTN_STAFF_ASSIGN}, {BTN_REMINDERS}, "
+            f"{BTN_SUBSCRIPTION}, {BTN_SUPPORT}, {BTN_CONNECT}\n\n"
             "<b>Отчёты</b> — смена / неделя / 3 недели / "
             "<b>месяц (календарь)</b> с планом и эффективностью\n\n"
             "<b>👨‍🍳 Меню шефа (всё в личке)</b>\n"

@@ -20,7 +20,7 @@
   --top: #151e28;
   --kbd: rgba(42, 171, 238, 0.13);
   --kbd-text: #79c9f4;
-  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-soft: cubic-bezier(0.33, 1, 0.68, 1);
 }
 * { box-sizing: border-box; }
@@ -181,8 +181,8 @@ body {
   color: #dce6ef;
   box-shadow: 0 10px 24px rgba(0,0,0,0.22);
   opacity: 0;
-  transform: translateY(16px) scale(0.985);
-  transition: opacity 0.65s var(--ease), transform 0.65s var(--ease);
+  transform: translateY(10px);
+  transition: opacity 0.85s var(--ease), transform 0.85s var(--ease);
 }
 .bubble.on { opacity: 1; transform: none; }
 .bubble.mine {
@@ -484,7 +484,7 @@ body {
       </div>
     </div>
     <div class="progress" id="progress"><i></i><i></i><i></i><i></i></div>
-    <p class="hint">PulseTeam · онбординг менеджера</p>
+    <p class="hint">PulseTeam · инструкция</p>
     <div class="controls" id="controls">
       <button type="button" id="replay">↻ Ещё раз</button>
       </div>
