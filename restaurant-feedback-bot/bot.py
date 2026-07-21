@@ -4596,9 +4596,61 @@ async def training_callback_handler(callback: CallbackQuery) -> None:
         return
 
     if action == "ob":
-        # tr:ob:list:{chat_id} | tr:ob:s:{chat_id}:{reel_id}
+        # start/list → сразу 1-й ролик; g → индекс; topics → темы; s → id (старые кнопки)
         sub = parts[2] if len(parts) > 2 else ""
-        if sub == "list" and len(parts) > 3:
+
+        async def _ob_send_reel(chat_id: int, index: int, *, prefer_edit: bool) -> None:
+            from aiogram.types import FSInputFile, InputMediaVideo
+
+            path = onboarding_reels.reel_path_at(index)
+            if path is None:
+                await callback.answer("Ролик не найден", show_alert=True)
+                return
+            await callback.answer()
+            caption = onboarding_reels.caption_at(index)
+            kb = onboarding_reels.nav_keyboard(chat_id, index)
+            media = FSInputFile(path)
+            msg = callback.message
+            can_edit = prefer_edit and bool(
+                msg and (msg.video or getattr(msg, "animation", None))
+            )
+            if can_edit:
+                try:
+                    await msg.edit_media(
+                        media=InputMediaVideo(
+                            media=media,
+                            caption=caption,
+                            width=720,
+                            height=1280,
+                            supports_streaming=True,
+                        ),
+                        reply_markup=kb,
+                    )
+                    return
+                except Exception as e:
+                    print(f"[onboarding-reel-edit] {e}")
+            try:
+                await msg.answer_video(
+                    media,
+                    caption=caption,
+                    supports_streaming=True,
+                    width=720,
+                    height=1280,
+                    reply_markup=kb,
+                )
+            except Exception as e:
+                print(f"[onboarding-reel-video] {e}")
+                try:
+                    await msg.answer_document(media, caption=caption, reply_markup=kb)
+                except Exception as e2:
+                    print(f"[onboarding-reel-doc] {e2}")
+                    await msg.answer("Не удалось отправить ролик. Попробуйте ещё раз.")
+
+        if sub == "noop":
+            await callback.answer()
+            return
+
+        if sub in ("start", "list") and len(parts) > 3:
             try:
                 chat_id = int(parts[3])
             except ValueError:
@@ -4607,13 +4659,57 @@ async def training_callback_handler(callback: CallbackQuery) -> None:
             if not await _manager_can_access_chat(data, uid, chat_id):
                 await callback.answer("Нет доступа.", show_alert=True)
                 return
-            await callback.answer()
-            await callback.message.edit_text(
-                onboarding_reels.format_onboarding_menu(),
-                parse_mode="HTML",
-                reply_markup=onboarding_reels.onboarding_list_keyboard(chat_id),
-            )
+            await _ob_send_reel(chat_id, 0, prefer_edit=False)
             return
+
+        if sub == "g" and len(parts) > 4:
+            try:
+                chat_id = int(parts[3])
+                index = int(parts[4])
+            except ValueError:
+                await callback.answer()
+                return
+            if not await _manager_can_access_chat(data, uid, chat_id):
+                await callback.answer("Нет доступа.", show_alert=True)
+                return
+            if index < 0 or index >= onboarding_reels.catalog_len():
+                await callback.answer("Ролик не найден", show_alert=True)
+                return
+            prefer_edit = bool(
+                callback.message
+                and (callback.message.video or getattr(callback.message, "animation", None))
+            )
+            await _ob_send_reel(chat_id, index, prefer_edit=prefer_edit)
+            return
+
+        if sub == "topics" and len(parts) > 3:
+            try:
+                chat_id = int(parts[3])
+            except ValueError:
+                await callback.answer()
+                return
+            cur = 0
+            if len(parts) > 4:
+                try:
+                    cur = int(parts[4])
+                except ValueError:
+                    cur = 0
+            if not await _manager_can_access_chat(data, uid, chat_id):
+                await callback.answer("Нет доступа.", show_alert=True)
+                return
+            await callback.answer()
+            text = onboarding_reels.format_topics_menu(cur)
+            kb = onboarding_reels.topics_keyboard(chat_id, cur)
+            msg = callback.message
+            if msg and msg.text is not None:
+                try:
+                    await msg.edit_text(text, parse_mode="HTML", reply_markup=kb)
+                    return
+                except Exception as e:
+                    print(f"[onboarding-topics-edit] {e}")
+            await msg.answer(text, parse_mode="HTML", reply_markup=kb)
+            return
+
         if sub == "s" and len(parts) > 4:
             try:
                 chat_id = int(parts[3])
@@ -4624,34 +4720,13 @@ async def training_callback_handler(callback: CallbackQuery) -> None:
             if not await _manager_can_access_chat(data, uid, chat_id):
                 await callback.answer("Нет доступа.", show_alert=True)
                 return
-            path = onboarding_reels.reel_path(reel_id)
-            if path is None:
+            idx = onboarding_reels.reel_index(reel_id)
+            if idx is None:
                 await callback.answer("Ролик не найден", show_alert=True)
                 return
-            await callback.answer()
-            from aiogram.types import FSInputFile
-
-            media = FSInputFile(path)
-            caption = onboarding_reels.caption_for(reel_id)
-            try:
-                # Видео (не GIF/animation): вертикальный кадр без серых полей Telegram
-                await callback.message.answer_video(
-                    media,
-                    caption=caption,
-                    supports_streaming=True,
-                    width=720,
-                    height=1280,
-                )
-            except Exception as e:
-                print(f"[onboarding-reel-video] {e}")
-                try:
-                    await callback.message.answer_document(media, caption=caption)
-                except Exception as e2:
-                    print(f"[onboarding-reel-doc] {e2}")
-                    await callback.message.answer(
-                        "Не удалось отправить ролик. Попробуйте ещё раз."
-                    )
+            await _ob_send_reel(chat_id, idx, prefer_edit=False)
             return
+
         await callback.answer()
         return
 
@@ -4670,7 +4745,11 @@ async def training_callback_handler(callback: CallbackQuery) -> None:
             training_materials.manager_menu_keyboard(chat_id, rec),
             chat_id,
         )
-        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+        # С видео-сообщения edit_text не работает — шлём новое
+        try:
+            await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+        except Exception:
+            await callback.message.answer(text, parse_mode="HTML", reply_markup=kb)
         return
 
     if action == "mfold" and len(parts) > 3:
