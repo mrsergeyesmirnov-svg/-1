@@ -1,6 +1,6 @@
 /**
- * Record phone-only full-bleed reels for Telegram video (not GIF).
- * Opens HTML with ?rec=1 so chrome/brand/captions are hidden.
+ * Record onboarding reels: large centered phone mockup (not full-bleed black).
+ * Send as Telegram video (not GIF). ?rec=1 hides captions/controls, keeps phone frame.
  */
 import { chromium } from "playwright-core";
 import { spawn } from "child_process";
@@ -14,7 +14,7 @@ const HTML_DIR = path.resolve(
   "../../restaurant-feedback-bot/onboarding_reels"
 );
 const OUT_DIR = path.join(HTML_DIR, "mp4");
-const TMP_DIR = "/tmp/reel-record-fill";
+const TMP_DIR = "/tmp/reel-record-phone";
 
 const W = 720;
 const H = 1280;
@@ -63,7 +63,7 @@ async function convert(webm, mp4) {
     "-movflags",
     "+faststart",
     "-crf",
-    "18",
+    "17",
     "-preset",
     "slow",
     "-tune",
@@ -97,14 +97,12 @@ for (const reel of REELS) {
     },
   });
   const page = await context.newPage();
-  await page.addInitScript(() => {
-    document.documentElement.classList.add("rec-pending");
-  });
   const url = pathToFileURL(htmlPath).href + "?rec=1";
-  console.log("recording fill", reel.file, "→", reel.out);
+  console.log("recording phone-frame", reel.file, "→", reel.out);
   await page.goto(url, { waitUntil: "networkidle" });
   await page.evaluate(() => document.body.classList.add("rec"));
-  await page.waitForTimeout(500);
+  // дождаться появления телефона и первого пузыря
+  await page.waitForTimeout(700);
   await page.waitForTimeout(reel.ms);
   const video = page.video();
   await context.close();
