@@ -3704,6 +3704,30 @@ async def problems_callback_handler(callback: CallbackQuery) -> None:
                 await callback.answer("Нет доступа к точке.", show_alert=True)
                 return
             manager_problem_chat[uid] = chat_id
+            if prob.status == status:
+                st_ru = problems_pulse.STATUS_RU.get(status, status)
+                await callback.answer(f"Уже: {st_ru}", show_alert=True)
+                await callback.message.answer(
+                    problems_pulse.format_problem_card(prob),
+                    parse_mode="HTML",
+                    reply_markup=problems_pulse.problem_card_keyboard(
+                        pid, prob.status, chat_id
+                    ),
+                )
+                return
+            if (
+                status == problems_pulse.STATUS_IN_PROGRESS
+                and prob.status == problems_pulse.STATUS_IN_PROGRESS
+            ):
+                await callback.answer("Уже в работе у команды", show_alert=True)
+                await callback.message.answer(
+                    problems_pulse.format_problem_card(prob),
+                    parse_mode="HTML",
+                    reply_markup=problems_pulse.problem_card_keyboard(
+                        pid, prob.status, chat_id
+                    ),
+                )
+                return
             manager_problem_pending[uid] = (pid, status)
             await callback.answer()
             st_ru = problems_pulse.STATUS_RU.get(status, status)
@@ -5194,6 +5218,19 @@ async def ops_callback_handler(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+async def _manager_actor_label(user) -> str:
+    if not user:
+        return "менеджер"
+    if getattr(user, "username", None):
+        return f"@{user.username}"
+    parts = [
+        (getattr(user, "first_name", None) or "").strip(),
+        (getattr(user, "last_name", None) or "").strip(),
+    ]
+    name = " ".join(p for p in parts if p).strip()
+    return name or f"id {user.id}"
+
+
 async def _apply_problem_status_change(
     message: Message,
     uid: int,
@@ -5210,8 +5247,10 @@ async def _apply_problem_status_change(
         return
     await save_data(data)
     st_ru = problems_pulse.STATUS_RU.get(status, status)
+    actor = await _manager_actor_label(message.from_user)
     await message.answer(
-        f"Готово: <b>{escape(prob.title)}</b> → {escape(st_ru)}",
+        f"Готово: <b>{escape(prob.title)}</b> → {escape(st_ru)}\n"
+        f"<i>Другие менеджеры точки уже видят это обновление.</i>",
         parse_mode="HTML",
         reply_markup=pulse_model.manager_menu_reply_markup(),
     )
@@ -5221,16 +5260,33 @@ async def _apply_problem_status_change(
     ):
         await _post_problem_to_group(
             prob.restaurant_chat_id,
-            problems_pulse.format_group_status_post(prob),
+            problems_pulse.format_group_status_post(prob, actor_label=actor),
         )
     rec = chat_record(data, prob.restaurant_chat_id) or {}
-    mgr_note = (
-        f"🔥 <b>Обновление темы</b> — {escape(str(rec.get('title', prob.restaurant_chat_id)))}\n\n"
-        f"{problems_pulse.format_problem_card(prob)}"
+    title = str(rec.get("title", prob.restaurant_chat_id))
+    mgr_note = problems_pulse.format_manager_peer_status_update(
+        prob,
+        restaurant_title=title,
+        actor_label=actor,
     )
-    await _notify_managers_problem_report(
-        data, prob.restaurant_chat_id, mgr_note, exclude_uid=uid
+    # Текст + актуальная карточка с кнопками под новый статус
+    admins = _chat_managers_only(data, prob.restaurant_chat_id)
+    kb = problems_pulse.problem_card_keyboard(
+        prob.id, prob.status, prob.restaurant_chat_id
     )
+    for mid in admins:
+        if mid == uid:
+            continue
+        manager_problem_chat[mid] = prob.restaurant_chat_id
+        try:
+            await bot.send_message(
+                mid,
+                mgr_note,
+                parse_mode="HTML",
+                reply_markup=kb,
+            )
+        except Exception as e:
+            print(f"[notify-manager-status] {mid}: {e}")
     manager_problem_chat[uid] = prob.restaurant_chat_id
 
 
