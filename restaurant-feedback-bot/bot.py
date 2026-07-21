@@ -44,6 +44,7 @@ import ops_day
 import monthly_ops
 import staff_assign
 import training_materials
+import onboarding_reels
 
 # На Railway без Volume файлы в контейнере теряются при redeploy.
 # Смонтируйте Volume и задайте PULSE_DATA_DIR=/data (или другой путь) — туда пойдут bot_data.json и feedback_log.jsonl.
@@ -484,11 +485,14 @@ async def _show_training_manager_menu(message: Message, uid: int, chat_id: int) 
         return
     rec = chat_record(data, chat_id) or {}
     title = str(rec.get("title", chat_id))
-    await message.answer(
-        training_materials.format_manager_menu(rec, title),
-        parse_mode="HTML",
-        reply_markup=training_materials.manager_menu_keyboard(chat_id, rec),
+    text = onboarding_reels.enrich_manager_menu_text(
+        training_materials.format_manager_menu(rec, title)
     )
+    kb = onboarding_reels.patch_manager_menu_keyboard(
+        training_materials.manager_menu_keyboard(chat_id, rec),
+        chat_id,
+    )
+    await message.answer(text, parse_mode="HTML", reply_markup=kb)
 
 
 async def _show_training_staff_menu(message: Message, uid: int) -> None:
@@ -4557,6 +4561,56 @@ async def training_callback_handler(callback: CallbackQuery) -> None:
             await callback.message.answer("Не удалось отправить файл.")
         return
 
+    if action == "ob":
+        # tr:ob:list:{chat_id} | tr:ob:s:{chat_id}:{reel_id}
+        sub = parts[2] if len(parts) > 2 else ""
+        if sub == "list" and len(parts) > 3:
+            try:
+                chat_id = int(parts[3])
+            except ValueError:
+                await callback.answer()
+                return
+            if not await _manager_can_access_chat(data, uid, chat_id):
+                await callback.answer("Нет доступа.", show_alert=True)
+                return
+            await callback.answer()
+            await callback.message.edit_text(
+                onboarding_reels.format_onboarding_menu(),
+                parse_mode="HTML",
+                reply_markup=onboarding_reels.onboarding_list_keyboard(chat_id),
+            )
+            return
+        if sub == "s" and len(parts) > 4:
+            try:
+                chat_id = int(parts[3])
+            except ValueError:
+                await callback.answer()
+                return
+            reel_id = parts[4]
+            if not await _manager_can_access_chat(data, uid, chat_id):
+                await callback.answer("Нет доступа.", show_alert=True)
+                return
+            path = onboarding_reels.reel_path(reel_id)
+            if path is None:
+                await callback.answer("Ролик не найден", show_alert=True)
+                return
+            await callback.answer()
+            from aiogram.types import FSInputFile
+
+            try:
+                await callback.message.answer_document(
+                    FSInputFile(path),
+                    caption=onboarding_reels.caption_for(reel_id),
+                )
+            except Exception as e:
+                print(f"[onboarding-reel] {e}")
+                await callback.message.answer(
+                    "Не удалось отправить ролик. Попробуйте ещё раз."
+                )
+            return
+        await callback.answer()
+        return
+
     if action == "mm" and len(parts) > 2:
         if not await _manager_can_access_chat(data, uid, int(parts[2])):
             await callback.answer("Нет доступа.", show_alert=True)
@@ -4565,11 +4619,14 @@ async def training_callback_handler(callback: CallbackQuery) -> None:
         rec = chat_record(data, chat_id) or {}
         title = str(rec.get("title", chat_id))
         await callback.answer()
-        await callback.message.edit_text(
-            training_materials.format_manager_menu(rec, title),
-            parse_mode="HTML",
-            reply_markup=training_materials.manager_menu_keyboard(chat_id, rec),
+        text = onboarding_reels.enrich_manager_menu_text(
+            training_materials.format_manager_menu(rec, title)
         )
+        kb = onboarding_reels.patch_manager_menu_keyboard(
+            training_materials.manager_menu_keyboard(chat_id, rec),
+            chat_id,
+        )
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
         return
 
     if action == "mfold" and len(parts) > 3:
