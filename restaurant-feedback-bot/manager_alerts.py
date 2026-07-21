@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
 import re
@@ -19,7 +19,8 @@ import report_pulse
 import survey_buttons
 
 ALERT_WINDOW_HOURS = 72
-ALERT_HHMM = "11:00"
+# Не слать повторно тот же тип сигнала по той же теме чаще, чем раз в N часов
+ALERT_COOLDOWN_HOURS = 12
 MAX_ALERTS_PER_CHAT = 2
 MIN_PROBLEM_MENTIONS = 3
 MIN_RATINGS_FOR_DROP = 3
@@ -28,6 +29,15 @@ GROWTH_MIN_EXTRA = 3
 GROWTH_MIN_PCT = 0.5
 IMPROVE_PREV_MIN = 5
 IMPROVE_DROP_RATIO = 0.55
+# События, после которых проверяем порог «прямо сейчас»
+TRIGGER_EVENTS = frozenset(
+    {
+        report_pulse.EVENT_PROBLEM,
+        report_pulse.EVENT_RATING,
+        report_pulse.EVENT_COMMENT,
+        "chef_shift",
+    }
+)
 
 THEME_KEYWORDS: dict[str, tuple[str, ...]] = {
     "kitchen": (
@@ -103,6 +113,73 @@ class ManagerAlert:
     comments: list[str]
     priority: int
     problem_key: str | None = None
+
+
+def alert_dedupe_key(chat_id: int, kind: str, code: str | None) -> str:
+    return f"{chat_id}|mgr_alert|{kind}|{code or '-'}"
+
+
+def alert_recently_sent(
+    sent_map: dict[str, Any],
+    key: str,
+    *,
+    now: datetime | None = None,
+    cooldown_hours: int = ALERT_COOLDOWN_HOURS,
+) -> bool:
+    raw = sent_map.get(key)
+    if raw is None:
+        return False
+    if raw is True:
+        return True
+    try:
+        ts = datetime.fromisoformat(str(raw))
+    except Exception:
+        return True
+    ref = now or datetime.now(timezone.utc)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=ref.tzinfo)
+    return (ref - ts) < timedelta(hours=cooldown_hours)
+
+
+def mark_alert_sent(
+    sent_map: dict[str, Any],
+    key: str,
+    *,
+    now: datetime | None = None,
+) -> None:
+    ref = now or datetime.now(timezone.utc)
+    sent_map[key] = ref.isoformat(timespec="seconds")
+
+
+def prune_alert_sent_map(
+    sent_map: dict[str, Any],
+    *,
+    now: datetime | None = None,
+    keep_hours: int = 48,
+) -> bool:
+    """Удаляет протухшие ключи mgr_alert. True если что-то удалили."""
+    ref = now or datetime.now(timezone.utc)
+    changed = False
+    for k in list(sent_map.keys()):
+        if "|mgr_alert|" not in str(k):
+            continue
+        raw = sent_map.get(k)
+        if raw is True:
+            del sent_map[k]
+            changed = True
+            continue
+        try:
+            ts = datetime.fromisoformat(str(raw))
+        except Exception:
+            del sent_map[k]
+            changed = True
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=ref.tzinfo)
+        if (ref - ts) > timedelta(hours=keep_hours):
+            del sent_map[k]
+            changed = True
+    return changed
 
 
 def _tz(tz_name: str):

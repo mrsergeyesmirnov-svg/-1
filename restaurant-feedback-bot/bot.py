@@ -361,6 +361,14 @@ async def log_feedback_event(entry: dict) -> None:
             asyncio.create_task(_check_tariff_limit_for_chat(int(rest_chat)))
         except (TypeError, ValueError):
             pass
+    if rest_chat is not None:
+        try:
+            et = str(entry.get("event") or "")
+            asyncio.create_task(
+                _maybe_manager_alerts_after_event(int(rest_chat), et)
+            )
+        except (TypeError, ValueError):
+            pass
 
 
 def chat_record(data: dict, chat_id: int) -> dict | None:
@@ -1091,8 +1099,14 @@ async def _notify_network_stale_problems(data: dict, *, week_key: str) -> None:
         print(f"[net-stale] org={oid} recipients={len(recipients)}")
 
 
-async def _run_manager_alerts_for_chat(data: dict, cid: str, info: dict) -> int:
-    """Push-алерты менеджерам точки. Возвращает число отправленных сообщений."""
+async def _run_manager_alerts_for_chat(
+    data: dict,
+    cid: str,
+    info: dict,
+    *,
+    force: bool = False,
+) -> int:
+    """Push-алерты менеджерам, когда порог уже пробит. force=True — без cooldown (админ)."""
     if info.get("removed_at") or info.get("active") is False:
         return 0
     oid = info.get("organization_id")
@@ -1112,8 +1126,16 @@ async def _run_manager_alerts_for_chat(data: dict, cid: str, info: dict) -> int:
     if not managers:
         print(f"[manager-alerts] chat={cid}: нет менеджеров")
         return 0
+    sent_map = data.setdefault("last_auto_sent", {})
+    now = datetime.now(get_tz(tz_name))
     sent = 0
-    for _alert, html, kb in packed:
+    for alert, html, kb in packed:
+        key = manager_alerts.alert_dedupe_key(chat_id, alert.kind, alert.code)
+        if not force and manager_alerts.alert_recently_sent(
+            sent_map, key, now=now
+        ):
+            continue
+        delivered = False
         for mid in managers:
             manager_problem_chat[mid] = chat_id
             try:
@@ -1121,9 +1143,29 @@ async def _run_manager_alerts_for_chat(data: dict, cid: str, info: dict) -> int:
                     mid, html, parse_mode="HTML", reply_markup=kb
                 )
                 sent += 1
+                delivered = True
             except Exception as e:
                 print(f"[manager-alert] mid={mid} chat={cid}: {e}")
+        if delivered:
+            manager_alerts.mark_alert_sent(sent_map, key, now=now)
     return sent
+
+
+async def _maybe_manager_alerts_after_event(chat_id: int, event_type: str) -> None:
+    """Сразу после сигнала линии — проверить порог и при необходимости пнуть менеджера."""
+    if event_type not in manager_alerts.TRIGGER_EVENTS:
+        return
+    try:
+        data = await load_data()
+        info = chat_record(data, chat_id)
+        if not info:
+            return
+        n = await _run_manager_alerts_for_chat(data, str(chat_id), info)
+        if n:
+            await save_data(data)
+            print(f"[manager-alerts-trigger] chat={chat_id} event={event_type} msgs={n}")
+    except Exception as e:
+        print(f"[manager-alerts-trigger-fail] {chat_id}: {e}")
 
 
 async def _show_problems_for_manager(
@@ -2548,7 +2590,7 @@ async def cmd_send_alerts_now(message: Message) -> None:
         if not isinstance(info, dict):
             continue
         try:
-            n = await _run_manager_alerts_for_chat(data, cid, info)
+            n = await _run_manager_alerts_for_chat(data, cid, info, force=True)
             if n:
                 chats_hit += 1
                 total_msgs += n
@@ -2558,8 +2600,8 @@ async def cmd_send_alerts_now(message: Message) -> None:
     await message.answer(
         f"Алерты: точек с сигналом <b>{chats_hit}</b>, сообщений менеджерам "
         f"<b>{total_msgs}</b>.\n"
-        f"Автомат — каждый день в <code>{manager_alerts.ALERT_HHMM}</code> "
-        f"(часовой пояс точки).",
+        f"В бою уходят <b>сразу</b>, когда порог пробит "
+        f"(антидубль {manager_alerts.ALERT_COOLDOWN_HOURS} ч на тему).",
         parse_mode="HTML",
     )
 
@@ -3320,23 +3362,6 @@ async def scheduler_loop() -> None:
                             changed = True
                             print(f"[unopened-alert] chat={cid} streak={streak}")
 
-                # Ежедневно — push-алерты менеджеру (сигналы смен + комментарии)
-                if hm == manager_alerts.ALERT_HHMM:
-                    akey = f"{cid}|mgr_alert|{today}"
-                    if not sent_map.get(akey):
-                        try:
-                            n_sent = await _run_manager_alerts_for_chat(
-                                data, cid, info
-                            )
-                            sent_map[akey] = True
-                            changed = True
-                            if n_sent:
-                                print(
-                                    f"[manager-alerts] chat={cid} messages={n_sent}"
-                                )
-                        except Exception as e:
-                            print(f"[manager-alerts-fail] {cid}: {e}")
-
                 # Понедельник 10:00 — синхронизация проблем
                 now_local = datetime.now(tz)
                 if now_local.weekday() == 0 and hm == "10:00":
@@ -3366,10 +3391,15 @@ async def scheduler_loop() -> None:
                 print(f"[net-stale-fail] {e}")
 
             for k in list(sent_map.keys()):
+                if "|mgr_alert|" in str(k):
+                    continue
                 parts = k.split("|")
                 if len(parts) >= 3 and parts[2] < today:
                     del sent_map[k]
                     changed = True
+
+            if manager_alerts.prune_alert_sent_map(sent_map):
+                changed = True
 
             if changed:
                 await save_data(data)
