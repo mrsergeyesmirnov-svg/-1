@@ -1,5 +1,6 @@
 /**
- * Record onboarding HTML reels to higher-quality mute MP4 for Telegram.
+ * Record phone-only full-bleed reels for Telegram video (not GIF).
+ * Opens HTML with ?rec=1 so chrome/brand/captions are hidden.
  */
 import { chromium } from "playwright-core";
 import { spawn } from "child_process";
@@ -13,11 +14,10 @@ const HTML_DIR = path.resolve(
   "../../restaurant-feedback-bot/onboarding_reels"
 );
 const OUT_DIR = path.join(HTML_DIR, "mp4");
-const TMP_DIR = "/tmp/reel-record-hq";
+const TMP_DIR = "/tmp/reel-record-fill";
 
-const W = 390;
-const H = 844;
-const SCALE = 2;
+const W = 720;
+const H = 1280;
 
 const REELS = [
   { file: "demo-manager-menu.html", out: "menu.mp4", ms: 11000 },
@@ -45,7 +45,6 @@ function run(cmd, args) {
 }
 
 async function convert(webm, mp4) {
-  // Telegram-friendly H.264, smoother bitrate, no audio
   await run("ffmpeg", [
     "-y",
     "-i",
@@ -60,7 +59,7 @@ async function convert(webm, mp4) {
     "-profile:v",
     "main",
     "-level",
-    "3.1",
+    "4.0",
     "-movflags",
     "+faststart",
     "-crf",
@@ -91,28 +90,21 @@ for (const reel of REELS) {
   const outMp4 = path.join(OUT_DIR, reel.out);
   const context = await browser.newContext({
     viewport: { width: W, height: H },
-    deviceScaleFactor: SCALE,
+    deviceScaleFactor: 2,
     recordVideo: {
       dir: TMP_DIR,
-      size: { width: W * SCALE, height: H * SCALE },
+      size: { width: W, height: H },
     },
   });
   const page = await context.newPage();
-  // Slightly soften CSS motion for capture
   await page.addInitScript(() => {
-    const s = document.createElement("style");
-    s.textContent = `
-      * { animation-timing-function: cubic-bezier(0.22,1,0.36,1) !important; }
-      .bubble, .btn, .kbtn, .chip, .metric span, .quote, .toast, .cell {
-        transition-duration: 0.85s !important;
-      }
-    `;
-    document.documentElement.appendChild(s);
+    document.documentElement.classList.add("rec-pending");
   });
-  const url = pathToFileURL(htmlPath).href;
-  console.log("recording HQ", reel.file, "→", reel.out);
+  const url = pathToFileURL(htmlPath).href + "?rec=1";
+  console.log("recording fill", reel.file, "→", reel.out);
   await page.goto(url, { waitUntil: "networkidle" });
-  await page.waitForTimeout(400);
+  await page.evaluate(() => document.body.classList.add("rec"));
+  await page.waitForTimeout(500);
   await page.waitForTimeout(reel.ms);
   const video = page.video();
   await context.close();
@@ -121,9 +113,8 @@ for (const reel of REELS) {
   try {
     fs.unlinkSync(webm);
   } catch {}
-  const size = fs.statSync(outMp4).size;
-  console.log("  ok", reel.out, Math.round(size / 1024), "KB");
+  console.log("  ok", reel.out, Math.round(fs.statSync(outMp4).size / 1024), "KB");
 }
 
 await browser.close();
-console.log("all done →", OUT_DIR);
+console.log("done", OUT_DIR);

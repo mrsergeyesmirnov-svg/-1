@@ -617,6 +617,9 @@ SHELL = """<!DOCTYPE html>
       TIMELINE.forEach((step) => at(step.t, () => apply(step)));
     }}
     document.querySelectorAll("[data-el]").forEach((n) => {{ n.dataset.orig = n.innerHTML; }});
+    if (new URLSearchParams(location.search).has("rec")) {{
+      document.body.classList.add("rec");
+    }}
     $("replay").addEventListener("click", play);
     requestAnimationFrame(() => play());
   </script>
