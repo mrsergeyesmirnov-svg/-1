@@ -617,23 +617,22 @@ def format_manager_peer_status_update(
     return "\n".join(lines)
 
 
-def format_group_status_post(p: ProblemRow, *, actor_label: str | None = None) -> str:
+def format_group_status_post(p: ProblemRow) -> str:
+    """Пост в группу смены: только факт смены статуса, без имён менеджеров."""
     st = STATUS_RU.get(p.status, p.status)
     icon = {"in_progress": "🔄", "resolved": "✅", "ignored": "⏸", "new": "📌"}.get(
         p.status, "📢"
     )
     lines = [
-        "📢 <b>Обновление по вашим отзывам</b>",
+        "📢 <b>Обновление по вашим отметкам</b>",
         "",
         f"{icon} <b>{escape(p.title)}</b>",
         "",
         f"Статус: <b>{escape(st)}</b>",
     ]
-    if actor_label:
-        lines.append(f"Ответственный: {escape(actor_label)}")
     if p.manager_comment and p.status in (STATUS_IN_PROGRESS, STATUS_RESOLVED):
         lines.append("")
-        lines.append("Комментарий руководителя:")
+        lines.append("Комментарий для команды:")
         lines.append(escape(p.manager_comment))
     lines.append("")
     lines.append(

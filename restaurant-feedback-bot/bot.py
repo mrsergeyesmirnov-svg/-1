@@ -5260,7 +5260,7 @@ async def _apply_problem_status_change(
     ):
         await _post_problem_to_group(
             prob.restaurant_chat_id,
-            problems_pulse.format_group_status_post(prob, actor_label=actor),
+            problems_pulse.format_group_status_post(prob),
         )
     rec = chat_record(data, prob.restaurant_chat_id) or {}
     title = str(rec.get("title", prob.restaurant_chat_id))
