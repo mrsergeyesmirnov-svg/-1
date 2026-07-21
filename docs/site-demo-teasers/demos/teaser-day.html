@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PulseTeam · тизер · день</title>
+  <link rel="stylesheet" href="reel.css" />
+  <style>
+    .veil-soft {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 40%;
+      background: linear-gradient(to top, rgba(6,8,12,0.95), transparent);
+      display: grid; place-items: end center; padding: 14px;
+      pointer-events: none;
+    }
+    .veil-soft span {
+      font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase;
+      color: #c9d4e0; background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 7px 10px; border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="eyebrow" id="eyebrow">Тизер · сайт</div>
+    <div class="brand" id="brand">Pulse<span>Team</span></div>
+    <div class="caption">
+      <div class="slide on" data-i="0"><h1>День точки в одном месте</h1><p>Не «куда писать стоп» и «куда план».</p></div>
+      <div class="slide" data-i="1"><h1>Четыре зоны</h1><p>День · стоп · кухня · план — без разрозненных чатов.</p></div>
+      <div class="slide" data-i="2"><h1>Как именно — на пилоте</h1><p>Чек-листы и порядок кнопок не публикуем как инструкцию.</p></div>
+    </div>
+    <div class="phone-wrap" id="phoneWrap">
+      <div class="phone">
+        <div class="screen">
+          <div class="tg-top">
+            <div class="avatar">PT</div>
+            <div><div class="name">PulseTeam</div><div class="sub">смена</div></div>
+          </div>
+          <div class="chat" id="chat">
+            <div class="daychip" id="day">операционный контур</div>
+            <div class="bubble" id="box">
+              <strong>Смена</strong><br />
+              <span class="soft">одна логика на точку</span>
+              <div class="menu-grid" style="margin-top:10px">
+                <div class="cell on" id="c1">☀️ День</div>
+                <div class="cell on" id="c2">🛑 Стоп</div>
+                <div class="cell on" id="c3">👨‍🍳 Кухня</div>
+                <div class="cell on" id="c4">📅 План</div>
+              </div>
+            </div>
+            <div class="toast" id="toast">полный маршрут — в онбординге</div>
+            <div class="veil-soft"><span>без открытой книги</span></div>
+            <div class="finger" id="finger"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="progress" id="progress"><i></i><i></i><i></i></div>
+    <p class="hint">Публичный тизер · не полный SOP</p>
+    <div class="controls" id="controls">
+      <button type="button" id="replay">↻ Ещё раз</button>
+      <a class="ghost" href="teaser-signal.html">Сигнал →</a>
+      <a class="ghost" href="../demo.html">← Демо</a>
+    </div>
+  </div>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const slides = [...document.querySelectorAll(".caption .slide")];
+    const dots = [...document.querySelectorAll("#progress i")];
+    let timers = [];
+    const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+    function clear() { timers.forEach(clearTimeout); timers = []; }
+    function cap(i) {
+      slides.forEach((s) => s.classList.toggle("on", Number(s.dataset.i) === i));
+      dots.forEach((d, n) => d.classList.toggle("on", n === i));
+    }
+    function hi(id) {
+      ["c1","c2","c3","c4"].forEach((n) => $(n).classList.remove("hi"));
+      $(id).classList.add("hi");
+      const node = $(id);
+      const r = node.getBoundingClientRect();
+      const chat = $("chat").getBoundingClientRect();
+      const f = $("finger");
+      f.style.left = (r.left - chat.left + r.width * 0.5) + "px";
+      f.style.top = (r.top - chat.top + r.height * 0.5) + "px";
+      f.classList.remove("flash"); void f.offsetWidth; f.classList.add("flash");
+    }
+    function play() {
+      clear();
+      ["day","box","toast"].forEach((id) => $(id).classList.remove("on"));
+      ["c1","c2","c3","c4"].forEach((id) => $(id).classList.remove("hi"));
+      cap(0);
+      ["eyebrow","brand","phoneWrap","controls"].forEach((id) => $(id).classList.add("on"));
+      at(500, () => { $("day").classList.add("on"); $("box").classList.add("on"); });
+      at(2000, () => { cap(1); hi("c1"); });
+      at(3200, () => hi("c2"));
+      at(4200, () => hi("c3"));
+      at(5200, () => hi("c4"));
+      at(6400, () => { cap(2); $("toast").classList.add("on"); });
+      at(9500, () => play());
+    }
+    $("replay").addEventListener("click", play);
+    requestAnimationFrame(() => play());
+  </script>
+</body>
+</html>
