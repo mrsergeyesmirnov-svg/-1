@@ -426,8 +426,8 @@ body.rec .brand {
 body.rec .stage {
   min-height: 100vh;
   height: 100vh;
-  padding: 40px 28px 48px;
-  gap: 22px;
+  padding: 28px 16px 32px;
+  gap: 16px;
   justify-content: center;
   align-items: center;
 }
@@ -436,5 +436,5 @@ body.rec .phone-wrap {
   transform: none !important;
 }
 body.rec .phone {
-  width: min(400px, 72vw);
+  width: min(460px, 86vw);
 }
