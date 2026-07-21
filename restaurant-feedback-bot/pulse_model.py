@@ -922,6 +922,7 @@ def admin_commands_reference_chunks() -> list[str]:
             f"· {BTN_FOLDER_SHIFT_STOP} — {BTN_STOP_LIST}, {BTN_STOP_ADD}, {BTN_STOP_CURRENT}\n"
             f"· {BTN_FOLDER_SHIFT_KITCHEN} — {BTN_RATE_SHIFT}\n"
             f"· {BTN_FOLDER_SHIFT_PLAN} — {BTN_MONTH_PLAN}, {BTN_STAFF_OUT}, {BTN_TASKS}\n"
+            f"<b>{BTN_TRAINING_MGR}</b> — инструкция и файлы точки (главный экран)\n"
             f"<b>{BTN_FOLDER_MORE}</b> — {BTN_STAFF_ASSIGN}, {BTN_REMINDERS}, "
             f"{BTN_SUBSCRIPTION}, {BTN_SUPPORT}, {BTN_CONNECT}\n\n"
             "<b>Отчёты</b> — смена / неделя / 3 недели / "
