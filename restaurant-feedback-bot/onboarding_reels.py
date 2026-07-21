@@ -1,92 +1,92 @@
 """
-Встроенные HTML-ролики онбординга PulseTeam.
-Открываются из «📚 Материалы» у менеджера — бот шлёт файл, на телефоне открыть в браузере.
+Встроенные видео-ролики онбординга PulseTeam (mute MP4).
+Открываются из «📚 Материалы» → «🎬 Онбординг Pulse».
+Бот шлёт animation (Telegram крутит как гифку, без браузера).
 """
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
-REELS_DIR = Path(__file__).resolve().parent / "onboarding_reels"
+REELS_DIR = Path(__file__).resolve().parent / "onboarding_reels" / "mp4"
 
-# short_id -> (title, filename, blurb)
+# short_id -> title, filename, blurb
 CATALOG: list[dict[str, str]] = [
     {
         "id": "menu",
         "title": "01 · Карта меню",
-        "file": "demo-manager-menu.html",
+        "file": "menu.mp4",
         "blurb": "Аналитика · Смена · Ещё",
     },
     {
         "id": "mats",
         "title": "02 · Материалы",
-        "file": "demo-manager-materials.html",
+        "file": "mats.mp4",
         "blurb": "Где лежит шпаргалка в боте",
     },
     {
         "id": "report",
         "title": "03 · Отчёт",
-        "file": "demo-manager-report.html",
+        "file": "report.mp4",
         "blurb": "Точка → отдел → период → PDF",
     },
     {
         "id": "signals",
         "title": "04 · Горящие вопросы",
-        "file": "demo-manager-signals.html",
+        "file": "signals.mp4",
         "blurb": "Статусы и комментарий команде",
     },
     {
         "id": "alert",
         "title": "05 · Push-алерт",
-        "file": "demo-manager-alert.html",
+        "file": "alert.mp4",
         "blurb": "Бот сам пишет, когда смена красная",
     },
     {
         "id": "day",
         "title": "06 · День · план",
-        "file": "demo-manager-day.html",
+        "file": "day.mp4",
         "blurb": "Чек-листы и план в группу",
     },
     {
         "id": "bcast",
         "title": "07 · Шефу и менеджерам",
-        "file": "demo-manager-broadcast.html",
+        "file": "bcast.mp4",
         "blurb": "Оперсвязь без чата линии",
     },
     {
         "id": "close",
         "title": "08 · Закрытие дня",
-        "file": "demo-manager-close.html",
+        "file": "close.mp4",
         "blurb": "Вечерний чек-лист и дисциплина",
     },
     {
         "id": "stop",
         "title": "09 · Стоп-лист",
-        "file": "demo-manager-stop.html",
+        "file": "stop.mp4",
         "blurb": "Публикация в группу смены",
     },
     {
         "id": "kitchen",
         "title": "10 · Кухня",
-        "file": "demo-manager-kitchen.html",
+        "file": "kitchen.mp4",
         "blurb": "Оценка смены кухни",
     },
     {
         "id": "plan",
         "title": "11 · План · задания",
-        "file": "demo-manager-plan.html",
+        "file": "plan.mp4",
         "blurb": "Задания, кадры, закрытие за дату",
     },
     {
         "id": "access",
         "title": "12 · Доступ",
-        "file": "demo-manager-access.html",
+        "file": "access.mp4",
         "blurb": "Подключить точку и роли",
     },
     {
         "id": "waiter",
         "title": "13 · Линия · 10 сек",
-        "file": "demo-waiter-checkin.html",
+        "file": "waiter.mp4",
         "blurb": "Как отвечает официант",
     },
 ]
@@ -103,15 +103,13 @@ def reel_path(reel_id: str) -> Path | None:
 
 
 def format_onboarding_menu() -> str:
-    lines = [
-        "<b>🎬 Онбординг Pulse</b>",
-        "",
-        "Короткие ролики по меню менеджера. Нажмите пункт — пришлю HTML.",
-        "На телефоне: откройте файл <b>в браузере</b> — ролик играет сам.",
-        "",
-        "<i>Это встроенный пакет Pulse, не ваши папки обучения.</i>",
-    ]
-    return "\n".join(lines)
+    return (
+        "<b>🎬 Онбординг Pulse</b>\n\n"
+        "Короткие ролики по меню менеджера.\n"
+        "Нажмите пункт — пришлю <b>видео</b> прямо в чат "
+        "(крутится само, как гифка).\n\n"
+        "<i>Встроенный пакет Pulse, не ваши папки обучения.</i>"
+    )
 
 
 def onboarding_list_keyboard(chat_id: int):
@@ -120,7 +118,6 @@ def onboarding_list_keyboard(chat_id: int):
     cid = str(chat_id)
     rows: list[list] = []
     for r in CATALOG:
-        # callback max 64 bytes: tr:ob:s:{cid}:{id}
         rows.append(
             [
                 InlineKeyboardButton(
@@ -139,14 +136,10 @@ def caption_for(reel_id: str) -> str:
     row = _BY_ID.get(reel_id) or {}
     title = row.get("title", "Ролик")
     blurb = row.get("blurb", "")
-    return (
-        f"🎬 {title}\n{blurb}\n\n"
-        "Откройте файл в браузере (Chrome / Safari) — автопросмотр."
-    )
+    return f"🎬 {title}\n{blurb}"
 
 
 def patch_manager_menu_keyboard(markup, chat_id: int):
-    """Добавляет кнопку онбординга в клавиатуру материалов менеджера."""
     from aiogram.types import InlineKeyboardButton
 
     cid = str(chat_id)
@@ -167,6 +160,6 @@ def patch_manager_menu_keyboard(markup, chat_id: int):
 def enrich_manager_menu_text(text: str) -> str:
     return (
         text
-        + "\n\n🎬 <b>Онбординг Pulse</b> — встроенные ролики по меню "
+        + "\n\n🎬 <b>Онбординг Pulse</b> — видео-ролики по меню "
         "(кнопка выше). Свои файлы сети — папками ниже."
     )

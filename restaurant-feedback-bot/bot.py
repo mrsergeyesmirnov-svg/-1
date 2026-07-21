@@ -4597,16 +4597,20 @@ async def training_callback_handler(callback: CallbackQuery) -> None:
             await callback.answer()
             from aiogram.types import FSInputFile
 
+            media = FSInputFile(path)
+            caption = onboarding_reels.caption_for(reel_id)
             try:
-                await callback.message.answer_document(
-                    FSInputFile(path),
-                    caption=onboarding_reels.caption_for(reel_id),
-                )
+                # mute MP4 as animation — autoplays in Telegram like a GIF
+                await callback.message.answer_animation(media, caption=caption)
             except Exception as e:
-                print(f"[onboarding-reel] {e}")
-                await callback.message.answer(
-                    "Не удалось отправить ролик. Попробуйте ещё раз."
-                )
+                print(f"[onboarding-reel-anim] {e}")
+                try:
+                    await callback.message.answer_video(media, caption=caption)
+                except Exception as e2:
+                    print(f"[onboarding-reel-video] {e2}")
+                    await callback.message.answer(
+                        "Не удалось отправить ролик. Попробуйте ещё раз."
+                    )
             return
         await callback.answer()
         return
@@ -4707,11 +4711,14 @@ async def training_callback_handler(callback: CallbackQuery) -> None:
         await save_data(data)
         title = str(rec.get("title", chat_id))
         await callback.answer("Папка удалена")
-        await callback.message.edit_text(
-            training_materials.format_manager_menu(rec, title),
-            parse_mode="HTML",
-            reply_markup=training_materials.manager_menu_keyboard(chat_id, rec),
+        text = onboarding_reels.enrich_manager_menu_text(
+            training_materials.format_manager_menu(rec, title)
         )
+        kb = onboarding_reels.patch_manager_menu_keyboard(
+            training_materials.manager_menu_keyboard(chat_id, rec),
+            chat_id,
+        )
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
         return
 
     await callback.answer()
@@ -6365,10 +6372,17 @@ async def comment_handler(message: Message) -> None:
             return
         await save_data(data)
         title = str(rec.get("title", chat_id))
+        kb = onboarding_reels.patch_manager_menu_keyboard(
+            training_materials.manager_menu_keyboard(chat_id, rec),
+            chat_id,
+        )
         await message.answer(
-            f"✅ Папка «<b>{escape(text_in.strip()[:60])}</b>» создана.",
+            f"✅ Папка «<b>{escape(text_in.strip()[:60])}</b>» создана.\n\n"
+            + onboarding_reels.enrich_manager_menu_text(
+                training_materials.format_manager_menu(rec, title)
+            ),
             parse_mode="HTML",
-            reply_markup=training_materials.manager_menu_keyboard(chat_id, rec),
+            reply_markup=kb,
         )
         return
 
