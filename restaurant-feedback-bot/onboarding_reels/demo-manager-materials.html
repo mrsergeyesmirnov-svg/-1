@@ -413,6 +413,64 @@ body {
   opacity: 0.85;
 }
 
+/* Запись для Telegram: только экран бота на весь кадр, без серых полей */
+body.rec {
+  background: #0c121a !important;
+  overflow: hidden;
+}
+body.rec .eyebrow,
+body.rec .brand,
+body.rec .caption,
+body.rec .progress,
+body.rec .hint,
+body.rec .controls {
+  display: none !important;
+}
+body.rec .stage {
+  min-height: 100vh;
+  height: 100vh;
+  padding: 0;
+  gap: 0;
+  justify-content: stretch;
+  align-items: stretch;
+}
+body.rec .phone-wrap {
+  opacity: 1 !important;
+  transform: none !important;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  display: flex;
+}
+body.rec .phone {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  aspect-ratio: auto;
+  border-radius: 0;
+  padding: 0;
+  background: #0c121a;
+  box-shadow: none;
+}
+body.rec .phone::before { display: none; }
+body.rec .screen {
+  border-radius: 0;
+  height: 100%;
+}
+body.rec .tg-top {
+  padding-top: 14px;
+}
+body.rec .bubble,
+body.rec .btn,
+body.rec .kbtn,
+body.rec .chip {
+  font-size: 0.92rem;
+}
+body.rec .quote,
+body.rec .metric span {
+  font-size: 0.84rem;
+}
+
 </style>
 </head>
 <body>
@@ -470,7 +528,7 @@ body {
       </div>
     </div>
     <div class="progress" id="progress"><i></i><i></i><i></i><i></i></div>
-    <p class="hint">PulseTeam · инструкция</p>
+    <p class="hint">Онбординг · полный ролик · не для публичного сайта</p>
     <div class="controls" id="controls">
       <button type="button" id="replay">↻ Ещё раз</button>
       </div>
@@ -540,6 +598,9 @@ body {
       TIMELINE.forEach((step) => at(step.t, () => apply(step)));
     }
     document.querySelectorAll("[data-el]").forEach((n) => { n.dataset.orig = n.innerHTML; });
+    if (new URLSearchParams(location.search).has("rec")) {
+      document.body.classList.add("rec");
+    }
     $("replay").addEventListener("click", play);
     requestAnimationFrame(() => play());
   </script>

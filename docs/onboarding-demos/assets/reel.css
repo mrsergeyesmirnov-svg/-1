@@ -405,3 +405,61 @@ body {
   line-height: 1.4;
   opacity: 0.85;
 }
+
+/* Запись для Telegram: только экран бота на весь кадр, без серых полей */
+body.rec {
+  background: #0c121a !important;
+  overflow: hidden;
+}
+body.rec .eyebrow,
+body.rec .brand,
+body.rec .caption,
+body.rec .progress,
+body.rec .hint,
+body.rec .controls {
+  display: none !important;
+}
+body.rec .stage {
+  min-height: 100vh;
+  height: 100vh;
+  padding: 0;
+  gap: 0;
+  justify-content: stretch;
+  align-items: stretch;
+}
+body.rec .phone-wrap {
+  opacity: 1 !important;
+  transform: none !important;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  display: flex;
+}
+body.rec .phone {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  aspect-ratio: auto;
+  border-radius: 0;
+  padding: 0;
+  background: #0c121a;
+  box-shadow: none;
+}
+body.rec .phone::before { display: none; }
+body.rec .screen {
+  border-radius: 0;
+  height: 100%;
+}
+body.rec .tg-top {
+  padding-top: 14px;
+}
+body.rec .bubble,
+body.rec .btn,
+body.rec .kbtn,
+body.rec .chip {
+  font-size: 0.92rem;
+}
+body.rec .quote,
+body.rec .metric span {
+  font-size: 0.84rem;
+}

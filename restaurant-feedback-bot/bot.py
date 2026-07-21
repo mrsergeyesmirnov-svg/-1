@@ -4634,14 +4634,20 @@ async def training_callback_handler(callback: CallbackQuery) -> None:
             media = FSInputFile(path)
             caption = onboarding_reels.caption_for(reel_id)
             try:
-                # mute MP4 as animation — autoplays in Telegram like a GIF
-                await callback.message.answer_animation(media, caption=caption)
+                # Видео (не GIF/animation): вертикальный кадр без серых полей Telegram
+                await callback.message.answer_video(
+                    media,
+                    caption=caption,
+                    supports_streaming=True,
+                    width=720,
+                    height=1280,
+                )
             except Exception as e:
-                print(f"[onboarding-reel-anim] {e}")
+                print(f"[onboarding-reel-video] {e}")
                 try:
-                    await callback.message.answer_video(media, caption=caption)
+                    await callback.message.answer_document(media, caption=caption)
                 except Exception as e2:
-                    print(f"[onboarding-reel-video] {e2}")
+                    print(f"[onboarding-reel-doc] {e2}")
                     await callback.message.answer(
                         "Не удалось отправить ролик. Попробуйте ещё раз."
                     )

@@ -100,8 +100,8 @@
       align-self: flex-start; max-width: 94%; background: var(--bubble);
       border-radius: 16px 16px 16px 5px; padding: 11px 12px;
       font-size: 0.78rem; line-height: 1.48; color: #dce6ef;
-      opacity: 0; transform: translateY(10px);
-      transition: opacity 0.85s var(--ease), transform 0.65s var(--ease);
+      opacity: 0; transform: translateY(16px) scale(0.985);
+      transition: opacity 0.65s var(--ease), transform 0.65s var(--ease);
     }
     .bubble.on { opacity: 1; transform: none; }
     .bubble.mine {
@@ -178,7 +178,17 @@
     .controls a.ghost, .controls button.ghost {
       background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14);
     }
-  </style>
+  
+body.rec .eyebrow, body.rec .brand, body.rec .caption, body.rec .progress,
+body.rec .hint, body.rec .controls { display:none!important; }
+body.rec .stage { min-height:100vh;height:100vh;padding:0;gap:0;justify-content:stretch;align-items:stretch; }
+body.rec .phone-wrap { opacity:1!important;transform:none!important;width:100%;height:100%;flex:1;display:flex; }
+body.rec .phone { width:100%;height:100%;max-width:none;aspect-ratio:auto;border-radius:0;padding:0;background:#0c121a;box-shadow:none; }
+body.rec .phone::before { display:none; }
+body.rec .screen { border-radius:0;height:100%; }
+body.rec { background:#0c121a!important; overflow:hidden; }
+
+</style>
 </head>
 <body>
   <div class="stage">
@@ -333,6 +343,11 @@
     }
 
     $("replay").addEventListener("click", play);
+    
+    if (new URLSearchParams(location.search).has("rec")) {
+      document.body.classList.add("rec");
+    }
+
     requestAnimationFrame(() => play());
   </script>
 </body>
