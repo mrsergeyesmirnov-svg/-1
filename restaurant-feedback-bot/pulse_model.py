@@ -701,6 +701,7 @@ def manager_menu_root_markup(*, show_inbox: bool = False, show_commands: bool = 
             KeyboardButton(text=BTN_FOLDER_ANALYTICS),
             KeyboardButton(text=BTN_FOLDER_SHIFT),
         ],
+        [KeyboardButton(text=BTN_TRAINING_MGR)],
     ]
     admin_row: list = []
     if show_inbox:
