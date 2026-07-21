@@ -34,6 +34,7 @@ import pulse_model
 import db_pulse
 import report_pulse
 import problems_pulse
+import manager_alerts
 import survey_buttons
 import chef_survey
 import shift_checklists
@@ -398,6 +399,8 @@ user_private_slug: dict[int, str] = {}
 waiting_for_comment: set[int] = set()
 # выбранная тема проблемы до «отправить так» / уточнения текстом
 user_pending_problem: dict[int, str] = {}
+# последняя тема смены — привязка комментария к кнопке для алертов менеджеру
+user_last_problem_code: dict[int, str] = {}
 # выбранная точка для отчёта (chat_id или "all")
 user_report_pick: dict[int, str] = {}
 # зал / кухня / весь ресторан
@@ -871,6 +874,7 @@ def finish_private_flow(user_id: int) -> None:
     user_linked_chat.pop(user_id, None)
     user_private_slug.pop(user_id, None)
     user_pending_problem.pop(user_id, None)
+    user_last_problem_code.pop(user_id, None)
     waiting_for_comment.discard(user_id)
 
 
@@ -1085,6 +1089,41 @@ async def _notify_network_stale_problems(data: dict, *, week_key: str) -> None:
                 print(f"[net-stale] org={oid} mid={mid}: {e}")
         sent_map[nkey] = True
         print(f"[net-stale] org={oid} recipients={len(recipients)}")
+
+
+async def _run_manager_alerts_for_chat(data: dict, cid: str, info: dict) -> int:
+    """Push-алерты менеджерам точки. Возвращает число отправленных сообщений."""
+    if info.get("removed_at") or info.get("active") is False:
+        return 0
+    oid = info.get("organization_id")
+    if oid and pulse_model.is_org_billing_blocked(data, oid):
+        return 0
+    chat_id = int(cid)
+    tz_name = info.get("timezone", DEFAULT_TZ)
+    packed = await manager_alerts.build_alerts_for_chat(
+        data,
+        chat_id,
+        jsonl_path=FEEDBACK_LOG_PATH,
+        tz_name=tz_name,
+    )
+    if not packed:
+        return 0
+    managers = _chat_managers_only(data, chat_id)
+    if not managers:
+        print(f"[manager-alerts] chat={cid}: нет менеджеров")
+        return 0
+    sent = 0
+    for _alert, html, kb in packed:
+        for mid in managers:
+            manager_problem_chat[mid] = chat_id
+            try:
+                await bot.send_message(
+                    mid, html, parse_mode="HTML", reply_markup=kb
+                )
+                sent += 1
+            except Exception as e:
+                print(f"[manager-alert] mid={mid} chat={cid}: {e}")
+    return sent
 
 
 async def _show_problems_for_manager(
@@ -2020,6 +2059,7 @@ async def cmd_help(message: Message) -> None:
             "<b>/set_tariff</b> chat_id t10|t25|t40|enterprise — тариф точки\n"
             "<b>/metrics</b> — уникальные пользователи и тарифы по точкам\n"
             "<b>/tariff_history</b> chat_id — история смен тарифа\n"
+            "<b>/send_alerts_now</b> — сразу push-алерты менеджерам по сигналам смен\n"
             "Алерт в личку, если точка превысила лимит тарифа (после нового ответа сотрудника)\n"
             "<b>/broadcast</b> — сообщение всем менеджерам об изменениях сервиса\n"
             f"Полный справочник — кнопка «{pulse_model.BTN_COMMANDS}» в главном меню.\n"
@@ -2489,6 +2529,37 @@ async def cmd_set_subscription(message: Message) -> None:
     await save_data(data)
     await message.answer(
         f"Готово: <code>{escape(oid)}</code> → подписка <b>{escape(state)}</b>.",
+        parse_mode="HTML",
+    )
+
+
+@dp.message(Command("send_alerts_now"))
+async def cmd_send_alerts_now(message: Message) -> None:
+    """Глобальный админ: сразу посчитать и отправить manager push-алерты."""
+    if message.chat.type != "private":
+        return
+    if not is_global_admin(message.from_user.id):
+        await message.answer("Команда только для глобального администратора бота.")
+        return
+    data = await load_data()
+    total_msgs = 0
+    chats_hit = 0
+    for cid, info in list((data.get("chats") or {}).items()):
+        if not isinstance(info, dict):
+            continue
+        try:
+            n = await _run_manager_alerts_for_chat(data, cid, info)
+            if n:
+                chats_hit += 1
+                total_msgs += n
+        except Exception as e:
+            print(f"[send_alerts_now] {cid}: {e}")
+    await save_data(data)
+    await message.answer(
+        f"Алерты: точек с сигналом <b>{chats_hit}</b>, сообщений менеджерам "
+        f"<b>{total_msgs}</b>.\n"
+        f"Автомат — каждый день в <code>{manager_alerts.ALERT_HHMM}</code> "
+        f"(часовой пояс точки).",
         parse_mode="HTML",
     )
 
@@ -3249,6 +3320,23 @@ async def scheduler_loop() -> None:
                             changed = True
                             print(f"[unopened-alert] chat={cid} streak={streak}")
 
+                # Ежедневно — push-алерты менеджеру (сигналы смен + комментарии)
+                if hm == manager_alerts.ALERT_HHMM:
+                    akey = f"{cid}|mgr_alert|{today}"
+                    if not sent_map.get(akey):
+                        try:
+                            n_sent = await _run_manager_alerts_for_chat(
+                                data, cid, info
+                            )
+                            sent_map[akey] = True
+                            changed = True
+                            if n_sent:
+                                print(
+                                    f"[manager-alerts] chat={cid} messages={n_sent}"
+                                )
+                        except Exception as e:
+                            print(f"[manager-alerts-fail] {cid}: {e}")
+
                 # Понедельник 10:00 — синхронизация проблем
                 now_local = datetime.now(tz)
                 if now_local.weekday() == 0 and hm == "10:00":
@@ -3418,6 +3506,7 @@ async def problem_handler(callback: CallbackQuery) -> None:
             "department": chef_survey.DEPARTMENT_FLOOR,
         }
     )
+    user_last_problem_code[user_id] = action
     user_pending_problem.pop(user_id, None)
     waiting_for_comment.discard(user_id)
     await callback.answer()
@@ -6633,18 +6722,22 @@ async def comment_handler(message: Message) -> None:
     comment = message.text
     rest_chat = user_linked_chat.get(user_id)
     org_id = org_id_for_restaurant_chat(data, rest_chat)
-    user_pending_problem.pop(user_id, None)
-    await log_feedback_event(
-        {
-            "event": "comment",
-            "user_id": user_id,
-            "restaurant_chat_id": rest_chat,
-            "restaurant_label": restaurant,
-            "organization_id": org_id,
-            "comment": comment,
-            "department": chef_survey.DEPARTMENT_FLOOR,
-        }
+    problem_code = user_last_problem_code.get(user_id) or user_pending_problem.get(
+        user_id
     )
+    user_pending_problem.pop(user_id, None)
+    entry: dict = {
+        "event": "comment",
+        "user_id": user_id,
+        "restaurant_chat_id": rest_chat,
+        "restaurant_label": restaurant,
+        "organization_id": org_id,
+        "comment": comment,
+        "department": chef_survey.DEPARTMENT_FLOOR,
+    }
+    if problem_code:
+        entry["problem"] = problem_code
+    await log_feedback_event(entry)
 
     waiting_for_comment.discard(user_id)
     finish_private_flow(user_id)
