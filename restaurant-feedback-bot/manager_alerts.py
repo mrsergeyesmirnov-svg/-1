@@ -22,12 +22,14 @@ ALERT_WINDOW_HOURS = 72
 # Не слать повторно тот же тип сигнала по той же теме чаще, чем раз в N часов
 ALERT_COOLDOWN_HOURS = 12
 MAX_ALERTS_PER_CHAT = 2
-MIN_PROBLEM_MENTIONS = 3
-MIN_RATINGS_FOR_DROP = 3
-RATING_DROP_THRESHOLD = 0.35
-GROWTH_MIN_EXTRA = 3
-GROWTH_MIN_PCT = 0.5
-IMPROVE_PREV_MIN = 5
+# Пилот: раньше 3+спайк к прошлому окну — почти никогда не стреляло на живой точке
+MIN_PROBLEM_MENTIONS = 2
+HOT_ABSOLUTE = 3  # столько отметок за 72ч → пуш даже без роста к прошлому окну
+MIN_RATINGS_FOR_DROP = 2
+RATING_DROP_THRESHOLD = 0.3
+GROWTH_MIN_EXTRA = 2
+GROWTH_MIN_PCT = 0.4
+IMPROVE_PREV_MIN = 4
 IMPROVE_DROP_RATIO = 0.55
 # События, после которых проверяем порог «прямо сейчас»
 TRIGGER_EVENTS = frozenset(
@@ -304,7 +306,9 @@ def detect_alerts(
             and growth is not None
             and growth >= GROWTH_MIN_PCT
         )
-        if not (is_new or is_spike):
+        # Абсолютный жар: тема уже «красная» за 72ч, даже если в прошлом окне тоже была
+        is_hot = cur_n_p >= HOT_ABSOLUTE and not is_new and not is_spike
+        if not (is_new or is_spike or is_hot):
             continue
         label = _label(code, data, chat_id)
         comments = _comments_for_code(cur_events, code)
@@ -316,7 +320,7 @@ def detect_alerts(
                 f"За последние смены <b>{cur_n_p}</b> отметок по теме «{escape(label)}».",
                 "Раньше этой темы почти не было.",
             ]
-        else:
+        elif is_spike:
             pct = int(round((growth or 0) * 100))
             title = f"Резко выросли жалобы: {label}"
             kind = "spike"
@@ -325,6 +329,21 @@ def detect_alerts(
                 f"{escape(label)} — <b>{cur_n_p}</b> упоминаний "
                 f"(+{pct}% к предыдущим сменам)."
             ]
+            if cur_avg is not None and prev_avg is not None and cur_avg < prev_avg:
+                body.append(
+                    f"Средняя оценка смены: <b>{prev_avg:.1f}</b> → <b>{cur_avg:.1f}</b>."
+                )
+        else:
+            title = f"Тема снова горит: {label}"
+            kind = "hot"
+            priority = 2
+            body = [
+                f"За {ALERT_WINDOW_HOURS} ч — <b>{cur_n_p}</b> отметок "
+                f"«{escape(label)}».",
+                "Порог жара уже пробит — стоит взять в работу.",
+            ]
+            if prev_n_p:
+                body.append(f"В прошлом окне было {prev_n_p}.")
             if cur_avg is not None and prev_avg is not None and cur_avg < prev_avg:
                 body.append(
                     f"Средняя оценка смены: <b>{prev_avg:.1f}</b> → <b>{cur_avg:.1f}</b>."
@@ -402,7 +421,13 @@ def detect_alerts(
             )
         )
 
-    kind_rank = {"spike": 0, "new_theme": 0, "rating_drop": 1, "improved": 2}
+    kind_rank = {
+        "spike": 0,
+        "new_theme": 0,
+        "hot": 1,
+        "rating_drop": 2,
+        "improved": 3,
+    }
     seen: set[tuple[str, str | None]] = set()
     unique: list[ManagerAlert] = []
     for a in sorted(alerts, key=lambda x: (x.priority, kind_rank.get(x.kind, 9), x.kind)):
@@ -410,8 +435,12 @@ def detect_alerts(
         if key in seen:
             continue
         if a.kind == "rating_drop" and any(
-            u.code == a.code and u.kind in ("spike", "new_theme") for u in unique
+            u.code == a.code and u.kind in ("spike", "new_theme", "hot")
+            for u in unique
         ):
+            continue
+        # Один код — один пуш (спайк важнее «жара»)
+        if any(u.code == a.code and u.kind != a.kind for u in unique):
             continue
         seen.add(key)
         unique.append(a)
@@ -424,6 +453,7 @@ def format_alert_message(alert: ManagerAlert, *, restaurant_title: str) -> str:
     emoji = {
         "spike": "🚨",
         "new_theme": "⚠️",
+        "hot": "🔥",
         "rating_drop": "📉",
         "improved": "✅",
     }.get(alert.kind, "🔔")
@@ -521,10 +551,17 @@ async def build_alerts_for_chat(
     by_key = {r.problem_key: r for r in active}
     title = str(info.get("title") or chat_id)
 
+    alerts = detect_alerts(cur_events, prev_events, data=data, chat_id=chat_id)
+    if not alerts:
+        cur_p = _problem_counts(cur_events)
+        top = ", ".join(f"{k}:{v}" for k, v in cur_p.most_common(5)) or "—"
+        print(
+            f"[manager-alerts] chat={chat_id}: detect empty; "
+            f"events_cur={len(cur_events)} prev={len(prev_events)} problems=[{top}]"
+        )
+
     out: list[tuple[ManagerAlert, str, Any]] = []
-    for alert in detect_alerts(
-        cur_events, prev_events, data=data, chat_id=chat_id
-    ):
+    for alert in alerts:
         html = format_alert_message(alert, restaurant_title=title)
         row = by_key.get(alert.problem_key) if alert.problem_key else None
         kb = alert_keyboard(chat_id, row.id if row else None)

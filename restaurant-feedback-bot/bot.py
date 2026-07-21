@@ -1112,9 +1112,11 @@ async def _run_manager_alerts_for_chat(
 ) -> int:
     """Push-алерты менеджерам, когда порог уже пробит. force=True — без cooldown (админ)."""
     if info.get("removed_at") or info.get("active") is False:
+        print(f"[manager-alerts] chat={cid}: skip inactive/removed")
         return 0
     oid = info.get("organization_id")
     if oid and pulse_model.is_org_billing_blocked(data, oid):
+        print(f"[manager-alerts] chat={cid}: billing blocked org={oid}")
         return 0
     chat_id = int(cid)
     tz_name = info.get("timezone", DEFAULT_TZ)
@@ -1125,10 +1127,14 @@ async def _run_manager_alerts_for_chat(
         tz_name=tz_name,
     )
     if not packed:
+        print(f"[manager-alerts] chat={cid}: no alerts detected (порог/данные)")
         return 0
     managers = _chat_managers_only(data, chat_id)
     if not managers:
-        print(f"[manager-alerts] chat={cid}: нет менеджеров")
+        print(
+            f"[manager-alerts] chat={cid}: нет менеджеров в bindings "
+            f"(проверьте /link_manager и что точка не дубль MOJO/МОДЖО)"
+        )
         return 0
     sent_map = data.setdefault("last_auto_sent", {})
     now = datetime.now(get_tz(tz_name))
@@ -1138,6 +1144,7 @@ async def _run_manager_alerts_for_chat(
         if not force and manager_alerts.alert_recently_sent(
             sent_map, key, now=now
         ):
+            print(f"[manager-alerts] chat={cid}: cooldown {key}")
             continue
         delivered = False
         for mid in managers:
@@ -1152,6 +1159,10 @@ async def _run_manager_alerts_for_chat(
                 print(f"[manager-alert] mid={mid} chat={cid}: {e}")
         if delivered:
             manager_alerts.mark_alert_sent(sent_map, key, now=now)
+            print(
+                f"[manager-alerts] chat={cid}: sent kind={alert.kind} "
+                f"code={alert.code} to {len(managers)} mgr"
+            )
     return sent
 
 
@@ -1163,11 +1174,16 @@ async def _maybe_manager_alerts_after_event(chat_id: int, event_type: str) -> No
         data = await load_data()
         info = chat_record(data, chat_id)
         if not info:
+            print(f"[manager-alerts-trigger] chat={chat_id}: no chat record")
             return
         n = await _run_manager_alerts_for_chat(data, str(chat_id), info)
         if n:
             await save_data(data)
             print(f"[manager-alerts-trigger] chat={chat_id} event={event_type} msgs={n}")
+        else:
+            print(
+                f"[manager-alerts-trigger] chat={chat_id} event={event_type} msgs=0"
+            )
     except Exception as e:
         print(f"[manager-alerts-trigger-fail] {chat_id}: {e}")
 
