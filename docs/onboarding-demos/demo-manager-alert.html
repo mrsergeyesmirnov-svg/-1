@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PulseTeam · Push-алерт менеджеру</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #f4f1ec;
+      --muted: #a8a29a;
+      --accent: #ff5a1f;
+      --tg: #2aabee;
+      --bubble: #182533;
+      --chat: #0e1621;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 50% -10%, rgba(255, 90, 31, 0.18), transparent 55%),
+        radial-gradient(900px 500px at 80% 100%, rgba(42, 171, 238, 0.12), transparent 50%),
+        #07090d;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    .stage {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 28px 16px 40px;
+      gap: 28px;
+    }
+    .brand {
+      font-family: "Manrope", sans-serif;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      font-size: clamp(1.4rem, 3vw, 2rem);
+      text-align: center;
+      opacity: 0;
+      animation: rise 0.8s var(--ease) 0.1s forwards;
+    }
+    .brand span { color: var(--accent); }
+    .caption {
+      max-width: 22rem;
+      text-align: center;
+      margin: 0 auto;
+      min-height: 3.2em;
+    }
+    .caption h1 {
+      font-family: "Manrope", sans-serif;
+      font-size: clamp(1.15rem, 2.4vw, 1.45rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0 0 6px;
+      line-height: 1.25;
+    }
+    .caption p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+    .phone {
+      width: min(320px, 86vw);
+      aspect-ratio: 9 / 19.2;
+      border-radius: 36px;
+      padding: 10px;
+      background: linear-gradient(160deg, #2a3038, #12151a 40%, #0a0c10);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.08),
+        0 40px 80px rgba(0,0,0,0.55);
+      position: relative;
+      opacity: 0;
+      transform: translateY(24px) scale(0.96);
+      animation: phoneIn 1s var(--ease) 0.25s forwards;
+    }
+    .phone::before {
+      content: "";
+      position: absolute;
+      top: 18px; left: 50%;
+      transform: translateX(-50%);
+      width: 88px; height: 22px;
+      background: #000;
+      border-radius: 20px;
+      z-index: 5;
+    }
+    .screen {
+      height: 100%;
+      border-radius: 28px;
+      overflow: hidden;
+      background: var(--chat);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .tg-top {
+      background: #17212b;
+      padding: 44px 14px 12px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #ff8a50);
+      display: grid; place-items: center;
+      font-family: Manrope, sans-serif;
+      font-weight: 800; font-size: 0.75rem; color: #fff;
+      flex-shrink: 0;
+    }
+    .tg-top .meta { min-width: 0; }
+    .tg-top .name { font-weight: 600; font-size: 0.92rem; }
+    .tg-top .sub { color: #6d7f8f; font-size: 0.72rem; margin-top: 1px; }
+    .chat {
+      flex: 1;
+      padding: 14px 10px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(42,171,238,0.05), transparent 40%),
+        var(--chat);
+    }
+    .bubble {
+      align-self: flex-start;
+      max-width: 92%;
+      background: var(--bubble);
+      border-radius: 16px 16px 16px 4px;
+      padding: 10px 12px;
+      font-size: 0.78rem;
+      line-height: 1.45;
+      color: #e8eef4;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+      opacity: 0;
+      transform: translateY(12px) scale(0.98);
+    }
+    .bubble strong { color: #fff; font-weight: 600; }
+    .bubble .soft { color: #8b9aab; }
+    .bubble .quote {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-left: 2px solid var(--accent);
+      background: rgba(255,255,255,0.03);
+      border-radius: 0 8px 8px 0;
+      color: #c5d0db;
+      font-size: 0.74rem;
+    }
+    .actions {
+      display: flex; flex-direction: column; gap: 6px; margin-top: 10px;
+    }
+    .btn {
+      background: rgba(42, 171, 238, 0.14);
+      color: #6ec7f5;
+      border: 0;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-align: center;
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    .btn.primary { background: rgba(255, 90, 31, 0.18); color: #ffb08a; }
+    .btn.pressed {
+      background: rgba(13, 148, 136, 0.25);
+      color: #5eead4;
+      transform: scale(0.97);
+    }
+    .toast {
+      align-self: center;
+      margin-top: auto;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(8px);
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      color: #d6dee8;
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    .controls {
+      display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+      opacity: 0; animation: rise 0.7s var(--ease) 0.5s forwards;
+    }
+    .controls button, .controls a {
+      appearance: none; border: 0; cursor: pointer;
+      font: inherit; font-weight: 600; font-size: 0.85rem;
+      padding: 10px 16px; border-radius: 999px;
+      text-decoration: none; color: #0b0d10;
+      background: var(--ink);
+    }
+    .controls a.ghost, .controls button.ghost {
+      background: transparent; color: var(--muted);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14);
+    }
+    .scene-dot {
+      position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 6px; z-index: 4;
+    }
+    .scene-dot i {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      transition: 0.35s var(--ease);
+    }
+    .scene-dot i.on { background: var(--accent); width: 16px; border-radius: 8px; }
+
+    .show { animation: bubbleIn 0.55s var(--ease) forwards; }
+    .show-btn { animation: bubbleIn 0.45s var(--ease) forwards; }
+
+    @keyframes rise {
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes phoneIn {
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes bubbleIn {
+      to { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div>
+      <div class="brand">Pulse<span>Team</span></div>
+      <div class="caption">
+        <h1 id="capTitle">Сигнал до планёрки</h1>
+        <p id="capSub">Менеджер больше не ищет кнопки — бот сам пишет, когда смена просела.</p>
+      </div>
+    </div>
+
+    <div class="phone" aria-label="Демо Telegram">
+      <div class="screen">
+        <div class="tg-top">
+          <div class="avatar">PT</div>
+          <div class="meta">
+            <div class="name">PulseTeam</div>
+            <div class="sub">бот · онлайн</div>
+          </div>
+        </div>
+        <div class="chat" id="chat">
+          <div class="bubble" id="b1">
+            🚨 <strong>Резко выросли жалобы: медленная кухня</strong><br />
+            <span class="soft">Mojo · Невский</span><br /><br />
+            8 упоминаний за смены (+170%)<br />
+            Оценка: <strong>4,3 → 3,6</strong>
+            <div class="quote">«Очень долго ждут горячее на раздаче»</div>
+            <div class="quote">«Кухня тормозит на пике»</div>
+            <br /><strong>Что сделать:</strong> разберите отдачу с шефом до пятницы.
+            <div class="actions">
+              <div class="btn primary" id="btnWork">В работу</div>
+              <div class="btn" id="btnHot">🔥 Горящие вопросы</div>
+            </div>
+          </div>
+          <div class="bubble" id="b2">
+            ✅ <strong>Готово</strong><br />
+            Медленная кухня → <strong>В работе</strong><br />
+            <span class="soft">Другие менеджеры точки уже видят обновление.</span>
+          </div>
+          <div class="toast" id="toast">Без имён в общем чате смены</div>
+        </div>
+        <div class="scene-dot" id="dots"><i></i><i></i><i></i><i></i></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button type="button" id="replay">↻ Смотреть ещё раз</button>
+      <a class="ghost" href="demo-waiter-checkin.html">Ролик официанта →</a>
+    </div>
+  </div>
+
+  <script>
+    const scenes = [
+      { title: "Сигнал до планёрки", sub: "Менеджер больше не ищет кнопки — бот сам пишет, когда смена просела." },
+      { title: "Цифры + голос линии", sub: "Спайк темы, просадка оценки и яркие анонимные комментарии в одном сообщении." },
+      { title: "Одно действие", sub: "«В работу» — и тема общая для всех менеджеров точки." },
+      { title: "Смена видит прогресс", sub: "В группу — только статус, без имён. Анонимность линии сохраняется." },
+    ];
+
+    const $ = (id) => document.getElementById(id);
+    const dots = [...document.querySelectorAll("#dots i")];
+    let timers = [];
+
+    function clearTimers() {
+      timers.forEach(clearTimeout);
+      timers = [];
+    }
+
+    function setCaption(i) {
+      $("capTitle").textContent = scenes[i].title;
+      $("capSub").textContent = scenes[i].sub;
+      dots.forEach((d, n) => d.classList.toggle("on", n === i));
+    }
+
+    function reset() {
+      clearTimers();
+      ["b1", "b2", "btnWork", "btnHot", "toast"].forEach((id) => {
+        const el = $(id);
+        el.classList.remove("show", "show-btn", "pressed");
+        el.style.animation = "none";
+        el.offsetHeight;
+        el.style.animation = "";
+        el.style.opacity = "0";
+      });
+      $("btnWork").textContent = "В работу";
+    }
+
+    function play() {
+      reset();
+      setCaption(0);
+      const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+
+      at(600, () => { $("b1").classList.add("show"); setCaption(0); });
+      at(1800, () => { setCaption(1); });
+      at(2600, () => { $("btnWork").classList.add("show-btn"); });
+      at(2900, () => { $("btnHot").classList.add("show-btn"); });
+      at(3800, () => {
+        setCaption(2);
+        $("btnWork").classList.add("pressed");
+        $("btnWork").textContent = "✓ В работе";
+      });
+      at(4800, () => { $("b2").classList.add("show"); });
+      at(5600, () => { $("toast").classList.add("show"); setCaption(3); });
+      at(9000, () => play());
+    }
+
+    $("replay").addEventListener("click", play);
+    play();
+  </script>
+</body>
+</html>

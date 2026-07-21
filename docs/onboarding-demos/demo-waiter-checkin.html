@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PulseTeam · Официант · 10 секунд</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #f4f1ec;
+      --muted: #a8a29a;
+      --accent: #ff5a1f;
+      --tg: #2aabee;
+      --bubble: #182533;
+      --chat: #0e1621;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1100px 520px at 30% -5%, rgba(13, 148, 136, 0.16), transparent 50%),
+        radial-gradient(900px 500px at 90% 90%, rgba(255, 90, 31, 0.14), transparent 45%),
+        #07090d;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    .stage {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 28px 16px 40px;
+      gap: 28px;
+    }
+    .brand {
+      font-family: "Manrope", sans-serif;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      font-size: clamp(1.4rem, 3vw, 2rem);
+      text-align: center;
+      opacity: 0;
+      animation: rise 0.8s var(--ease) 0.1s forwards;
+    }
+    .brand span { color: var(--accent); }
+    .caption {
+      max-width: 22rem;
+      text-align: center;
+      margin: 0 auto;
+      min-height: 3.2em;
+    }
+    .caption h1 {
+      font-family: "Manrope", sans-serif;
+      font-size: clamp(1.15rem, 2.4vw, 1.45rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0 0 6px;
+      line-height: 1.25;
+    }
+    .caption p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+    .phone {
+      width: min(320px, 86vw);
+      aspect-ratio: 9 / 19.2;
+      border-radius: 36px;
+      padding: 10px;
+      background: linear-gradient(160deg, #2a3038, #12151a 40%, #0a0c10);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.08),
+        0 40px 80px rgba(0,0,0,0.55);
+      position: relative;
+      opacity: 0;
+      transform: translateY(24px) scale(0.96);
+      animation: phoneIn 1s var(--ease) 0.25s forwards;
+    }
+    .phone::before {
+      content: "";
+      position: absolute;
+      top: 18px; left: 50%;
+      transform: translateX(-50%);
+      width: 88px; height: 22px;
+      background: #000;
+      border-radius: 20px;
+      z-index: 5;
+    }
+    .screen {
+      height: 100%;
+      border-radius: 28px;
+      overflow: hidden;
+      background: var(--chat);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .tg-top {
+      background: #17212b;
+      padding: 44px 14px 12px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, #0d9488, #2dd4bf);
+      display: grid; place-items: center;
+      font-family: Manrope, sans-serif;
+      font-weight: 800; font-size: 0.75rem; color: #042f2e;
+      flex-shrink: 0;
+    }
+    .tg-top .name { font-weight: 600; font-size: 0.92rem; }
+    .tg-top .sub { color: #6d7f8f; font-size: 0.72rem; margin-top: 1px; }
+    .chat {
+      flex: 1;
+      padding: 14px 10px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden;
+      background: var(--chat);
+    }
+    .bubble {
+      align-self: flex-start;
+      max-width: 94%;
+      background: var(--bubble);
+      border-radius: 16px 16px 16px 4px;
+      padding: 10px 12px;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      color: #e8eef4;
+      opacity: 0;
+      transform: translateY(12px) scale(0.98);
+    }
+    .bubble.mine {
+      align-self: flex-end;
+      background: #2b5278;
+      border-radius: 16px 16px 4px 16px;
+    }
+    .stars {
+      display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;
+    }
+    .star {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: rgba(255,255,255,0.06);
+      display: grid; place-items: center;
+      font-size: 1rem;
+      opacity: 0;
+      transform: scale(0.8);
+    }
+    .star.on {
+      background: rgba(255, 90, 31, 0.22);
+      box-shadow: 0 0 0 1px rgba(255, 90, 31, 0.35);
+    }
+    .chips {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;
+    }
+    .chip {
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(42, 171, 238, 0.12);
+      color: #8fd3f8;
+      font-size: 0.72rem;
+      font-weight: 600;
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    .chip.pick {
+      background: rgba(255, 90, 31, 0.2);
+      color: #ffc2a3;
+    }
+    .inputish {
+      margin-top: 10px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 10px 12px;
+      color: #9fb0c0;
+      font-size: 0.75rem;
+      min-height: 2.6em;
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    .inputish.typing { color: #e8eef4; }
+    .thanks {
+      text-align: center;
+      padding: 18px 10px;
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    .thanks .heart {
+      font-size: 1.6rem;
+      display: block;
+      margin-bottom: 8px;
+    }
+    .controls {
+      display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+      opacity: 0; animation: rise 0.7s var(--ease) 0.5s forwards;
+    }
+    .controls button, .controls a {
+      appearance: none; border: 0; cursor: pointer;
+      font: inherit; font-weight: 600; font-size: 0.85rem;
+      padding: 10px 16px; border-radius: 999px;
+      text-decoration: none; color: #0b0d10;
+      background: var(--ink);
+    }
+    .controls a.ghost, .controls button.ghost {
+      background: transparent; color: var(--muted);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14);
+    }
+    .scene-dot {
+      position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 6px; z-index: 4;
+    }
+    .scene-dot i {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      transition: 0.35s var(--ease);
+    }
+    .scene-dot i.on { background: #2dd4bf; width: 16px; border-radius: 8px; }
+    .show { animation: bubbleIn 0.55s var(--ease) forwards; }
+    .pop { animation: popIn 0.4s var(--ease) forwards; }
+
+    @keyframes rise { to { opacity: 1; transform: none; } }
+    @keyframes phoneIn { to { opacity: 1; transform: none; } }
+    @keyframes bubbleIn { to { opacity: 1; transform: none; } }
+    @keyframes popIn { to { opacity: 1; transform: scale(1); } }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div>
+      <div class="brand">Pulse<span>Team</span></div>
+      <div class="caption">
+        <h1 id="capTitle">После смены — 10 секунд</h1>
+        <p id="capSub">Официант отвечает в личке. В рабочем чате никто не видит, кто что нажал.</p>
+      </div>
+    </div>
+
+    <div class="phone">
+      <div class="screen">
+        <div class="tg-top">
+          <div class="avatar">PT</div>
+          <div class="meta">
+            <div class="name">PulseTeam</div>
+            <div class="sub">личка · анонимно для чата</div>
+          </div>
+        </div>
+        <div class="chat">
+          <div class="bubble" id="askRate">
+            Как прошёл сегодняшний день?
+            <div class="stars" id="stars">
+              <div class="star" data-n="1">1</div>
+              <div class="star" data-n="2">2</div>
+              <div class="star" data-n="3">3</div>
+              <div class="star" data-n="4">4</div>
+              <div class="star" data-n="5">5</div>
+            </div>
+          </div>
+          <div class="bubble mine" id="pickedRate">Оценка: 3 ⭐</div>
+          <div class="bubble" id="askWhat">
+            Что мешало на смене?
+            <div class="chips" id="chips">
+              <div class="chip" id="c1">🍽 Медленная кухня</div>
+              <div class="chip" id="c2">😓 Нагрузка</div>
+              <div class="chip" id="c3">🗣 Организация</div>
+            </div>
+          </div>
+          <div class="bubble" id="askComment">
+            Коротко своими словами — по желанию
+            <div class="inputish" id="typed">Горячее на раздаче ждали слишком долго</div>
+          </div>
+          <div class="thanks" id="thanks">
+            <span class="heart">❤️</span>
+            Спасибо за честную обратную связь
+          </div>
+        </div>
+        <div class="scene-dot" id="dots"><i></i><i></i><i></i><i></i></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button type="button" id="replay">↻ Смотреть ещё раз</button>
+      <a class="ghost" href="demo-manager-alert.html">← Ролик менеджера</a>
+    </div>
+  </div>
+
+  <script>
+    const scenes = [
+      { title: "После смены — 10 секунд", sub: "Официант отвечает в личке. В рабочем чате никто не видит, кто что нажал." },
+      { title: "Оценка смены", sub: "Одна цифра — без форм и без «ещё одного приложения»." },
+      { title: "Что мешало", sub: "Кнопка темы + короткий комментарий. Это потом уходит в алерт менеджеру." },
+      { title: "Привычка без давления", sub: "Спасибо — и всё. Линия говорит, руководство действует." },
+    ];
+    const $ = (id) => document.getElementById(id);
+    const dots = [...document.querySelectorAll("#dots i")];
+    let timers = [];
+
+    function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+    function setCaption(i) {
+      $("capTitle").textContent = scenes[i].title;
+      $("capSub").textContent = scenes[i].sub;
+      dots.forEach((d, n) => d.classList.toggle("on", n === i));
+    }
+    function hide(id) {
+      const el = $(id);
+      el.classList.remove("show", "pop");
+      el.style.opacity = "0";
+    }
+    function reset() {
+      clearTimers();
+      ["askRate","pickedRate","askWhat","askComment","thanks","typed","c1","c2","c3"].forEach(hide);
+      [...document.querySelectorAll(".star")].forEach((s) => {
+        s.classList.remove("on", "pop");
+        s.style.opacity = "0";
+      });
+      $("c1").classList.remove("pick");
+      $("typed").classList.remove("typing");
+      $("typed").textContent = "";
+    }
+
+    function play() {
+      reset();
+      setCaption(0);
+      const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+
+      at(500, () => { $("askRate").classList.add("show"); });
+      at(1100, () => {
+        setCaption(1);
+        [...document.querySelectorAll(".star")].forEach((s, i) => {
+          at(1100 + i * 90, () => s.classList.add("pop"));
+        });
+      });
+      at(2200, () => {
+        document.querySelector('.star[data-n="3"]').classList.add("on");
+      });
+      at(2600, () => { $("pickedRate").classList.add("show"); });
+      at(3200, () => {
+        setCaption(2);
+        $("askWhat").classList.add("show");
+        ["c1","c2","c3"].forEach((id, i) => at(3400 + i * 120, () => $(id).classList.add("pop")));
+      });
+      at(4300, () => { $("c1").classList.add("pick"); });
+      at(4800, () => {
+        $("askComment").classList.add("show");
+        $("typed").classList.add("show");
+        const full = "Горячее на раздаче ждали слишком долго";
+        let i = 0;
+        $("typed").textContent = "";
+        const type = () => {
+          if (i <= full.length) {
+            $("typed").textContent = full.slice(0, i);
+            $("typed").classList.add("typing");
+            i += 1;
+            timers.push(setTimeout(type, 28));
+          }
+        };
+        at(5100, type);
+      });
+      at(7200, () => {
+        setCaption(3);
+        $("thanks").classList.add("show");
+      });
+      at(10000, () => play());
+    }
+
+    $("replay").addEventListener("click", play);
+    play();
+  </script>
+</body>
+</html>
