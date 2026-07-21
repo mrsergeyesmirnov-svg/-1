@@ -1,6 +1,6 @@
 """
 Встроенные видео-ролики онбординга PulseTeam (mute MP4).
-Открываются из «📚 Материалы» → «🎬 Онбординг Pulse».
+Открываются из «📚 Материалы» → «📖 Инструкция по пользованию».
 Бот шлёт animation (Telegram крутит как гифку, без браузера).
 """
 from __future__ import annotations
@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 REELS_DIR = Path(__file__).resolve().parent / "onboarding_reels" / "mp4"
+BTN_GUIDE = "📖 Инструкция по пользованию"
 
 # short_id -> title, filename, blurb
 CATALOG: list[dict[str, str]] = [
@@ -104,11 +105,11 @@ def reel_path(reel_id: str) -> Path | None:
 
 def format_onboarding_menu() -> str:
     return (
-        "<b>🎬 Онбординг Pulse</b>\n\n"
+        f"<b>{BTN_GUIDE}</b>\n\n"
         "Короткие ролики по меню менеджера.\n"
         "Нажмите пункт — пришлю <b>видео</b> прямо в чат "
         "(крутится само, как гифка).\n\n"
-        "<i>Встроенный пакет Pulse, не ваши папки обучения.</i>"
+        "<i>Встроенная инструкция Pulse, не ваши папки обучения.</i>"
     )
 
 
@@ -148,7 +149,7 @@ def patch_manager_menu_keyboard(markup, chat_id: int):
         0,
         [
             InlineKeyboardButton(
-                text="🎬 Онбординг Pulse",
+                text=BTN_GUIDE,
                 callback_data=f"tr:ob:list:{cid}"[:64],
             )
         ],
@@ -160,6 +161,6 @@ def patch_manager_menu_keyboard(markup, chat_id: int):
 def enrich_manager_menu_text(text: str) -> str:
     return (
         text
-        + "\n\n🎬 <b>Онбординг Pulse</b> — видео-ролики по меню "
+        + f"\n\n📖 <b>Инструкция по пользованию</b> — видео-ролики по меню "
         "(кнопка выше). Свои файлы сети — папками ниже."
     )
