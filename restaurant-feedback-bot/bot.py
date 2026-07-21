@@ -45,6 +45,7 @@ import monthly_ops
 import staff_assign
 import training_materials
 import onboarding_reels
+import reminders_ui
 
 # На Railway без Volume файлы в контейнере теряются при redeploy.
 # Смонтируйте Volume и задайте PULSE_DATA_DIR=/data (или другой путь) — туда пойдут bot_data.json и feedback_log.jsonl.
@@ -447,6 +448,7 @@ waiting_training_folder: dict[int, int] = {}
 waiting_training_upload: dict[int, dict] = {}
 waiting_evening_backdate: dict[int, dict] = {}
 ops_pick_chat: dict[int, str] = {}  # uid -> prefix for location pick
+waiting_reminder_custom: dict[int, dict] = {}  # uid -> {chat_id, slot}
 
 
 async def _staff_assign_more_markup(uid: int):
@@ -493,6 +495,20 @@ async def _show_training_manager_menu(message: Message, uid: int, chat_id: int) 
         chat_id,
     )
     await message.answer(text, parse_mode="HTML", reply_markup=kb)
+
+
+async def _show_reminders_panel(message: Message, uid: int, chat_id: int) -> None:
+    data = await load_data()
+    if not await _manager_can_access_chat(data, uid, chat_id):
+        await message.answer("Нет доступа.")
+        return
+    rec = chat_record(data, chat_id) or {}
+    title = str(rec.get("title", chat_id))
+    await message.answer(
+        reminders_ui.format_panel(rec, title),
+        parse_mode="HTML",
+        reply_markup=reminders_ui.panel_keyboard(chat_id),
+    )
 
 
 async def _show_training_staff_menu(message: Message, uid: int) -> None:
@@ -931,7 +947,9 @@ def _put_reminder_time(rec: dict, index: int, t: str) -> None:
     while len(arr) <= index:
         arr.append("")
     arr[index] = t
-    rec["auto_times"] = [x for x in arr if x]
+    while arr and not arr[-1]:
+        arr.pop()
+    rec["auto_times"] = arr
 
 
 def _pop_reminder_slot(rec: dict, index: int) -> None:
@@ -4740,6 +4758,140 @@ async def training_callback_handler(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+@dp.callback_query(F.data.startswith("rm:"))
+async def reminders_callback_handler(callback: CallbackQuery) -> None:
+    if not callback.message or callback.message.chat.type != "private":
+        await callback.answer()
+        return
+    uid = callback.from_user.id
+    parts = (callback.data or "").split(":")
+    action = parts[1] if len(parts) > 1 else ""
+    data = await load_data()
+
+    if len(parts) < 3:
+        await callback.answer()
+        return
+    try:
+        chat_id = int(parts[2])
+    except ValueError:
+        await callback.answer()
+        return
+    if not await _manager_can_access_chat(data, uid, chat_id):
+        await callback.answer("Нет доступа.", show_alert=True)
+        return
+    rec = chat_record(data, chat_id)
+    if not rec:
+        await callback.answer("Точка не найдена.", show_alert=True)
+        return
+    title = str(rec.get("title", chat_id))
+
+    if action == "p":
+        await callback.answer()
+        await callback.message.edit_text(
+            reminders_ui.format_panel(rec, title),
+            parse_mode="HTML",
+            reply_markup=reminders_ui.panel_keyboard(chat_id),
+        )
+        return
+
+    if action == "s" and len(parts) > 3:
+        try:
+            slot = int(parts[3])
+        except ValueError:
+            await callback.answer()
+            return
+        if slot not in (0, 1):
+            await callback.answer()
+            return
+        await callback.answer()
+        label = "первого" if slot == 0 else "второго"
+        await callback.message.edit_text(
+            f"<b>⏰ {escape(title)}</b>\n\nВыберите время <b>{label}</b> напоминания:",
+            parse_mode="HTML",
+            reply_markup=reminders_ui.slot_presets_keyboard(chat_id, slot),
+        )
+        return
+
+    if action == "t" and len(parts) > 4:
+        try:
+            slot = int(parts[3])
+        except ValueError:
+            await callback.answer()
+            return
+        t = reminders_ui.parse_preset_hhmm(parts[4])
+        if not t or slot not in (0, 1):
+            await callback.answer("Неверное время", show_alert=True)
+            return
+        _put_reminder_time(rec, slot, t)
+        await save_data(data)
+        await callback.answer(f"Сохранено {t}")
+        await callback.message.edit_text(
+            reminders_ui.format_panel(rec, title),
+            parse_mode="HTML",
+            reply_markup=reminders_ui.panel_keyboard(chat_id),
+        )
+        return
+
+    if action == "d" and len(parts) > 3:
+        try:
+            slot = int(parts[3])
+        except ValueError:
+            await callback.answer()
+            return
+        _pop_reminder_slot(rec, slot)
+        await save_data(data)
+        await callback.answer("Убрано")
+        await callback.message.edit_text(
+            reminders_ui.format_panel(rec, title),
+            parse_mode="HTML",
+            reply_markup=reminders_ui.panel_keyboard(chat_id),
+        )
+        return
+
+    if action == "c" and len(parts) > 3:
+        try:
+            slot = int(parts[3])
+        except ValueError:
+            await callback.answer()
+            return
+        waiting_reminder_custom[uid] = {"chat_id": chat_id, "slot": slot}
+        await callback.answer()
+        label = "первого" if slot == 0 else "второго"
+        await callback.message.answer(
+            f"Напишите время <b>{label}</b> напоминания в формате "
+            f"<code>ЧЧ:ММ</code> (например <code>22:15</code>).",
+            parse_mode="HTML",
+        )
+        return
+
+    if action == "tz":
+        await callback.answer()
+        await callback.message.edit_text(
+            f"<b>🌍 Часовой пояс</b> · {escape(title)}\n\n"
+            f"Сейчас: <code>{escape(str(rec.get('timezone') or DEFAULT_TZ))}</code>",
+            parse_mode="HTML",
+            reply_markup=reminders_ui.timezone_keyboard(chat_id),
+        )
+        return
+
+    if action == "z" and len(parts) > 3:
+        iana = reminders_ui.tz_iana(parts[3])
+        if not iana:
+            await callback.answer("Неизвестный пояс", show_alert=True)
+            return
+        rec["timezone"] = iana
+        await save_data(data)
+        await callback.answer(iana)
+        await callback.message.edit_text(
+            reminders_ui.format_panel(rec, title),
+            parse_mode="HTML",
+            reply_markup=reminders_ui.panel_keyboard(chat_id),
+        )
+        return
+
+    await callback.answer()
+
+
 @dp.callback_query(F.data.startswith("cb:"))
 async def chef_buttons_callback(callback: CallbackQuery) -> None:
     if not callback.message or callback.message.chat.type != "private":
@@ -5039,6 +5191,19 @@ async def ops_callback_handler(callback: CallbackQuery) -> None:
             return
         await callback.answer()
         await _show_training_manager_menu(callback.message, uid, chat_id)
+        return
+
+    if action == "rmpick" and len(parts) > 2:
+        try:
+            chat_id = int(parts[2])
+        except ValueError:
+            await callback.answer()
+            return
+        if not await _manager_can_access_chat(data, uid, chat_id):
+            await callback.answer("Нет доступа.", show_alert=True)
+            return
+        await callback.answer()
+        await _show_reminders_panel(callback.message, uid, chat_id)
         return
 
     if action in ("svpick", "stview") and len(parts) > 2:
@@ -5504,6 +5669,7 @@ async def manager_menu_handler(message: Message) -> None:
     waiting_training_folder.pop(uid, None)
     waiting_training_upload.pop(uid, None)
     waiting_evening_backdate.pop(uid, None)
+    waiting_reminder_custom.pop(uid, None)
     me = await bot.get_me()
     ga = is_global_admin(uid)
     mk_root = pulse_model.manager_menu_root_markup(show_inbox=ga, show_commands=ga)
@@ -5665,6 +5831,16 @@ async def manager_menu_handler(message: Message) -> None:
             reply_markup=pulse_model.manager_menu_reply_markup(),
             disable_web_page_preview=True,
         )
+    elif t == pulse_model.BTN_REMINDERS:
+        data = await load_data()
+        scope = report_pulse.chat_scope_for_user(
+            data, uid, is_global_admin=is_global_admin(uid)
+        )
+        chat_id = await _ops_pick_chat_or_ask(
+            message, uid, scope, prefix="ops:rmpick", title="Напоминания"
+        )
+        if chat_id is not None:
+            await _show_reminders_panel(message, uid, chat_id)
     elif t == pulse_model.BTN_SIGNALS:
         await cmd_problems(message)
     elif t == pulse_model.BTN_DAY_PLAN:
@@ -6400,6 +6576,33 @@ async def comment_handler(message: Message) -> None:
             parse_mode="HTML",
             reply_markup=kb,
         )
+        return
+
+    if user_id in waiting_reminder_custom:
+        flow = waiting_reminder_custom.pop(user_id)
+        chat_id = int(flow["chat_id"])
+        slot = int(flow["slot"])
+        data = await load_data()
+        if not await _manager_can_access_chat(data, user_id, chat_id):
+            await message.answer("Нет доступа.")
+            return
+        t = parse_hhmm(text_in)
+        if not t:
+            waiting_reminder_custom[user_id] = flow
+            await message.answer("Нужен формат <code>ЧЧ:ММ</code>, например <code>22:15</code>.", parse_mode="HTML")
+            return
+        rec = chat_record(data, chat_id)
+        if not rec:
+            await message.answer("Точка не найдена.")
+            return
+        _put_reminder_time(rec, slot, t)
+        await save_data(data)
+        title = str(rec.get("title", chat_id))
+        await message.answer(
+            f"✅ Время сохранено: <b>{escape(t)}</b>",
+            parse_mode="HTML",
+        )
+        await _show_reminders_panel(message, user_id, chat_id)
         return
 
     if user_id in waiting_evening_backdate:
