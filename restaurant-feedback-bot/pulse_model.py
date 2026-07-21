@@ -842,7 +842,6 @@ def manager_menu_more_markup(*, show_staff_assign: bool = False):
                 KeyboardButton(text=BTN_STAFF_REMOVE),
             ]
         )
-        rows.append([KeyboardButton(text=BTN_TRAINING_MGR)])
     rows.extend(
         [
             [KeyboardButton(text=BTN_REMINDERS)],
