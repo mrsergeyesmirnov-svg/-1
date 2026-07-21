@@ -438,3 +438,11 @@ body.rec .phone-wrap {
 body.rec .phone {
   width: min(460px, 86vw);
 }
+
+/* Только крупнее текст и кнопки внутри экрана — остальной кадр как был */
+body.rec .tg-top .name { font-size: 1.2rem; }
+body.rec .tg-top .sub { font-size: 0.88rem; }
+body.rec .chat,
+body.rec .replybar {
+  zoom: 1.48;
+}
