@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PulseTeam × Cosmic — рамка партнёрства</title>
+  <title>Взгляд на CosmicMind · разбор и гипотезы роста</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,400;0,500;0,600;0,700;0,800&display=swap" rel="stylesheet" />
@@ -20,7 +20,6 @@
       --calm-soft: rgba(13, 148, 136, 0.12);
       --warn: #b45309;
       --warn-soft: rgba(180, 83, 9, 0.12);
-      --radius-lg: 24px;
       --radius-md: 16px;
       --shadow: 0 4px 24px rgba(28, 25, 23, 0.07);
       --max: 980px;
@@ -55,8 +54,7 @@
     .slide::before {
       content: "";
       position: absolute;
-      top: -15%;
-      right: -8%;
+      top: -15%; right: -8%;
       width: min(45vw, 420px);
       aspect-ratio: 1;
       background: radial-gradient(circle, var(--accent-soft) 0%, transparent 68%);
@@ -65,8 +63,7 @@
     .slide::after {
       content: "";
       position: absolute;
-      bottom: 5%;
-      left: -12%;
+      bottom: 5%; left: -12%;
       width: min(38vw, 340px);
       aspect-ratio: 1;
       background: radial-gradient(circle, var(--calm-soft) 0%, transparent 70%);
@@ -91,7 +88,7 @@
       backdrop-filter: blur(10px);
       border-bottom: 1px solid var(--line);
     }
-    .logo { font-weight: 800; font-size: 1rem; letter-spacing: -0.02em; }
+    .logo { font-weight: 800; font-size: 0.95rem; letter-spacing: -0.02em; }
     .logo span { color: var(--accent); }
     .counter { font-size: 0.8125rem; font-weight: 700; color: var(--muted); }
     .eyebrow {
@@ -103,25 +100,34 @@
       margin-bottom: 14px;
     }
     h1 {
-      font-size: clamp(2rem, 4.5vw, 3.25rem);
+      font-size: clamp(2rem, 4.5vw, 3.15rem);
       font-weight: 800;
       line-height: 1.08;
       letter-spacing: -0.03em;
-      margin: 0 0 20px;
+      margin: 0 0 18px;
     }
     h1 .accent { color: var(--accent); }
     h2 {
-      font-size: clamp(1.55rem, 3vw, 2.25rem);
+      font-size: clamp(1.5rem, 3vw, 2.2rem);
       font-weight: 800;
       letter-spacing: -0.025em;
       line-height: 1.12;
-      margin: 0 0 18px;
+      margin: 0 0 16px;
     }
     .lead {
       font-size: 1.05rem;
       color: var(--muted);
       max-width: 38em;
-      margin: 0 0 24px;
+      margin: 0 0 22px;
+    }
+    .quote {
+      border-left: 3px solid var(--accent);
+      padding: 2px 0 2px 16px;
+      margin: 0 0 20px;
+      font-size: 1.08rem;
+      font-weight: 700;
+      line-height: 1.35;
+      max-width: 36em;
     }
     .list {
       list-style: none;
@@ -153,25 +159,19 @@
       border-color: var(--calm);
       background: var(--calm-soft);
     }
-    .grid-2 {
-      display: grid;
-      gap: 18px;
-    }
+    .grid-2 { display: grid; gap: 16px; }
+    .grid-3 { display: grid; gap: 14px; }
     @media (min-width: 720px) {
-      .grid-2 { grid-template-columns: 1fr 1fr; gap: 22px; }
+      .grid-2 { grid-template-columns: 1fr 1fr; gap: 20px; }
     }
-    .grid-3 {
-      display: grid;
-      gap: 14px;
-    }
-    @media (min-width: 800px) {
+    @media (min-width: 860px) {
       .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
     }
     .card {
       background: var(--surface);
       border: 1px solid var(--line);
       border-radius: var(--radius-md);
-      padding: 20px 22px;
+      padding: 18px 20px;
       box-shadow: var(--shadow);
     }
     .card h3 {
@@ -179,15 +179,15 @@
       font-size: 1rem;
       font-weight: 800;
     }
-    .card p, .card li {
+    .card p {
       margin: 0;
       font-size: 0.9rem;
       color: var(--muted);
       line-height: 1.5;
     }
-    .card.preferred {
-      border-color: rgba(255, 90, 31, 0.45);
-      box-shadow: 0 4px 28px rgba(255, 90, 31, 0.12);
+    .card.hot {
+      border-color: rgba(255, 90, 31, 0.4);
+      box-shadow: 0 4px 28px rgba(255, 90, 31, 0.1);
     }
     .tag {
       display: inline-block;
@@ -204,14 +204,14 @@
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin-top: 14px;
+      margin-top: 12px;
     }
     .pill {
       background: var(--surface);
       border: 1px solid var(--line);
       padding: 8px 14px;
       border-radius: 999px;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       font-weight: 600;
       color: var(--muted);
     }
@@ -221,73 +221,76 @@
       color: var(--accent);
       font-weight: 700;
     }
+    .fact {
+      font-size: clamp(1.35rem, 2.8vw, 1.85rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin: 0 0 6px;
+    }
+    .fact small {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0;
+      margin-top: 6px;
+    }
     .name-grid {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
-      margin-top: 8px;
+      margin: 8px 0 0;
     }
     .name-chip {
       background: var(--ink);
       color: #faf7f3;
       font-weight: 800;
-      letter-spacing: -0.02em;
-      padding: 12px 18px;
+      letter-spacing: -0.03em;
+      padding: 12px 16px;
       border-radius: 14px;
-      font-size: 1.05rem;
+      font-size: clamp(1rem, 2.2vw, 1.2rem);
     }
     .name-chip em {
       font-style: normal;
       color: var(--accent);
     }
-    .quote {
-      border-left: 3px solid var(--accent);
-      padding: 4px 0 4px 18px;
-      margin: 0 0 20px;
-      font-size: 1.12rem;
-      font-weight: 700;
-      line-height: 1.35;
-      max-width: 34em;
+    .name-chip.soft {
+      background: var(--surface);
+      color: var(--ink);
+      border: 1px solid var(--line);
     }
-    .steps { display: grid; gap: 14px; margin-top: 8px; }
+    .steps { display: grid; gap: 12px; }
     .step {
       display: grid;
       grid-template-columns: auto 1fr;
-      gap: 16px;
+      gap: 14px;
       align-items: start;
       background: var(--surface);
       border: 1px solid var(--line);
       border-radius: var(--radius-md);
-      padding: 16px 18px;
+      padding: 14px 16px;
       box-shadow: var(--shadow);
     }
     .step-num {
-      width: 38px; height: 38px;
-      border-radius: 12px;
+      width: 36px; height: 36px;
+      border-radius: 11px;
       background: var(--accent);
       color: #fff;
       font-weight: 800;
       display: flex;
       align-items: center;
       justify-content: center;
+      font-size: 0.95rem;
     }
-    .step strong { display: block; margin-bottom: 4px; font-size: 0.95rem; }
-    .step span { font-size: 0.86rem; color: var(--muted); }
-    .price {
-      font-size: clamp(1.8rem, 4vw, 2.6rem);
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      line-height: 1.1;
-      margin: 0 0 8px;
-    }
-    .price small {
-      display: block;
-      font-size: 0.9rem;
-      font-weight: 600;
+    .step strong { display: block; margin-bottom: 3px; font-size: 0.95rem; }
+    .step span { font-size: 0.85rem; color: var(--muted); }
+    .src {
+      margin-top: 18px;
+      font-size: 0.75rem;
       color: var(--muted);
-      letter-spacing: 0;
-      margin-top: 6px;
     }
+    .src a { color: var(--calm); font-weight: 700; text-decoration: none; }
     .hint {
       position: fixed;
       bottom: 0; left: 0; right: 0;
@@ -318,8 +321,8 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="logo">Pulse<span>Team</span> · Cosmic</div>
-    <div class="counter" id="counter">1 / 12</div>
+    <div class="logo">Разбор <span>CosmicMind</span></div>
+    <div class="counter" id="counter">1 / 11</div>
   </header>
 
   <main class="deck" id="deck" tabindex="0">
@@ -327,17 +330,17 @@
     <!-- 1 -->
     <section class="slide" data-i="1">
       <div class="slide-inner">
-        <p class="eyebrow">Внутренний разбор · партнёрская рамка</p>
-        <h1><span class="accent">Pulse</span> × канал дистрибуции</h1>
-        <p class="lead" style="color:var(--ink);font-size:1.12rem;">
-          Как сложить экономику, бренд и запуск так, чтобы Pulse оставался продуктом,
-          а партнёр — ускорителем продаж, а не «зарплатой за внедрение».
+        <p class="eyebrow">Партнёрский взгляд · не питч «купите нас»</p>
+        <h1>Я посмотрел на <span class="accent">CosmicMind</span> снаружи</h1>
+        <p class="lead" style="color:var(--ink);font-size:1.1rem;">
+          Вы строите AI-операционку для сети. Ниже — что сильно на сайте, что режет ухо
+          операционному директору, и что я бы попробовал: имя, пилот, цена, упаковка.
         </p>
         <div class="pill-row">
-          <span class="pill hot">доля с LTV</span>
-          <span class="pill">ребрендинг канала</span>
-          <span class="pill">тест-период</span>
-          <span class="pill">цена вверх</span>
+          <span class="pill hot">факты с cosmicmind.ru</span>
+          <span class="pill">язык ОД</span>
+          <span class="pill">ребрендинг</span>
+          <span class="pill">пилот · цена</span>
         </div>
       </div>
     </section>
@@ -345,61 +348,76 @@
     <!-- 2 -->
     <section class="slide" data-i="2">
       <div class="slide-inner">
-        <p class="eyebrow">Контекст</p>
-        <h2>Зачем вообще вместе</h2>
-        <div class="grid-2">
+        <p class="eyebrow">Факты с витрины</p>
+        <h2>Кем вы уже являетесь на рынке</h2>
+        <div class="grid-3">
           <div class="card">
-            <span class="tag">Pulse</span>
-            <h3>Продукт смены</h3>
-            <p>Telegram-first: линия, менеджер, стоп, алерты, отчёт. Уже можно внедрять. Нужен канал и ритм продаж без «ручного героя» на каждой точке.</p>
+            <div class="fact">AI-операционка
+              <small>от приёмки до выхода гостя · сеть / кофейни</small>
+            </div>
           </div>
           <div class="card">
-            <span class="tag calm">Партнёр / Cosmic</span>
-            <h3>Доступ к сетям</h3>
-            <p>Контакты операционных директоров, доверие, пилоты. Сильная сторона — дверь. Слабая — если продукт растворяется в «модуле без бренда и без LTV».</p>
+            <div class="fact">от 7&nbsp;990 ₽
+              <small>за ресторан / мес · «все модули» в одной подписке</small>
+            </div>
+          </div>
+          <div class="card">
+            <div class="fact">5 дней
+              <small>подключение · окупаемость на сайте — «1 неделя»</small>
+            </div>
           </div>
         </div>
-        <p class="lead" style="margin-top:22px;margin-bottom:0;">
-          Правильная формула: <strong style="color:var(--ink)">они продают доступ → мы владеем Pulse → оба зарабатывают с подписки</strong>.
-        </p>
+        <ul class="list calm" style="margin-top:20px;">
+          <li>Позиции покупателя: директор ресторана · <strong>операционный директор</strong> · собственник.</li>
+          <li>Ядро обещания ОД: контроль точек на расстоянии — P&amp;L, сервис, HR, ремонты, закупки + AI по регламентам.</li>
+          <li>Каталог: аналитика, голос гостя, чек-листы, service desk, ФОТ, графики, BPMN, HR, финконтроль.</li>
+          <li>Доказательства на сайте: «75+ ресторанов», кейс экономии ФОТ на сети из 5 точек.</li>
+        </ul>
+        <p class="src">Источник: <a href="https://cosmicmind.ru/" target="_blank" rel="noopener">cosmicmind.ru</a></p>
       </div>
     </section>
 
     <!-- 3 -->
     <section class="slide" data-i="3">
       <div class="slide-inner">
-        <p class="eyebrow">Диагноз</p>
-        <h2>Что сейчас ломает сделку</h2>
-        <p class="quote">На лидах Cosmic — только разовая «зарплата» за внедрение. На своих — 70/30. На новых клиентах Cosmic с Pulse — снова только разово.</p>
-        <ul class="list warn">
-          <li><strong>Нулевая доля с LTV</strong> на чужом канале = подряд, не партнёрство.</li>
-          <li><strong>«Без исключения по источнику лида»</strong> читается в пользу разового — опасно в договоре.</li>
-          <li><strong>Паузы без дедлайна</strong> блокируют август: нельзя резервировать часы под неизвестную модель.</li>
-          <li><strong>Бренд партнёра</strong> не продаёт ресторанную операционку директору зала — об этом отдельно.</li>
-        </ul>
+        <p class="eyebrow">Сильное</p>
+        <h2>Что уже цепляет — и это надо усилить, не размывать</h2>
+        <div class="grid-2">
+          <div class="card hot">
+            <span class="tag">Продукт</span>
+            <h3>«Одно окно вместо зоопарка»</h3>
+            <p>Excel P&amp;L, чаты, формы, дашборды — боль ОД реальная. Обещание «закрыть 9 систем» понятнее, чем «ещё один AI».</p>
+          </div>
+          <div class="card hot">
+            <span class="tag">Скорость</span>
+            <h3>Запуск за дни, не квартал</h3>
+            <p>«5 дней» и Telegram-first снижают страх внедрения. Для сети это важнее фичи №11.</p>
+          </div>
+          <div class="card">
+            <span class="tag calm">ОД-сценарий</span>
+            <h3>Ассистент по регламентам</h3>
+            <p>«Спросил — ответ за 5 секунд» — язык руководителя, который тонет в накопленных стандартах.</p>
+          </div>
+          <div class="card">
+            <span class="tag calm">Действие</span>
+            <h3>Жалоба → задача</h3>
+            <p>Голос гостя с автозадачей шефу — редкий замкнутый контур «увидел → сделал», не просто отчёт.</p>
+          </div>
+        </div>
       </div>
     </section>
 
     <!-- 4 -->
     <section class="slide" data-i="4">
       <div class="slide-inner">
-        <p class="eyebrow">Минусы</p>
-        <h2>Почему модель «только разово» бьёт обе стороны</h2>
-        <div class="grid-2">
-          <div class="card">
-            <span class="tag warn">Для Pulse</span>
-            <h3>Нет масштаба</h3>
-            <p>Канал растёт — выручка разовая. База живёт у партнёра. Мотивация пилить продукт под их клиентов слабеет. Август = риск работать «в долг надежды».</p>
-          </div>
-          <div class="card">
-            <span class="tag warn">Для Cosmic</span>
-            <h3>Кривой стимул</h3>
-            <p>Подрядчик не горит за удержание через 6 месяцев. Качество модуля и поддержка упираются в one-time. Директор сети чувствует «ещё один подряд», не продукт.</p>
-          </div>
-        </div>
-        <ul class="list calm" style="margin-top:20px;">
-          <li>Разово — нормально <em>за работу запуска</em>.</li>
-          <li>Разово <em>вместо</em> доли с подписки Pulse — нет.</li>
+        <p class="eyebrow">Где теряется продажа</p>
+        <h2>Минусы витрины — глазами операционного директора</h2>
+        <ul class="list warn">
+          <li><strong>Имя и образ.</strong> CosmicMind + «мозги» звучат как AI-агентство / wellness / космос. ОД за 3 секунды не слышит: «это мой пульт по сети».</li>
+          <li><strong>Каталог из 10 модулей</strong> на первом экране конкурирует сам с собой. ОД покупает <em>контроль и спокойствие</em>, не витрину конструктора.</li>
+          <li><strong>Цена «от 7 990»</strong> якорит дёшево относительно заявленной экономии миллионов. Дешёвый якорь = «ещё одна подписка», не «операционный контур».</li>
+          <li><strong>Слишком много суперлативов</strong> (окупаемость за неделю, 0 ₽ за доработки, всё включено) — у опытного ОД включается скепсис, пока нет разбора «как считается» рядом с цифрой.</li>
+          <li><strong>Пилот как мелочь в рекламе</strong>, а не как главный ритуал доверия: «прострелили сеть ↔ продукт — и только потом подписка».</li>
         </ul>
       </div>
     </section>
@@ -407,23 +425,20 @@
     <!-- 5 -->
     <section class="slide" data-i="5">
       <div class="slide-inner">
-        <p class="eyebrow">Варианты экономики</p>
-        <h2>Два чистых оффера на новых клиентах Cosmic</h2>
+        <p class="eyebrow">Ребрендинг</p>
+        <h2>Имя должно говорить на языке ОД</h2>
+        <p class="quote">Не «космос и разум». А сводка, контур, штаб, отклонение, территория, стандарт — слова, которыми он живёт в понедельник утром.</p>
         <div class="grid-2">
-          <div class="card preferred">
-            <span class="tag">Предпочтительный</span>
-            <h3>60 / 40 + разово</h3>
-            <p><strong style="color:var(--ink)">60% Cosmic · 40% Pulse</strong> с подписки модуля. Плюс фикс за запуск точки (часы × ставка). Границы ясные: лид vs продукт vs внедрение.</p>
-          </div>
           <div class="card">
-            <span class="tag calm">Альтернатива</span>
-            <h3>50 / 50 без разового</h3>
-            <p>Выше доля, но только с <strong style="color:var(--ink)">лимитом часов</strong> сопровождения в месяц. «Полностью погружён» без потолка = бесплатный саппорт.</p>
+            <span class="tag warn">Сейчас</span>
+            <h3>CosmicMind</h3>
+            <p>Длинно, абстрактно, не про ресторанную операционку. Визуал «синих мозгов» усиливает ощущение чужого рынка.</p>
           </div>
-        </div>
-        <div class="pill-row">
-          <span class="pill">свои лиды: 70/30 без изменений</span>
-          <span class="pill">уже клиенты Cosmic: разово ок</span>
+          <div class="card hot">
+            <span class="tag">Критерий нового</span>
+            <h3>Коротко · звонко · про контроль сети</h3>
+            <p>1–2 слога в речи. Можно сказать директору в лифте без расшифровки. Не про «зал», а про <strong>управление сетью</strong>.</p>
+          </div>
         </div>
       </div>
     </section>
@@ -431,44 +446,57 @@
     <!-- 6 -->
     <section class="slide" data-i="6">
       <div class="slide-inner">
-        <p class="eyebrow">Разовое внедрение</p>
-        <h2>Как считать «зарплату за запуск»</h2>
-        <div class="grid-3">
-          <div class="card">
-            <h3>Пакет «Точка»</h3>
-            <p>Доступы, роли, группы, стоп/смена/алерты, 1 созвон, 5–7 дней после старта. Фикс = N часов × ставка.</p>
-          </div>
-          <div class="card">
-            <h3>Пакет «Сеть»</h3>
-            <p>2–3 точки или сложнее роли. Отдельный фикс, не «чуть дороже на глаз».</p>
-          </div>
-          <div class="card">
-            <h3>Сверх SLA</h3>
-            <p>Всё после пакета — отдельно или из месячного лимита в модели 50/50. Не растворять в «погружении».</p>
-          </div>
+        <p class="eyebrow">Гипотезы имени</p>
+        <h2>Вектор нейминга — язык операционного директора</h2>
+        <p class="lead">Не финальный нейминг-сертификат — набор, который проходит тест «ОД понял без слайда».</p>
+        <div class="name-grid">
+          <span class="name-chip">Штаб</span>
+          <span class="name-chip">Контур</span>
+          <span class="name-chip">Сводка</span>
+          <span class="name-chip">Дозор</span>
+          <span class="name-chip">Пульт</span>
+          <span class="name-chip">Ритм</span>
+          <span class="name-chip">Норма</span>
+          <span class="name-chip">Radar</span>
+          <span class="name-chip soft">Brief</span>
+          <span class="name-chip soft">OD<em>.</em>control</span>
+          <span class="name-chip soft">Сеть<em>Контур</em></span>
+          <span class="name-chip soft">Терра</span>
         </div>
-        <p class="lead" style="margin-top:22px;margin-bottom:0;">
-          Разовое — за <strong style="color:var(--ink)">работу</strong>. Доля — за <strong style="color:var(--ink)">продукт и LTV</strong>. Два разных чека.
-        </p>
+        <ul class="list calm" style="margin-top:20px;">
+          <li><strong>Штаб / Сводка / Пульт</strong> — утренний ритуал ОД: «открыл штаб — увидел сеть».</li>
+          <li><strong>Контур / Норма / Дозор</strong> — про отклонения от стандарта, не про «нейросеть».</li>
+          <li><strong>Radar / Brief / Терра</strong> — коротко в мессенджере и на бейдже внедрения.</li>
+        </ul>
       </div>
     </section>
 
     <!-- 7 -->
     <section class="slide" data-i="7">
       <div class="slide-inner">
-        <p class="eyebrow">Бренд канала</p>
-        <h2>Ребрендинг нужен — это не вкусовщина</h2>
-        <p class="lead">Операционный директор слышит название за 3 секунды. CosmicMind + «синие мозги» не говорят: смена, зал, кухня, выручка. Звучит как edtech / wellness / AI-агентство — мимо HoReCa.</p>
-        <div class="grid-2">
-          <div class="card">
-            <span class="tag warn">Проблема</span>
-            <h3>Не про ресторан</h3>
-            <p>Длинное, космическое, абстрактное. В переписке и на визитке не цепляет «это про мою смену».</p>
+        <p class="eyebrow">Упаковка продукта</p>
+        <h2>Продавать не 10 модулей — а одну работу ОД</h2>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <strong>Первый экран = одна работа</strong>
+              <span>«Утренний контроль сети: отклонения по P&amp;L, сервису, ФОТ, задачам — в одном окне». Модули — вторым слоем.</span>
+            </div>
           </div>
-          <div class="card">
-            <span class="tag">Критерий</span>
-            <h3>Коротко и звонко</h3>
-            <p>1–2 слова, легко сказать по телефону, ассоциация с залом / сменой / сервисом — не с космосом.</p>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <strong>Три пакета по зрелости сети</strong>
+              <span>Контроль → Контроль+люди → Полный контур. «Всё сразу за 7990» звучит щедро, но размывает ценность апгрейда.</span>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <strong>Кейс рядом с формулой</strong>
+              <span>Цифра экономии ФОТ — только вместе с «как считали» в одном абзаце. Иначе миллионы читаются как баннер.</span>
+            </div>
           </div>
         </div>
       </div>
@@ -477,78 +505,82 @@
     <!-- 8 -->
     <section class="slide" data-i="8">
       <div class="slide-inner">
-        <p class="eyebrow">Направление имени</p>
-        <h2>Не готовый нейминг — вектор</h2>
-        <p class="lead">Pulse остаётся Pulse. Меняется витрина канала / зонтичный бренд продаж в рестораны.</p>
-        <div class="name-grid">
-          <span class="name-chip">Смена<em>.</em></span>
-          <span class="name-chip">Floor</span>
-          <span class="name-chip">Зал</span>
-          <span class="name-chip">Line<em>OS</em></span>
-          <span class="name-chip">Service<em>Day</em></span>
-          <span class="name-chip">Hall</span>
+        <p class="eyebrow">Доверие</p>
+        <h2>Бесплатный период как «прострел» — не как скидка</h2>
+        <p class="lead">Пилот нужен не «чтобы дали потрогать», а чтобы обе стороны проверили правду: сеть использует контур, продукт выдерживает реальность ОД.</p>
+        <div class="grid-2">
+          <div class="card hot">
+            <span class="tag">Формат</span>
+            <h3>14–21 день · 1–2 точки</h3>
+            <p>Жёсткий сценарий: утренняя сводка, 1–2 критичных контура (например голос гостя + чек-листы или ФОТ), созвон раз в неделю. Не «все 10 модулей сразу».</p>
+          </div>
+          <div class="card">
+            <span class="tag calm">Критерии выхода</span>
+            <h3>Да / нет без тумана</h3>
+            <p>ОД открывает систему без пинка · есть действия по отклонениям · команда не вернулась в Excel. Если да — платная модель. Если нет — честный стоп.</p>
+          </div>
         </div>
-        <ul class="list calm" style="margin-top:22px;">
-          <li>Проверить: произносит ли директор без пояснения «а это вообще про рестораны?»</li>
-          <li>Не конкурировать с Pulse визуально — партнёр = канал, Pulse = модуль смены.</li>
-          <li>Убрать «мозги / космос» из первого касания — оставить операционный язык.</li>
-        </ul>
+        <p class="lead" style="margin-top:18px;margin-bottom:0;">
+          Смысл: вы «простреливаете» продукт о сеть, сеть — о продукт. Это сильнее вечного «возможен бесплатный пилот» в рекламе.
+        </p>
       </div>
     </section>
 
     <!-- 9 -->
     <section class="slide" data-i="9">
       <div class="slide-inner">
-        <p class="eyebrow">Доверие</p>
-        <h2>Бесплатный период: прострел друг к другу</h2>
-        <p class="lead">Не «вечный триал для клиента», а короткий взаимный тест партнёрства и продукта.</p>
-        <div class="steps">
-          <div class="step">
-            <div class="step-num">1</div>
-            <div>
-              <strong>14–21 день на 1 пилотной точке</strong>
-              <span>Без доли и без большого разового — только зафиксированный объём часов с обеих сторон.</span>
+        <p class="eyebrow">Цена</p>
+        <h2>Брать можно больше — если цена = статус контура</h2>
+        <div class="grid-2">
+          <div class="card">
+            <span class="tag warn">Сейчас</span>
+            <div class="fact">от 7 990 ₽
+              <small>якорь «ещё одна подписка» рядом с экономией в миллионах</small>
             </div>
+            <p>Разрыв между обещанной экономией и чеком заставляет думать о скидке, а не о ценности.</p>
           </div>
-          <div class="step">
-            <div class="step-num">2</div>
-            <div>
-              <strong>Критерии выхода</strong>
-              <span>Линия отвечает · менеджер открыл алерт/отчёт · стоп или день реально использовали · обе стороны готовы к платной модели.</span>
+          <div class="card hot">
+            <span class="tag">Гипотеза</span>
+            <div class="fact">Выше полка
+              <small>пакет «операционный контур сети» + пилот отдельно от «вечной скидки»</small>
             </div>
-          </div>
-          <div class="step">
-            <div class="step-num">3</div>
-            <div>
-              <strong>Дальше — выбранный сплит</strong>
-              <span>60/40 + разово следующих точек, либо 50/50 с лимитом часов. Без «потом решим».</span>
-            </div>
+            <p>ОД сравнивает вас с риском провала стандартов на точках, не с чеком за «чат-бота». Цена должна выдерживать этот разговор.</p>
           </div>
         </div>
+        <ul class="list" style="margin-top:18px;">
+          <li>Поднять базовый чек и <strong>явно пакетировать</strong> (не прятать ценность в «всё за минимум»).</li>
+          <li>Пилот — бесплатно/символически, подписка после критериев — без демпинга «навсегда».</li>
+          <li>Отдельно продавать запуск сети (внедрение), если объём точек растёт — это честно для ОД.</li>
+        </ul>
       </div>
     </section>
 
     <!-- 10 -->
     <section class="slide" data-i="10">
       <div class="slide-inner">
-        <p class="eyebrow">Цена</p>
-        <h2>Можно и нужно брать больше</h2>
-        <p class="lead">Дешёвый чек продаёт «ещё один опрос». Дорогой (в рамках рынка) продаёт <strong style="color:var(--ink)">сигнал до потери смены</strong> и внедрение с ответственностью.</p>
-        <div class="grid-2">
-          <div class="card preferred">
-            <span class="tag">Логика</span>
-            <div class="price">Выше чек
-              <small>если в пакете: алерты + запуск + сопровождение старта</small>
+        <p class="eyebrow">Что попробовать</p>
+        <h2>90 дней экспериментов — без революции ради революции</h2>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <strong>Неделя 1–2: имя и первый экран</strong>
+              <span>A/B заголовка в языке ОД + 3 кандидата имени на интервью с 5 операционными директорами.</span>
             </div>
-            <p>Сеть платит за риск простоя и текучки, не за «бота в Telegram». Цена должна выдерживать 40% вам и 60% каналу — иначе экономика партнёрства не сходится.</p>
           </div>
-          <div class="card">
-            <span class="tag calm">Как обосновать</span>
-            <ul class="list calm" style="gap:8px;">
-              <li style="color:var(--muted);font-size:0.9rem;">Сравнить с стоимостью 1 проваленной смены / ухода менеджера.</li>
-              <li style="color:var(--muted);font-size:0.9rem;">Пакет «точка / месяц» + внедрение отдельно — прозрачно.</li>
-              <li style="color:var(--muted);font-size:0.9rem;">Скидка только на тест-период, не как базовая цена.</li>
-            </ul>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <strong>Неделя 3–6: ритуал пилота</strong>
+              <span>Зафиксировать сценарий 14–21 дня и критерии «прострела». Все новые лиды — только через него.</span>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <strong>Неделя 7–12: новая полка цены</strong>
+              <span>Два пакета вместо одного «от 7990». Замерить конверсию пилот→оплата и churn на 60-й день.</span>
+            </div>
           </div>
         </div>
       </div>
@@ -557,62 +589,29 @@
     <!-- 11 -->
     <section class="slide" data-i="11">
       <div class="slide-inner">
-        <p class="eyebrow">Этапы</p>
-        <h2>Развитие без размытия Pulse</h2>
-        <div class="steps">
-          <div class="step">
-            <div class="step-num">1</div>
-            <div>
-              <strong>Август: фикс модели + пилот</strong>
-              <span>Дедлайн по сплиту. Тест 14–21 день. Резерв часов только после «да» письмом.</span>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-num">2</div>
-            <div>
-              <strong>Осень: 3–5 платных точек через канал</strong>
-              <span>Проверка удержания менеджера. Ребрендинг витрины канала. Цена не демпинг.</span>
-            </div>
-          </div>
-          <div class="step">
-            <div class="step-num">3</div>
-            <div>
-              <strong>Потом: кабинет партнёра / биллинг-мост</strong>
-              <span>Только когда сплит и кейсы живые. Не строить white-label до доказанной экономики.</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 12 -->
-    <section class="slide" data-i="12">
-      <div class="slide-inner">
-        <p class="eyebrow">Ask</p>
-        <h2>Что зафиксировать до работы</h2>
+        <p class="eyebrow">Предложение партнёра</p>
+        <h2>Давайте проверим гипотезы на фактах, не на споре</h2>
         <ul class="list">
-          <li><strong>Сплит на новых клиентах Cosmic:</strong> 60/40 + разово <em>или</em> 50/50 с лимитом часов.</li>
-          <li><strong>Свои лиды:</strong> 70/30. Уже клиенты Cosmic: разово за запуск.</li>
-          <li><strong>Тест:</strong> 14–21 день, критерии выхода, затем платная модель.</li>
-          <li><strong>Бренд:</strong> курс на короткое ресторанное имя канала; Pulse не растворять.</li>
-          <li><strong>Цена:</strong> выше «опросного» дна — пакет ценности, не скидка по умолчанию.</li>
+          <li>Выбрать <strong>2–3 имени</strong> из вектора Штаб / Контур / Сводка / Дозор / Пульт / Radar и прогнать на ОД.</li>
+          <li>Собрать <strong>пилот-ритуал</strong> на 14–21 день с критериями выхода.</li>
+          <li>Пересобрать витрину: одна работа ОД → пакеты → модули.</li>
+          <li>Поднять цену до уровня «операционный контур», пилот оставить инструментом доверия.</li>
         </ul>
-        <p class="lead" style="margin-top:28px;margin-bottom:0;color:var(--ink);font-weight:700;">
-          Без ответа по модели — в августе часы под Cosmic не резервируются.
+        <p class="lead" style="margin-top:26px;margin-bottom:0;color:var(--ink);font-weight:700;">
+          Я не спорю с продуктом — он сильный. Спорю с тем, как его слышит операционный директор с порога.
         </p>
       </div>
     </section>
 
   </main>
 
-  <div class="hint">Листайте · <kbd>↑</kbd> <kbd>↓</kbd> · <kbd>Space</kbd> · Esc в начало</div>
+  <div class="hint">Листайте · <kbd>↑</kbd> <kbd>↓</kbd> · <kbd>Space</kbd></div>
 
   <script>
     const deck = document.getElementById("deck");
     const slides = [...document.querySelectorAll(".slide")];
     const counter = document.getElementById("counter");
     const total = slides.length;
-
     function currentIndex() {
       const top = deck.scrollTop;
       let best = 0, bestDist = Infinity;
@@ -622,26 +621,18 @@
       });
       return best;
     }
-    function update() {
-      counter.textContent = `${currentIndex() + 1} / ${total}`;
-    }
+    function update() { counter.textContent = `${currentIndex() + 1} / ${total}`; }
     function go(i) {
-      const n = Math.max(0, Math.min(total - 1, i));
-      slides[n].scrollIntoView({ behavior: "smooth" });
+      slides[Math.max(0, Math.min(total - 1, i))].scrollIntoView({ behavior: "smooth" });
     }
     deck.addEventListener("scroll", () => requestAnimationFrame(update), { passive: true });
     window.addEventListener("keydown", (e) => {
       if (["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
       const i = currentIndex();
-      if (e.key === "ArrowDown" || e.key === "PageDown" || e.key === " ") {
-        e.preventDefault(); go(i + 1);
-      } else if (e.key === "ArrowUp" || e.key === "PageUp") {
-        e.preventDefault(); go(i - 1);
-      } else if (e.key === "Home" || e.key === "Escape") {
-        e.preventDefault(); go(0);
-      } else if (e.key === "End") {
-        e.preventDefault(); go(total - 1);
-      }
+      if (e.key === "ArrowDown" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); go(i + 1); }
+      else if (e.key === "ArrowUp" || e.key === "PageUp") { e.preventDefault(); go(i - 1); }
+      else if (e.key === "Home" || e.key === "Escape") { e.preventDefault(); go(0); }
+      else if (e.key === "End") { e.preventDefault(); go(total - 1); }
     });
     deck.focus();
     update();
