@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>КП · Казна — платёжный контур для сети</title>
+  <title>КП · Казна</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -17,9 +17,6 @@
       --accent: #ff5a1f;
       --accent-soft: rgba(255, 90, 31, 0.12);
       --calm: #0d9488;
-      --calm-soft: rgba(13, 148, 136, 0.12);
-      --ok: #15803d;
-      --warn: #b45309;
     }
     * { box-sizing: border-box; }
     body {
@@ -30,67 +27,57 @@
       line-height: 1.55;
       -webkit-font-smoothing: antialiased;
     }
-    .wrap { max-width: 880px; margin: 0 auto; padding: 40px 20px 80px; }
+    .wrap { max-width: 840px; margin: 0 auto; padding: 36px 18px 72px; }
     .top {
-      display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-      padding-bottom: 20px; border-bottom: 1px solid var(--line); margin-bottom: 28px;
+      display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+      padding-bottom: 18px; border-bottom: 1px solid var(--line); margin-bottom: 24px;
     }
-    .brand { font-weight: 800; font-size: 1.25rem; letter-spacing: -0.03em; }
+    .brand { font-weight: 800; font-size: 1.2rem; letter-spacing: -0.03em; }
     .brand span { color: var(--accent); }
-    .meta { font-size: 0.85rem; color: var(--muted); text-align: right; }
+    .meta { font-size: 0.84rem; color: var(--muted); text-align: right; }
     h1 {
-      font-size: clamp(1.7rem, 4vw, 2.35rem);
+      font-size: clamp(1.55rem, 3.8vw, 2.1rem);
       font-weight: 800; letter-spacing: -0.03em; line-height: 1.15;
-      margin: 0 0 12px;
+      margin: 0 0 10px;
     }
-    h2 {
-      font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em;
-      margin: 36px 0 12px;
-    }
-    h3 { font-size: 1.05rem; font-weight: 800; margin: 0 0 8px; }
-    .lead { color: var(--muted); font-size: 1.02rem; max-width: 40em; margin: 0 0 20px; }
+    h2 { font-size: 1.15rem; font-weight: 800; margin: 30px 0 10px; }
+    h3 { font-size: 1rem; font-weight: 800; margin: 0 0 6px; }
+    .lead { color: var(--muted); margin: 0 0 16px; max-width: 38em; }
     .pill {
-      display: inline-block; font-size: 0.75rem; font-weight: 700;
-      padding: 6px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent);
-      margin-right: 6px; margin-bottom: 6px;
+      display: inline-block; font-size: 0.74rem; font-weight: 700;
+      padding: 6px 11px; border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+      margin: 0 6px 6px 0;
     }
     .card {
-      background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
-      padding: 22px 22px; margin: 14px 0; box-shadow: 0 4px 20px rgba(28,25,23,.05);
+      background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+      padding: 18px 18px; margin: 12px 0;
     }
-    .card.hot { border-color: rgba(255,90,31,.4); }
-    .grid { display: grid; gap: 14px; }
-    @media (min-width: 720px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
-    .price {
-      font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; margin: 8px 0 4px;
-    }
-    .price small { display: block; font-size: 0.85rem; font-weight: 600; color: var(--muted); margin-top: 4px; }
-    ul { margin: 8px 0 0; padding-left: 1.15em; color: var(--muted); }
-    ul li { margin: 5px 0; }
+    .card.hot { border-color: rgba(255,90,31,.35); }
+    .grid { display: grid; gap: 12px; }
+    @media (min-width: 700px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+    .price { font-size: 1.85rem; font-weight: 800; letter-spacing: -0.03em; margin: 6px 0 2px; }
+    .price small { display: block; font-size: 0.84rem; font-weight: 600; color: var(--muted); margin-top: 4px; }
+    ul { margin: 6px 0 0; padding-left: 1.1em; color: var(--muted); }
+    ul li { margin: 4px 0; }
     ul li strong { color: var(--ink); }
-    .table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 8px; }
-    .table th, .table td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-    .table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    .table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .table th, .table td { text-align: left; padding: 9px 6px; border-bottom: 1px solid var(--line); }
+    .table th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
     .note {
-      background: #f3f0eb; border-radius: 12px; padding: 14px 16px; font-size: 0.9rem; color: var(--muted);
-      margin-top: 12px;
+      background: #f3f0eb; border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; color: var(--muted); margin-top: 10px;
     }
     .note strong { color: var(--ink); }
     .footer {
-      margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
-      font-size: 0.85rem; color: var(--muted);
+      margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line);
+      font-size: 0.84rem; color: var(--muted);
     }
     .footer a { color: var(--calm); font-weight: 700; text-decoration: none; }
     .links a {
-      display: inline-block; margin: 6px 10px 6px 0; padding: 10px 14px; border-radius: 999px;
-      background: var(--ink); color: #fff; font-weight: 700; font-size: 0.85rem; text-decoration: none;
+      display: inline-block; margin: 6px 8px 0 0; padding: 10px 14px; border-radius: 999px;
+      background: var(--ink); color: #fff; font-weight: 700; font-size: 0.84rem; text-decoration: none;
     }
-    .links a.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
-    @media print {
-      body { background: #fff; }
-      .links { display: none; }
-      .card { box-shadow: none; break-inside: avoid; }
-    }
+    .links a.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+    @media print { .links { display: none; } }
   </style>
 </head>
 <body>
@@ -98,142 +85,134 @@
     <div class="top">
       <div>
         <div class="brand">Казна<span>.</span></div>
-        <div style="font-size:.85rem;color:var(--muted);margin-top:4px;">Коммерческое предложение</div>
+        <div style="font-size:.84rem;color:var(--muted);margin-top:4px;">Коммерческое предложение</div>
       </div>
       <div class="meta">
-        от ИП Смирнов Сергей Евгеньевич<br />
+        ИП Смирнов Сергей Евгеньевич<br />
         ИНН 784815635497 · ОГРНИП 326784700194735<br />
         Telegram: <a href="https://t.me/yank0vski" style="color:var(--calm);font-weight:700;text-decoration:none;">@yank0vski</a>
       </div>
     </div>
 
-    <h1>Платёжный контур для сети: «могу ли оплатить сегодня»</h1>
+    <h1>Деньги сети: сколько сейчас и что можно оплатить</h1>
     <p class="lead">
-      Собираем остатки по счетам (в т.ч. из iiko), накладные с отсрочкой, заявки управляющих
-      и календарь оплат — без лишней аналитики. Два варианта внедрения на выбор.
+      Одна картина для финансового директора: остатки на счетах, оплаты по накладным,
+      заявки от управляющих и простой календарь. Без лишнего.
     </p>
-    <span class="pill">предоплата 30%</span>
-    <span class="pill">iiko + Excel / Sheets</span>
-    <span class="pill">14 юрлиц / ИП</span>
-    <span class="pill">продукт остаётся вам</span>
+    <span class="pill">аванс 30%</span>
+    <span class="pill">данные из iiko и Excel</span>
+    <span class="pill">остаётся у вас</span>
 
-    <h2>Что получаете в любом варианте</h2>
+    <h2>Что будет работать</h2>
     <div class="card">
       <ul>
-        <li><strong>Сейчас:</strong> суммарные остатки по расчётным счетам</li>
-        <li><strong>Сегодня:</strong> что к оплате и хватает ли денег</li>
-        <li><strong>После оплат:</strong> прогноз остатка</li>
-        <li><strong>Календарь:</strong> перенос даты, отсрочки накладных, «оплачено» убирает позицию</li>
-        <li><strong>Заявки:</strong> от управляющих → статусы у финансового директора</li>
-        <li><strong>Статьи:</strong> разбивка под ваши нужды, без «миллиона колонок»</li>
+        <li><strong>Сейчас</strong> — сколько денег на счетах</li>
+        <li><strong>Сегодня</strong> — что нужно оплатить и хватает ли</li>
+        <li><strong>После оплат</strong> — сколько останется</li>
+        <li><strong>Календарь</strong> — перенос даты, отсрочки, оплаченное пропадает само</li>
+        <li><strong>Заявки</strong> — управляющий создаёт, финансовый директор меняет статус</li>
+        <li><strong>Статьи</strong> — под ваши привычные названия, коротко</li>
       </ul>
     </div>
 
-    <h2>Вариант A · Google Sheets «Казна»</h2>
+    <h2>Вариант A · Google Таблицы</h2>
     <div class="card">
-      <h3>Просто · быстро · общий доступ</h3>
-      <div class="price">180 000 ₽
-        <small>разово · таблицы и автоматизация остаются у вас</small>
+      <h3>Простой старт</h3>
+      <div class="price">150 000 ₽
+        <small>разово · таблицы остаются у вас</small>
       </div>
-      <div class="grid grid-2" style="margin-top:14px;">
+      <div class="grid grid-2" style="margin-top:12px;">
         <div>
           <strong>Срок</strong>
           <ul>
-            <li>2–4 недели до рабочего контура</li>
-            <li>подключение iiko/выгрузок + ваши Excel</li>
+            <li>2–3 недели</li>
+            <li>подтягивание данных + ваш Excel</li>
           </ul>
         </div>
         <div>
-          <strong>Сопровождение (опционально)</strong>
+          <strong>Поддержка по желанию</strong>
           <ul>
-            <li>20 000 ₽ / мес — правки, контроль выгрузок</li>
-            <li>или пакет часов по запросу</li>
+            <li>15 000 ₽ в месяц</li>
+            <li>или разовые правки</li>
           </ul>
         </div>
       </div>
-      <div class="note">
-        <strong>Оплата:</strong> 30% аванс (54 000 ₽) → старт работ · 40% на сдачу контура · 30% после приёмки.
-      </div>
+      <div class="note"><strong>Оплата:</strong> аванс 30% (45 000 ₽) → работа · 40% при сдаче · 30% после приёмки.</div>
     </div>
 
-    <h2>Вариант B · Платформа «Казна»</h2>
+    <h2>Вариант B · Своя платформа</h2>
     <div class="card hot">
-      <h3>Своя система · доступы · удобный календарь</h3>
-      <div class="price">650 000 ₽
-        <small>разово · код/доступ остаются вам навсегда</small>
+      <h3>Удобный экран с входом и ролями</h3>
+      <div class="price">450 000 ₽
+        <small>разово · система остаётся у вас</small>
       </div>
-      <div class="grid grid-2" style="margin-top:14px;">
+      <div class="grid grid-2" style="margin-top:12px;">
         <div>
-          <strong>Срок разработки MVP</strong>
+          <strong>Срок</strong>
           <ul>
-            <li>6–10 недель</li>
-            <li>авторизация, роли (финдир / управляющий / просмотр)</li>
-            <li>календарь с переносом дат, статусы заявок</li>
-            <li>виджеты «сейчас / сегодня / после»</li>
-            <li>интеграция iiko + импорт Excel</li>
+            <li>6–8 недель до рабочей версии</li>
+            <li>вход, роли, календарь, заявки</li>
+            <li>экраны «сейчас / сегодня / после»</li>
+            <li>связь с iiko и Excel</li>
           </ul>
         </div>
         <div>
           <strong>Поддержка после сдачи</strong>
           <ul>
-            <li>55 000 ₽ / мес — хостинг-контур, мониторинг выгрузок, мелкие доработки</li>
-            <li>крупные фичи — отдельной сметой</li>
-            <li>дальше возможен white-label / % с новых сетей</li>
+            <li>40 000 ₽ в месяц</li>
+            <li>сервер, выгрузки, мелкие правки</li>
+            <li>крупные доработки — отдельно</li>
           </ul>
         </div>
       </div>
       <div class="note">
-        <strong>Оплата:</strong> 30% аванс (195 000 ₽) → старт · 40% на демо MVP · 30% после приёмки.
-        Превью интерфейса: <a href="preview/index.html" style="color:var(--accent);font-weight:700;">мокáпы платформы</a>.
+        <strong>Оплата:</strong> аванс 30% (135 000 ₽) → старт · 40% на показ рабочей версии · 30% после приёмки.
+        Эскизы: <a href="preview/index.html" style="color:var(--accent);font-weight:700;">смотреть экраны</a>.
       </div>
     </div>
 
-    <h2>Сравнение</h2>
-    <div class="card" style="padding:8px 12px;">
+    <h2>Коротко</h2>
+    <div class="card" style="padding:6px 10px;">
       <table class="table">
-        <thead>
-          <tr><th></th><th>A · Sheets</th><th>B · Платформа</th></tr>
-        </thead>
+        <thead><tr><th></th><th>A · Таблицы</th><th>B · Платформа</th></tr></thead>
         <tbody>
-          <tr><td>Скорость старта</td><td>2–4 нед.</td><td>6–10 нед.</td></tr>
-          <tr><td>Удобство календаря</td><td>достаточное</td><td>drag / роли / мобильно</td></tr>
-          <tr><td>Доступы и аудит</td><td>через Google</td><td>свои роли и история</td></tr>
-          <tr><td>Масштаб на 14 ИП</td><td>да</td><td>да, удобнее</td></tr>
-          <tr><td>Владение</td><td>ваши таблицы</td><td>ваш продукт навсегда</td></tr>
-          <tr><td>Аванс 30%</td><td>54 000 ₽</td><td>195 000 ₽</td></tr>
+          <tr><td>Срок</td><td>2–3 недели</td><td>6–8 недель</td></tr>
+          <tr><td>Удобство</td><td>знакомый Google</td><td>свой вход и календарь</td></tr>
+          <tr><td>Цена</td><td>150 000 ₽</td><td>450 000 ₽</td></tr>
+          <tr><td>Аванс 30%</td><td>45 000 ₽</td><td>135 000 ₽</td></tr>
         </tbody>
       </table>
     </div>
 
-    <h2>Как подключаем iiko</h2>
+    <h2>Данные из iiko</h2>
     <div class="card">
       <ul>
-        <li>Через <strong>API / выгрузки</strong> (не личный логин в чат): остатки расчётных счетов, приходные накладные, даты отсрочки</li>
-        <li>При необходимости — плагин/экспорт по расписанию в буфер → Казна</li>
-        <li>Доступы и секреты — только после аванса, в защищённом контуре проекта</li>
+        <li>остатки по счетам</li>
+        <li>накладные и даты оплаты / отсрочки</li>
+        <li>доступ к выгрузкам — после аванса, в защищённом виде</li>
       </ul>
     </div>
 
-    <h2>Не входит в первый этап</h2>
+    <h2>Не входит сейчас</h2>
     <div class="card">
       <ul>
-        <li>Полный аналог СоваРест / CosmicMind (P&amp;L-аналитика, HR, чек-листы, голос гостя)</li>
-        <li>Банк-клиент и автоплатежи (календарь планирует; оплату подтверждаете вы)</li>
-        <li>Замена 1С / бухгалтерии</li>
+        <li>большая аналитика «как у Совы» или полный Cosmic</li>
+        <li>автоплатежи из банка</li>
+        <li>замена бухгалтерии</li>
       </ul>
     </div>
 
-    <div class="links" style="margin-top:28px;">
-      <a href="preview/index.html">Смотреть мокáпы платформы</a>
+    <div class="links">
+      <a href="preview/index.html">Эскизы платформы</a>
       <a class="ghost" href="https://t.me/yank0vski" target="_blank" rel="noopener">Написать в Telegram</a>
     </div>
 
     <div class="footer">
       <strong style="color:var(--ink);">Исполнитель:</strong>
       ИП Смирнов Сергей Евгеньевич · ИНН 784815635497 · ОГРНИП 326784700194735<br />
-      Контакт: <a href="https://t.me/yank0vski">@yank0vski</a>
-      · реквизиты также на <a href="https://pulseteam.online/" target="_blank" rel="noopener">pulseteam.online</a><br /><br />
-      КП действительно 14 дней с даты передачи. Суммы указаны без НДС (ИП на спецрежиме — уточняется при договоре).
+      <a href="https://t.me/yank0vski">@yank0vski</a>
+      · <a href="https://pulseteam.online/" target="_blank" rel="noopener">pulseteam.online</a><br /><br />
+      КП 14 дней с даты отправки. Суммы без НДС (уточняется при договоре).
     </div>
   </div>
 </body>
