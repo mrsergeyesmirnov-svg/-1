@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Казна · Платёжный календарь</title>
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="mock.css" />
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <div class="nav">
+        <a href="index.html">Обзор</a>
+        <a href="cash.html">Деньги</a>
+        <a class="on" href="calendar.html">Календарь</a>
+        <a href="requests.html">Заявки</a>
+      </div>
+    </div>
+
+    <div class="badge">Платежный календарь</div>
+    <h1 style="margin:8px 0 6px;font-size:1.55rem;font-weight:800;letter-spacing:-0.03em;">Перетащи оплату на удобную дату</h1>
+    <p class="muted" style="margin:0 0 14px;">Зажми карточку и перенеси в другой день. «Оплачено» — позиция исчезает сама.</p>
+
+    <div class="chips">
+      <span class="chip on">14 дней</span>
+      <span class="chip">30 дней</span>
+      <span class="chip">только разрывы</span>
+      <span class="chip">все ИП</span>
+    </div>
+
+    <div class="calendar" id="calendar">
+      <div class="day" data-day="27">
+        <header><strong>Пн 27 июл</strong><span class="muted">к оплате 1,2 млн</span></header>
+        <div class="pay-item" draggable="true" data-id="1">
+          <div class="t">Метрополис · продукты<div class="muted">накладная · отсрочка 14 дн · ИП Иванов</div></div>
+          <div class="amount">640 тыс.</div>
+        </div>
+        <div class="pay-item" draggable="true" data-id="2">
+          <div class="t">Аренда июля<div class="muted">заявка управляющего · ООО «Север»</div></div>
+          <div class="amount">560 тыс.</div>
+        </div>
+      </div>
+      <div class="day" data-day="28">
+        <header><strong>Вт 28 июл</strong><span class="muted">к оплате 380 тыс.</span></header>
+        <div class="pay-item" draggable="true" data-id="3">
+          <div class="t">Упаковка / расходники<div class="muted">накладная · ИП Петрова</div></div>
+          <div class="amount">380 тыс.</div>
+        </div>
+      </div>
+      <div class="day" data-day="29">
+        <header><strong>Ср 29 июл</strong><span class="muted">пусто — можно двигать сюда</span></header>
+      </div>
+      <div class="day" data-day="30">
+        <header><strong>Чт 30 июл</strong><span class="muted">к оплате 210 тыс.</span></header>
+        <div class="pay-item" draggable="true" data-id="4">
+          <div class="t">Ремонт холодильника<div class="muted">заявка · статус «согласовано»</div></div>
+          <div class="amount">210 тыс.</div>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;">
+          <button class="btn sm" type="button" id="markPaid">Отметить оплаченным</button>
+          <button class="btn sm ghost" type="button">Скрыть оплаченные</button>
+        </div>
+      </div>
+    </div>
+    <p class="foot-note">Drag работает в этом превью · «Оплачено» убирает выбранную карточку</p>
+  </div>
+  <script>
+    const cal = document.getElementById("calendar");
+    let dragEl = null;
+    cal.querySelectorAll(".pay-item").forEach((el) => {
+      el.addEventListener("dragstart", () => { dragEl = el; el.classList.add("dragging"); });
+      el.addEventListener("dragend", () => { el.classList.remove("dragging"); dragEl = null; });
+    });
+    cal.querySelectorAll(".day").forEach((day) => {
+      day.addEventListener("dragover", (e) => e.preventDefault());
+      day.addEventListener("drop", (e) => {
+        e.preventDefault();
+        if (dragEl) day.appendChild(dragEl);
+      });
+    });
+    document.getElementById("markPaid").addEventListener("click", () => {
+      const last = cal.querySelector('.day[data-day="30"] .pay-item');
+      if (last) last.remove();
+    });
+  </script>
+</body>
+</html>

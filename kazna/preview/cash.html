@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Казна · Деньги сегодня</title>
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="mock.css" />
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <div class="nav">
+        <a href="index.html">Обзор</a>
+        <a class="on" href="cash.html">Деньги</a>
+        <a href="calendar.html">Календарь</a>
+        <a href="requests.html">Заявки</a>
+      </div>
+    </div>
+
+    <div class="badge">Сводка · все 14 ИП</div>
+    <h1 style="margin:8px 0 14px;font-size:1.55rem;font-weight:800;letter-spacing:-0.03em;">Могу ли оплатить сегодня?</h1>
+
+    <div class="grid-3">
+      <div class="metric">
+        <div class="label">Сейчас на счетах</div>
+        <div class="value">12,4 млн ₽</div>
+        <div class="hint">сумма расчётных счетов · iiko + банк</div>
+      </div>
+      <div class="metric warn">
+        <div class="label">К оплате сегодня</div>
+        <div class="value">3,1 млн ₽</div>
+        <div class="hint">накладные с отсрочкой + согласованные заявки</div>
+      </div>
+      <div class="metric ok">
+        <div class="label">После всех оплат</div>
+        <div class="value">9,3 млн ₽</div>
+        <div class="hint">хватает · буфер 9,3 млн</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>По юрлицам / ИП</h2>
+      <div class="row pay">
+        <div><strong>ИП Иванов</strong><div class="muted">расч. счёт · точка Невский</div></div>
+        <div class="amount">2,4 млн</div>
+        <div class="muted">к оплате 420 тыс.</div>
+        <div><span class="status ok">хватит</span></div>
+        <div></div>
+      </div>
+      <div class="row pay">
+        <div><strong>ООО «Север»</strong><div class="muted">2 счёта</div></div>
+        <div class="amount">4,1 млн</div>
+        <div class="muted">к оплате 1,8 млн</div>
+        <div><span class="status ok">хватит</span></div>
+        <div></div>
+      </div>
+      <div class="row pay">
+        <div><strong>ИП Петрова</strong><div class="muted">касса + р/с</div></div>
+        <div class="amount">0,9 млн</div>
+        <div class="muted">к оплате 1,1 млн</div>
+        <div><span class="status new">разрыв 200 тыс.</span></div>
+        <div><button class="btn sm ghost" type="button">Перенести</button></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>План выручки · сегодня</h2>
+      <div class="row pay">
+        <div><strong>План сети</strong><div class="muted">из Excel / факт iiko утром</div></div>
+        <div class="amount">2,8 млн</div>
+        <div class="muted">факт на 11:40 · 1,1 млн</div>
+        <div><span class="status plan">в работе</span></div>
+        <div></div>
+      </div>
+    </div>
+    <p class="foot-note">Цифры демонстрационные · структура экрана для КП</p>
+  </div>
+</body>
+</html>
