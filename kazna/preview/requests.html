@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Казна · Заявки</title>
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="mock.css" />
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <div class="nav">
+        <a href="index.html">Обзор</a>
+        <a href="cash.html">Деньги</a>
+        <a href="calendar.html">Календарь</a>
+        <a class="on" href="requests.html">Заявки</a>
+      </div>
+    </div>
+
+    <div class="badge">Заявки и запросы от управляющих</div>
+    <h1 style="margin:8px 0 14px;font-size:1.55rem;font-weight:800;letter-spacing:-0.03em;">Финдир меняет статус — заявка едет в календарь</h1>
+
+    <div class="chips">
+      <span class="chip on">Новые</span>
+      <span class="chip">На согласовании</span>
+      <span class="chip">В календаре</span>
+      <span class="chip">Оплачено</span>
+    </div>
+
+    <div class="panel">
+      <div class="row req">
+        <div>
+          <strong>Замена бойлера · точка Василеостровская</strong>
+          <div class="muted">управ Мария · ИП Иванов · счёт во вложении</div>
+        </div>
+        <div class="amount">186 тыс.</div>
+        <div class="muted">желаемая дата 29.07</div>
+        <div><span class="status new">новая</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn sm" type="button">Согласовать</button>
+          <button class="btn sm ghost" type="button">Отклонить</button>
+        </div>
+      </div>
+      <div class="row req">
+        <div>
+          <strong>Доплата поставщику «Океан»</strong>
+          <div class="muted">управ Денис · ООО «Север» · из накладной iiko</div>
+        </div>
+        <div class="amount">92 тыс.</div>
+        <div class="muted">отсрочка до 01.08</div>
+        <div><span class="status plan">согласовано</span></div>
+        <div><button class="btn sm ghost" type="button">В календарь</button></div>
+      </div>
+      <div class="row req">
+        <div>
+          <strong>Реклама Яндекс · август</strong>
+          <div class="muted">управ Олег · маркетинговая статья</div>
+        </div>
+        <div class="amount">120 тыс.</div>
+        <div class="muted">в календаре на 05.08</div>
+        <div><span class="status ok">в календаре</span></div>
+        <div><button class="btn sm ghost" type="button">Открыть</button></div>
+      </div>
+      <div class="row req">
+        <div>
+          <strong>Хозтовары</strong>
+          <div class="muted">оплачено вчера · галочка снята автоматически</div>
+        </div>
+        <div class="amount">44 тыс.</div>
+        <div class="muted">—</div>
+        <div><span class="status done">оплачено</span></div>
+        <div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Поток статусов</h2>
+      <p class="muted" style="margin:0;">
+        Новая → согласовано финдиром → в платёжном календаре → оплачено (карточка уходит сама).
+        Управляющий видит только свои заявки; финдир — все 14 ИП.
+      </p>
+    </div>
+    <p class="foot-note">Preview для КП · Казна</p>
+  </div>
+</body>
+</html>
