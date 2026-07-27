@@ -42,7 +42,19 @@
     }
     h2 { font-size: 1.15rem; font-weight: 800; margin: 28px 0 10px; }
     h3 { font-size: 1rem; font-weight: 800; margin: 0 0 6px; }
-    .lead { color: var(--muted); margin: 0 0 16px; max-width: 38em; }
+    .lead { color: var(--muted); margin: 0 0 16px; max-width: 40em; }
+    .outcome {
+      background: linear-gradient(135deg, #fff7f3 0%, #fff 55%);
+      border: 1px solid rgba(255,90,31,.28);
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin: 14px 0 18px;
+      font-size: 1.02rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.35;
+    }
+    .outcome span { color: var(--accent); }
     .pill {
       display: inline-block; font-size: 0.74rem; font-weight: 700;
       padding: 6px 11px; border-radius: 999px; background: var(--accent-soft); color: var(--accent);
@@ -60,6 +72,34 @@
     ul { margin: 6px 0 0; padding-left: 1.1em; color: var(--muted); }
     ul li { margin: 4px 0; }
     ul li strong { color: var(--ink); }
+    .before-after {
+      display: grid; gap: 12px;
+    }
+    @media (min-width: 700px) {
+      .before-after { grid-template-columns: 1fr 1fr; }
+    }
+    .ba {
+      border-radius: 12px; padding: 14px 16px; border: 1px solid var(--line);
+    }
+    .ba.before { background: #f3f0eb; }
+    .ba.after {
+      background: #fff7f3;
+      border-color: rgba(255,90,31,.28);
+    }
+    .ba h3 { margin-bottom: 8px; }
+    .ba ul { margin-top: 0; }
+    .steps { list-style: none; padding: 0; margin: 8px 0 0; }
+    .steps li {
+      display: grid; grid-template-columns: 88px 1fr; gap: 10px;
+      padding: 10px 0; border-bottom: 1px solid var(--line);
+      color: var(--muted); font-size: 0.92rem;
+    }
+    .steps li:last-child { border-bottom: 0; }
+    .steps strong { color: var(--ink); display: block; }
+    .step-label {
+      font-size: 0.72rem; font-weight: 800; letter-spacing: .04em;
+      text-transform: uppercase; color: var(--accent); padding-top: 2px;
+    }
     .table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
     .table th, .table td { text-align: left; padding: 9px 6px; border-bottom: 1px solid var(--line); }
     .table th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
@@ -94,16 +134,41 @@
       </div>
     </div>
 
-    <h1>Деньги сети: счета, кассы, заявки и календарь</h1>
+    <h1>Свободные деньги сети — видно каждое утро</h1>
     <p class="lead">
-      Платформа с разными входами: управляющий подаёт заявки и планы,
-      финансовый директор видит всю картину и решает, что оплатить.
-      Оплаты закрываются сами по данным iiko — без лишней галочки.
+      Платформа для финансового директора и управляющих:
+      заявки, счета, кассы и календарь оплат в одном месте.
+      Оплаты закрываются по данным iiko — без ручной галочки.
     </p>
+    <div class="outcome">
+      Каждое утро за <span>30 секунд</span> понятно: сколько денег свободно и что можно оплатить сегодня.
+    </div>
     <span class="pill">аванс 30%</span>
     <span class="pill">роли и доступы</span>
     <span class="pill">iiko + Excel</span>
-    <span class="pill">остаётся у вас</span>
+    <span class="pill">бессрочная лицензия</span>
+
+    <h2>Что изменится</h2>
+    <div class="before-after">
+      <div class="ba before">
+        <h3>До</h3>
+        <ul>
+          <li>десятки Excel и переписок</li>
+          <li>заявки в Telegram</li>
+          <li>ручные проверки остатков</li>
+          <li>непонятно, сколько денег свободно сегодня</li>
+        </ul>
+      </div>
+      <div class="ba after">
+        <h3>После</h3>
+        <ul>
+          <li>одна система вместо разрозненных файлов</li>
+          <li>одна очередь заявок со статусами</li>
+          <li>остатки всегда актуальны</li>
+          <li>прогноз: что можно оплатить сегодня и на ближайшие дни</li>
+        </ul>
+      </div>
+    </div>
 
     <h2>Кто чем пользуется</h2>
     <div class="grid grid-2">
@@ -142,22 +207,30 @@
 
     <h2>Вариант A · Google Таблицы</h2>
     <div class="card">
-      <h3>Простой старт без отдельных логинов</h3>
+      <h3>Быстрый слой: сводка и календарь</h3>
       <div class="price">100 000 ₽
-        <small>разово · таблицы остаются у вас</small>
+        <small>разово · таблицы и доступы — у вашей команды</small>
       </div>
+      <p style="margin:10px 0 0;color:var(--muted);font-size:.92rem;">
+        Подходит, если нужен быстрый старт без отдельных логинов.
+        Роли, нормальный контур касс и полноценное автозакрытие из iiko —
+        это уже вариант B.
+      </p>
       <div class="grid grid-2" style="margin-top:12px;">
         <div>
-          <strong>Срок</strong>
+          <strong>В стоимость входит</strong>
           <ul>
-            <li>2–3 недели</li>
-            <li>сводка денег + календарь + заявки в таблице</li>
+            <li>сводка остатков</li>
+            <li>платёжный календарь</li>
+            <li>заявки в таблице</li>
+            <li>настройка и обучение</li>
           </ul>
         </div>
         <div>
-          <strong>Поддержка по желанию</strong>
+          <strong>Срок и поддержка</strong>
           <ul>
-            <li>12 000 ₽ в месяц</li>
+            <li>2–3 недели</li>
+            <li>поддержка по желанию: 12 000 ₽/мес</li>
             <li>или разовые правки</li>
           </ul>
         </div>
@@ -167,32 +240,108 @@
 
     <h2>Вариант B · Платформа с ролями</h2>
     <div class="card hot">
-      <h3>Свой вход · управляющие и финансовый директор</h3>
+      <h3>То, что описал финансовый директор</h3>
       <div class="price">450 000 ₽
-        <small>разово · система остаётся у вас</small>
+        <small>разово · бессрочная лицензия на использование внутри вашей компании</small>
       </div>
-      <div class="grid grid-2" style="margin-top:12px;">
+
+      <div style="margin-top:14px;">
+        <strong>В стоимость входит</strong>
+        <ul>
+          <li>проектирование системы под вашу сеть</li>
+          <li>интеграция с iiko (в согласованном на старте объёме)</li>
+          <li>роли и отдельные входы</li>
+          <li>платёжный календарь и картина свободных денег</li>
+          <li>очередь заявок со статусами и приоритетами</li>
+          <li>счета, кассы, история изменений</li>
+          <li>внедрение и обучение сотрудников</li>
+          <li>30 дней исправления ошибок после запуска</li>
+        </ul>
+      </div>
+
+      <div class="grid grid-2" style="margin-top:14px;">
         <div>
           <strong>Срок</strong>
           <ul>
-            <li>6–8 недель до рабочей версии</li>
-            <li>роли, заявки, приоритеты, планы</li>
-            <li>счета + кассы + календарь</li>
-            <li>автозакрытие оплат из iiko</li>
+            <li>ориентир 6–8 недель после аванса и доступов</li>
+            <li>демо рабочей версии в середине пути</li>
           </ul>
         </div>
         <div>
-          <strong>Поддержка после сдачи</strong>
+          <strong>Оплата</strong>
           <ul>
-            <li>40 000 ₽ в месяц</li>
-            <li>сервер, выгрузки, мелкие правки</li>
-            <li>если продукт зайдёт — можно вместе продавать дальше (доля с новых внедрений)</li>
+            <li>аванс 30% — 135 000 ₽</li>
+            <li>40% — на показ рабочей версии</li>
+            <li>30% — после приёмки</li>
           </ul>
         </div>
       </div>
+
+      <div class="note" style="margin-top:14px;">
+        Эскизы экранов: <a href="preview/index.html" style="color:var(--accent);font-weight:700;">смотреть</a>.
+      </div>
+    </div>
+
+    <h2>Как идём по варианту B</h2>
+    <div class="card">
+      <ol class="steps">
+        <li>
+          <div class="step-label">Этап 1</div>
+          <div>
+            <strong>Проектирование и доступы</strong>
+            карта организаций, счетов, касс и ролей; проверка выгрузки iiko
+          </div>
+        </li>
+        <li>
+          <div class="step-label">Этап 2</div>
+          <div>
+            <strong>Каркас платформы</strong>
+            входы и права, заявки, календарь, счета
+          </div>
+        </li>
+        <li>
+          <div class="step-label">Этап 3</div>
+          <div>
+            <strong>iiko и кассы</strong>
+            автозакрытие оплат, норма/факт по кассам, демо на ваших данных
+          </div>
+        </li>
+        <li>
+          <div class="step-label">Этап 4</div>
+          <div>
+            <strong>Запуск</strong>
+            обучение, приёмка по чек-листу, гарантийный месяц
+          </div>
+        </li>
+      </ol>
       <div class="note">
-        <strong>Оплата:</strong> аванс 30% (135 000 ₽) → старт · 40% на показ рабочей версии · 30% после приёмки.
-        Эскизы: <a href="preview/index.html" style="color:var(--accent);font-weight:700;">смотреть экраны</a>.
+        <strong>Срок:</strong> ориентир 6–8 недель после аванса и предоставления доступов.
+        Точные даты фиксируем после этапа 1.
+      </div>
+    </div>
+
+    <h2>Гарантия</h2>
+    <div class="card">
+      <ul>
+        <li>в течение <strong>30 дней после акта</strong> бесплатно исправляются ошибки работы системы по согласованному объёму</li>
+        <li>новые функции и изменения процессов — отдельно, по оценке</li>
+      </ul>
+    </div>
+
+    <h2>Поддержка после сдачи · 40 000 ₽/мес</h2>
+    <div class="card">
+      <p style="margin:0 0 8px;color:var(--muted);font-size:.92rem;">
+        Не «плата за существование», а сопровождение рабочего контура.
+      </p>
+      <ul>
+        <li>контроль и сопровождение связки с iiko</li>
+        <li>исправление ошибок</li>
+        <li>консультации по работе в системе</li>
+        <li>мелкие доработки в разумном объёме</li>
+        <li>обновления в рамках текущего контура</li>
+      </ul>
+      <div class="note">
+        Если продукт зайдёт сети — можно обсудить совместные внедрения в другие проекты (доля с новых продаж). Без обязательств в этом КП.
       </div>
     </div>
 
@@ -201,10 +350,12 @@
       <table class="table">
         <thead><tr><th></th><th>A · Таблицы</th><th>B · Платформа</th></tr></thead>
         <tbody>
+          <tr><td>Результат</td><td>быстрая сводка</td><td>утро: свободно / можно платить</td></tr>
           <tr><td>Роли</td><td>общий доступ Google</td><td>свои логины и права</td></tr>
           <tr><td>Срок</td><td>2–3 недели</td><td>6–8 недель</td></tr>
           <tr><td>Цена</td><td>100 000 ₽</td><td>450 000 ₽</td></tr>
           <tr><td>Аванс 30%</td><td>30 000 ₽</td><td>135 000 ₽</td></tr>
+          <tr><td>Поддержка</td><td>по желанию от 12 000 ₽</td><td>40 000 ₽/мес с составом работ</td></tr>
         </tbody>
       </table>
     </div>
@@ -216,6 +367,15 @@
         <li>накладные, отсрочки, оплаты</li>
         <li>факт оплаты в iiko = закрытие в Казне и запись в историю (без кнопки «оплачено»)</li>
         <li>истина по документам остаётся в iiko</li>
+      </ul>
+    </div>
+
+    <h2>Права на систему</h2>
+    <div class="card">
+      <ul>
+        <li>заказчику — <strong>бессрочная лицензия</strong> на использование системы внутри вашей компании</li>
+        <li>исключительные права на программный код, архитектуру и дальнейшее развитие продукта остаются у исполнителя, если стороны письменно не договорят иное</li>
+        <li>ваши данные и выгрузки принадлежат вам</li>
       </ul>
     </div>
 
