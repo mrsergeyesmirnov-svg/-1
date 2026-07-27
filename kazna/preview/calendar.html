@@ -21,12 +21,13 @@
 
     <div class="badge">Платёжный календарь</div>
     <h1>Перенеси оплату на другую дату</h1>
-    <p class="muted" style="margin:0 0 10px;">Зажми карточку и перетащи. «Оплачено» — строка пропадает.</p>
+    <p class="muted" style="margin:0 0 10px;">Зажми карточку и перетащи. Галочку «оплачено» ставить не нужно — Казна сама видит оплату в iiko и убирает строку в архив.</p>
 
     <div class="chips">
       <span class="chip on">14 дней</span>
       <span class="chip">30 дней</span>
       <span class="chip">только проблемы</span>
+      <span class="chip on">авто из iiko</span>
     </div>
 
     <div class="calendar" id="calendar">
@@ -52,17 +53,14 @@
         <header><strong>Ср 29 июл</strong><span class="muted">пусто</span></header>
       </div>
       <div class="day" data-day="30">
-        <header><strong>Чт 30 июл</strong><span class="muted">210 тыс.</span></header>
-        <div class="pay-item" draggable="true" id="paidDemo">
-          <div class="t">Ремонт холодильника<div class="muted">согласовано</div></div>
-          <div class="amount">210 тыс.</div>
-        </div>
-        <div style="margin-top:8px;">
-          <button class="btn sm" type="button" id="markPaid">Отметить оплаченным</button>
+        <header><strong>Чт 30 июл</strong><span class="muted">только что из iiko</span></header>
+        <div style="padding:10px;border-radius:10px;background:#f0fdfa;border:1px solid rgba(13,148,136,.25);font-size:.82rem;">
+          <strong style="color:#0d9488;">Ремонт холодильника · 210 тыс.</strong>
+          <div class="muted">оплата найдена в iiko → ушло в архив само</div>
         </div>
       </div>
     </div>
-    <p class="foot-note">В эскизе перетаскивание работает</p>
+    <p class="foot-note">Перетаскивание работает · оплату закрывает iiko, не кнопка</p>
   </div>
   <script>
     const cal = document.getElementById("calendar");
@@ -77,9 +75,6 @@
         e.preventDefault();
         if (dragEl) day.appendChild(dragEl);
       });
-    });
-    document.getElementById("markPaid").addEventListener("click", () => {
-      document.getElementById("paidDemo")?.remove();
     });
   </script>
 </body>
