@@ -246,7 +246,6 @@ h1 {
 .foot-note { margin-top: 16px; font-size: 0.74rem; color: var(--muted); text-align: center; }
 
 
-/* single-file app shell */
 .view { display: none; }
 .view.on { display: block; }
 #view-kp.on { display: block; }
@@ -257,16 +256,15 @@ body.mode-mock { background: var(--bg); }
   padding: 10px 14px; background: rgba(250,247,243,.96);
   border-bottom: 1px solid var(--line); backdrop-filter: blur(8px);
 }
-.back-kp a, .back-kp button {
+.back-kp a {
   font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer;
   padding: 7px 11px; border-radius: 999px; border: 1px solid var(--line);
   background: #fff; color: var(--muted); text-decoration: none;
 }
-.back-kp a.on, .back-kp button.on {
+.back-kp a.on {
   color: var(--accent); border-color: rgba(255,90,31,.35); background: var(--accent-soft);
 }
 .back-kp .to-kp { background: var(--ink); color: #fff; border-color: var(--ink); }
-
 </style>
 </head>
 <body>
@@ -294,7 +292,6 @@ body.mode-mock { background: var(--bg); }
     <div class="outcome">
       Каждое утро за <span>30 секунд</span> понятно: сколько денег свободно и что можно оплатить сегодня.
     </div>
-    <span class="pill">аванс 30%</span>
     <span class="pill">роли и доступы</span>
     <span class="pill">iiko + Excel</span>
     <span class="pill">бессрочная лицензия</span>
@@ -568,7 +565,7 @@ body.mode-mock { background: var(--bg); }
     <div class="topbar">
       <div class="logo">Казна<span>.</span></div>
       <div class="nav">
-        <a href="#mock-overview" class="on" data-go="mock-overview">Обзор</a>
+        <a class="on" href="#mock-overview" data-go="mock-overview">Обзор</a>
         <a href="#mock-roles" data-go="mock-roles">Роли</a>
         <a href="#mock-cash" data-go="mock-cash">Деньги</a>
         <a href="#mock-calendar" data-go="mock-calendar">Календарь</a>
@@ -609,7 +606,7 @@ body.mode-mock { background: var(--bg); }
       <div class="logo">Казна<span>.</span></div>
       <div class="nav">
         <a href="#mock-overview" data-go="mock-overview">Обзор</a>
-        <a href="#mock-roles" class="on" data-go="mock-roles">Роли</a>
+        <a class="on" href="#mock-roles" data-go="mock-roles">Роли</a>
         <a href="#mock-cash" data-go="mock-cash">Деньги</a>
         <a href="#mock-calendar" data-go="mock-calendar">Календарь</a>
         <a href="#mock-requests" data-go="mock-requests">Заявки</a>
@@ -685,7 +682,7 @@ body.mode-mock { background: var(--bg); }
       <div class="nav">
         <a href="#mock-overview" data-go="mock-overview">Обзор</a>
         <a href="#mock-roles" data-go="mock-roles">Роли</a>
-        <a href="#mock-cash" class="on" data-go="mock-cash">Деньги</a>
+        <a class="on" href="#mock-cash" data-go="mock-cash">Деньги</a>
         <a href="#mock-calendar" data-go="mock-calendar">Календарь</a>
         <a href="#mock-requests" data-go="mock-requests">Заявки</a>
       </div>
@@ -765,7 +762,7 @@ body.mode-mock { background: var(--bg); }
         <a href="#mock-overview" data-go="mock-overview">Обзор</a>
         <a href="#mock-roles" data-go="mock-roles">Роли</a>
         <a href="#mock-cash" data-go="mock-cash">Деньги</a>
-        <a href="#mock-calendar" class="on" data-go="mock-calendar">Календарь</a>
+        <a class="on" href="#mock-calendar" data-go="mock-calendar">Календарь</a>
         <a href="#mock-requests" data-go="mock-requests">Заявки</a>
       </div>
     </div>
@@ -838,7 +835,7 @@ body.mode-mock { background: var(--bg); }
         <a href="#mock-roles" data-go="mock-roles">Роли</a>
         <a href="#mock-cash" data-go="mock-cash">Деньги</a>
         <a href="#mock-calendar" data-go="mock-calendar">Календарь</a>
-        <a href="#mock-requests" class="on" data-go="mock-requests">Заявки</a>
+        <a class="on" href="#mock-requests" data-go="mock-requests">Заявки</a>
       </div>
     </div>
 
@@ -938,8 +935,6 @@ body.mode-mock { background: var(--bg); }
   });
   window.addEventListener("hashchange", fromHash);
   fromHash();
-
-  // calendar drag (works inside single file)
   function bindCal() {
     var cal = document.querySelector("#view-mock-calendar #calendar");
     if (!cal || cal.dataset.bound) return;
