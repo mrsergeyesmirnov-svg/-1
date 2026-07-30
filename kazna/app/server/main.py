@@ -5,7 +5,7 @@ import secrets
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import Body, Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from passlib.context import CryptContext
@@ -16,7 +16,9 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .database import UPLOADS, Base, SessionLocal, engine, get_db
 from .excel_import import inspect_payments_file, parse_payments_file
-from .models import Account, Payment, RequestItem, User, UserAccount
+from .iiko_client import IikoClient, IikoError
+from .iiko_sync import get_or_create_settings, settings_public, sync_iiko_invoices
+from .models import Account, IikoSettings, Payment, RequestItem, User, UserAccount
 
 ROOT = Path(__file__).resolve().parents[1]
 pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -47,6 +49,7 @@ def _migrate_schema() -> None:
         "ALTER TABLE requests ADD COLUMN payment_id INTEGER",
         "ALTER TABLE requests ADD COLUMN created_at TIMESTAMP",
         "ALTER TABLE requests ADD COLUMN updated_at TIMESTAMP",
+        "ALTER TABLE payments ADD COLUMN external_id VARCHAR(255)",
     ]
     with engine.begin() as conn:
         for sql in stmts:
@@ -260,6 +263,7 @@ def payment_dict(p: Payment) -> dict:
         "source": p.source,
         "account": p.account_name,
         "note": p.note,
+        "externalId": p.external_id,
     }
 
 
@@ -579,22 +583,110 @@ async def import_inspect(
 
 class IikoConfigIn(BaseModel):
     api_login: str | None = None
-    org_id: str | None = None
+    organization_id: str | None = None
+    org_id: str | None = None  # alias
+    days_back: int | None = 30
     note: str | None = None
+    enabled: bool = True
+
+
+class IikoSyncIn(BaseModel):
+    days_back: int | None = None
+    organization_id: str | None = None
+    replace: bool = False
+
+
+@app.get("/api/import/iiko/config")
+def iiko_config_get(user: User = Depends(require_fin), db: Session = Depends(get_db)):
+    return settings_public(get_or_create_settings(db))
 
 
 @app.post("/api/import/iiko/config")
-def iiko_config_stub(payload: IikoConfigIn, user: User = Depends(require_fin)):
-    """Store intent for live iiko API — credentials kept for next iteration."""
+def iiko_config_save(
+    payload: IikoConfigIn,
+    user: User = Depends(require_fin),
+    db: Session = Depends(get_db),
+):
+    row = get_or_create_settings(db)
+    if payload.api_login is not None and payload.api_login.strip():
+        row.api_login = payload.api_login.strip()
+    org = payload.organization_id or payload.org_id
+    if org is not None:
+        row.organization_id = org.strip() or None
+        if not row.organization_id:
+            row.organization_name = None
+    if payload.days_back is not None:
+        row.days_back = max(1, min(int(payload.days_back), 366))
+    if payload.note is not None:
+        row.note = payload.note.strip() or None
+    row.enabled = bool(payload.enabled)
+    db.commit()
+    db.refresh(row)
+    return {"ok": True, "message": "Настройки iiko сохранены.", **settings_public(row)}
+
+
+@app.post("/api/import/iiko/test")
+def iiko_test(user: User = Depends(require_fin), db: Session = Depends(get_db)):
+    row = get_or_create_settings(db)
+    login = (row.api_login or os.environ.get("IIKO_API_LOGIN") or "").strip()
+    if not login:
+        raise HTTPException(400, "Сначала сохраните apiLogin")
+    try:
+        client = IikoClient(login)
+        client.auth()
+        orgs = client.organizations()
+    except IikoError as e:
+        row.last_error = str(e)
+        db.commit()
+        raise HTTPException(400, str(e)) from e
+    row.last_error = None
+    db.commit()
     return {
         "ok": True,
-        "message": "Конфиг принят. Живой API iiko подключим следующим шагом; сейчас работает выгрузка файлом.",
-        "saved": {
-            "apiLogin": bool(payload.api_login),
-            "orgId": payload.org_id,
-            "note": payload.note,
-        },
+        "message": f"Связь есть. Организаций: {len(orgs)}",
+        "organizations": orgs,
     }
+
+
+@app.get("/api/import/iiko/organizations")
+def iiko_organizations(user: User = Depends(require_fin), db: Session = Depends(get_db)):
+    row = get_or_create_settings(db)
+    login = (row.api_login or os.environ.get("IIKO_API_LOGIN") or "").strip()
+    if not login:
+        raise HTTPException(400, "Сначала сохраните apiLogin")
+    try:
+        client = IikoClient(login)
+        client.auth()
+        return {"organizations": client.organizations()}
+    except IikoError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@app.post("/api/import/iiko/sync")
+def iiko_sync(
+    payload: IikoSyncIn = Body(default_factory=IikoSyncIn),
+    user: User = Depends(require_fin),
+    db: Session = Depends(get_db),
+):
+    row = get_or_create_settings(db)
+    login = (row.api_login or os.environ.get("IIKO_API_LOGIN") or "").strip()
+    try:
+        result = sync_iiko_invoices(
+            db,
+            api_login=login or None,
+            organization_id=payload.organization_id or row.organization_id,
+            days_back=payload.days_back,
+            replace=payload.replace,
+        )
+    except IikoError as e:
+        row.last_error = str(e)
+        db.commit()
+        raise HTTPException(400, str(e)) from e
+    except Exception as e:
+        row.last_error = str(e)
+        db.commit()
+        raise HTTPException(400, f"Синк iiko не удался: {e}") from e
+    return result
 
 
 @app.post("/api/accounts/set-balances")

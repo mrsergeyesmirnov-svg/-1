@@ -102,8 +102,20 @@
       if (!res.ok) throw new Error(data.detail || "Не удалось разобрать заголовки");
       return data;
     },
+    getIikoConfig: function () {
+      return req("/api/import/iiko/config");
+    },
     saveIikoConfig: function (payload) {
       return req("/api/import/iiko/config", { method: "POST", json: payload });
+    },
+    testIiko: function () {
+      return req("/api/import/iiko/test", { method: "POST", json: {} });
+    },
+    iikoOrganizations: function () {
+      return req("/api/import/iiko/organizations");
+    },
+    syncIiko: function (payload) {
+      return req("/api/import/iiko/sync", { method: "POST", json: payload || {} });
     },
   };
 })(window);

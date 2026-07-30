@@ -25,16 +25,15 @@
     <div class="badge">Реальные данные</div>
     <h1>Excel и iiko</h1>
     <p class="sub">
-      Платёжки из Excel — сейчас. Выгрузка iiko тем же контуром — рядом.
-      Живой API iiko подключим по логину организации.
+      Excel — ручной контур. iiko API — приходные накладные в календарь;
+      если в iiko стоит дата оплаты, позиция закрывается сама.
     </p>
 
     <div class="panel">
       <h2>1. Платёжки Excel / CSV</h2>
       <p class="muted">
         Читаем <strong>все листы</strong> файла. Юрлицо/ИП берём из колонки
-        «Организация» / «Плательщик», из названия листа («ООО …», «ИП …») или из шапки таблицы.
-        Также: дата, сумма, контрагент, назначение, комментарий.
+        «Организация» / «Плательщик», из названия листа или из шапки таблицы.
       </p>
       <form id="payForm" style="margin-top:12px;display:grid;gap:10px;">
         <input type="file" id="payFile" accept=".xlsx,.xlsm,.csv" required />
@@ -51,43 +50,60 @@
     </div>
 
     <div class="panel">
-      <h2>2. Выгрузка iiko (.xlsx / .csv)</h2>
-      <p class="muted">Тот же разбор колонок, источник помечается как <strong>iiko</strong>. Позже — забор по API без файла.</p>
+      <h2>2. API iikoCloud</h2>
+      <p class="muted">
+        Нужен <strong>apiLogin</strong> из iikoCloud (Transport API).
+        Тянем приходные накладные за период → платежи в Казне.
+        Оплаченные в iiko помечаются «оплачено».
+      </p>
+      <form id="iikoCfg" class="form-grid" style="margin-top:12px;">
+        <div class="field">
+          <label for="apiLogin">apiLogin</label>
+          <input id="apiLogin" placeholder="логин API (оставьте пустым, если уже сохранён)" autocomplete="off" />
+          <div class="muted" id="loginHint" style="margin-top:4px;"></div>
+        </div>
+        <div class="field">
+          <label for="daysBack">Дней назад</label>
+          <input id="daysBack" type="number" min="1" max="366" value="30" />
+        </div>
+        <div class="field full">
+          <label for="orgSelect">Организация</label>
+          <select id="orgSelect">
+            <option value="">все доступные</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label for="iikoNote">Комментарий</label>
+          <input id="iikoNote" placeholder="сеть / точки" />
+        </div>
+        <div class="full req-actions">
+          <button class="btn ghost" type="submit">Сохранить</button>
+          <button class="btn ghost" type="button" id="iikoTestBtn">Проверить связь</button>
+          <button class="btn accent" type="button" id="iikoSyncBtn">Синхронизировать</button>
+        </div>
+        <label class="muted full" style="display:flex;gap:8px;align-items:center;">
+          <input type="checkbox" id="iikoSyncReplace" /> перед синком удалить старые платежи из iiko
+        </label>
+      </form>
+      <p id="iikoCfgMsg" class="muted" style="margin-top:12px;"></p>
+      <pre id="iikoOut" class="inspect" hidden></pre>
+
+      <hr class="soft" />
+      <h2>Файл-выгрузка iiko (запасной путь)</h2>
+      <p class="muted">Если API недоступен — тот же Excel/CSV, источник <strong>iiko</strong>.</p>
       <form id="iikoForm" style="margin-top:12px;display:grid;gap:10px;">
         <input type="file" id="iikoFile" accept=".xlsx,.xlsm,.csv" required />
         <label class="muted" style="display:flex;gap:8px;align-items:center;">
           <input type="checkbox" id="iikoReplace" checked /> заменить предыдущий iiko-импорт
         </label>
-        <button class="btn accent" type="submit">Загрузить выгрузку iiko</button>
+        <button class="btn" type="submit">Загрузить файл iiko</button>
       </form>
       <p id="iikoMsg" class="muted" style="margin-top:12px;"></p>
-
-      <hr class="soft" />
-      <h2>API iiko (скоро)</h2>
-      <p class="muted">Оставьте логин организации — подключим без ежедневной ручной выгрузки.</p>
-      <form id="iikoCfg" class="form-grid" style="margin-top:10px;">
-        <div class="field">
-          <label for="apiLogin">apiLogin</label>
-          <input id="apiLogin" placeholder="логин из iikoCloud" />
-        </div>
-        <div class="field">
-          <label for="orgId">organizationId</label>
-          <input id="orgId" placeholder="uuid организации" />
-        </div>
-        <div class="field full">
-          <label for="iikoNote">Комментарий</label>
-          <input id="iikoNote" placeholder="какая сеть / какие кассы" />
-        </div>
-        <div class="full">
-          <button class="btn ghost" type="submit">Сохранить намерение</button>
-        </div>
-      </form>
-      <p id="iikoCfgMsg" class="muted" style="margin-top:10px;"></p>
     </div>
 
     <div class="panel">
       <h2>3. Остатки по счетам (.xlsx) — по желанию</h2>
-      <p class="muted">Колонки: <strong>Счёт / Организация</strong> и <strong>Остаток</strong>. Тогда «после оплат» считается честно.</p>
+      <p class="muted">Колонки: <strong>Счёт / Организация</strong> и <strong>Остаток</strong>.</p>
       <form id="balForm" style="margin-top:12px;display:grid;gap:10px;">
         <input type="file" id="balFile" accept=".xlsx,.xlsm" required />
         <button class="btn" type="submit">Загрузить остатки</button>
@@ -98,7 +114,7 @@
 
   <script src="/js/api.js"></script>
   <script>
-    KaznaAPI.me().then(function (user) {
+    KaznaAPI.me().then(async function (user) {
       if (user.role !== "fin_director") {
         location.href = user.role === "manager" ? "/manager.html" : "/home.html";
         return;
@@ -107,6 +123,32 @@
       document.getElementById("logoutBtn").onclick = async function () {
         await KaznaAPI.logout(); location.href = "/";
       };
+
+      function fillOrgs(orgs, selected) {
+        var sel = document.getElementById("orgSelect");
+        var cur = selected || sel.value || "";
+        sel.innerHTML = '<option value="">все доступные</option>' +
+          (orgs || []).map(function (o) {
+            return '<option value="' + o.id + '"' + (o.id === cur ? " selected" : "") + ">" +
+              (o.name || o.id) + "</option>";
+          }).join("");
+      }
+
+      async function loadIikoCfg() {
+        var cfg = await KaznaAPI.getIikoConfig();
+        document.getElementById("loginHint").textContent = cfg.configured
+          ? ("Сохранён: " + cfg.apiLoginMasked)
+          : "apiLogin ещё не сохранён";
+        document.getElementById("daysBack").value = cfg.daysBack || 30;
+        document.getElementById("iikoNote").value = cfg.note || "";
+        if (cfg.organizationId) {
+          fillOrgs([{ id: cfg.organizationId, name: cfg.organizationName || cfg.organizationId }], cfg.organizationId);
+        }
+        var msg = document.getElementById("iikoCfgMsg");
+        if (cfg.lastResult) msg.textContent = "Последний синк: " + cfg.lastResult;
+        if (cfg.lastError) msg.textContent = "Ошибка: " + cfg.lastError;
+        return cfg;
+      }
 
       document.getElementById("payForm").onsubmit = async function (e) {
         e.preventDefault();
@@ -142,6 +184,72 @@
         }
       };
 
+      document.getElementById("iikoCfg").onsubmit = async function (e) {
+        e.preventDefault();
+        var msg = document.getElementById("iikoCfgMsg");
+        msg.textContent = "Сохраняю…";
+        try {
+          var payload = {
+            organization_id: document.getElementById("orgSelect").value || null,
+            days_back: Number(document.getElementById("daysBack").value || 30),
+            note: document.getElementById("iikoNote").value || null,
+            enabled: true
+          };
+          var login = document.getElementById("apiLogin").value.trim();
+          if (login) payload.api_login = login;
+          var res = await KaznaAPI.saveIikoConfig(payload);
+          document.getElementById("apiLogin").value = "";
+          msg.textContent = res.message;
+          await loadIikoCfg();
+        } catch (ex) {
+          msg.textContent = ex.message;
+        }
+      };
+
+      document.getElementById("iikoTestBtn").onclick = async function () {
+        var msg = document.getElementById("iikoCfgMsg");
+        var out = document.getElementById("iikoOut");
+        msg.textContent = "Проверяю…";
+        try {
+          // save days/org first if login typed
+          var login = document.getElementById("apiLogin").value.trim();
+          if (login) {
+            await KaznaAPI.saveIikoConfig({
+              api_login: login,
+              organization_id: document.getElementById("orgSelect").value || null,
+              days_back: Number(document.getElementById("daysBack").value || 30)
+            });
+            document.getElementById("apiLogin").value = "";
+          }
+          var res = await KaznaAPI.testIiko();
+          fillOrgs(res.organizations, document.getElementById("orgSelect").value);
+          out.hidden = false;
+          out.textContent = JSON.stringify(res.organizations, null, 2);
+          msg.textContent = res.message + " Выберите организацию и нажмите «Синхронизировать».";
+          await loadIikoCfg();
+        } catch (ex) {
+          msg.textContent = ex.message;
+        }
+      };
+
+      document.getElementById("iikoSyncBtn").onclick = async function () {
+        var msg = document.getElementById("iikoCfgMsg");
+        var out = document.getElementById("iikoOut");
+        msg.textContent = "Синхронизирую накладные…";
+        try {
+          var res = await KaznaAPI.syncIiko({
+            organization_id: document.getElementById("orgSelect").value || null,
+            days_back: Number(document.getElementById("daysBack").value || 30),
+            replace: document.getElementById("iikoSyncReplace").checked
+          });
+          out.hidden = false;
+          out.textContent = JSON.stringify(res, null, 2);
+          msg.textContent = res.message + " Смотрите Обзор / Календарь.";
+        } catch (ex) {
+          msg.textContent = ex.message;
+        }
+      };
+
       document.getElementById("iikoForm").onsubmit = async function (e) {
         e.preventDefault();
         var msg = document.getElementById("iikoMsg");
@@ -151,21 +259,6 @@
             document.getElementById("iikoFile").files[0],
             document.getElementById("iikoReplace").checked
           );
-          msg.textContent = res.message;
-        } catch (ex) {
-          msg.textContent = ex.message;
-        }
-      };
-
-      document.getElementById("iikoCfg").onsubmit = async function (e) {
-        e.preventDefault();
-        var msg = document.getElementById("iikoCfgMsg");
-        try {
-          var res = await KaznaAPI.saveIikoConfig({
-            api_login: document.getElementById("apiLogin").value || null,
-            org_id: document.getElementById("orgId").value || null,
-            note: document.getElementById("iikoNote").value || null
-          });
           msg.textContent = res.message;
         } catch (ex) {
           msg.textContent = ex.message;
@@ -187,6 +280,8 @@
           msg.textContent = ex.message;
         }
       };
+
+      try { await loadIikoCfg(); } catch (e) { /* empty db ok */ }
     }).catch(function () { location.href = "/"; });
   </script>
 </body>

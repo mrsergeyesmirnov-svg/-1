@@ -52,8 +52,24 @@ class Payment(Base):
     account_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(64), default="plan")  # plan|ok|done|new
     source: Mapped[str] = mapped_column(String(64), default="excel")  # excel|iiko|manual|request
+    external_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class IikoSettings(Base):
+    __tablename__ = "iiko_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    api_login: Mapped[str] = mapped_column(String(512), default="")
+    organization_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    organization_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    days_back: Mapped[int] = mapped_column(Integer, default=30)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_sync_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_result: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class RequestItem(Base):
