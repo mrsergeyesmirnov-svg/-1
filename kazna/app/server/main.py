@@ -18,7 +18,7 @@ from .database import UPLOADS, Base, SessionLocal, engine, get_db
 from .excel_import import inspect_payments_file, parse_payments_file
 from .iiko_client import IikoClient, IikoError
 from .iiko_sync import get_or_create_settings, settings_public, sync_iiko_invoices
-from .models import Account, IikoSettings, Payment, RequestItem, User, UserAccount
+from .models import Account, Payment, RequestItem, User, UserAccount
 
 ROOT = Path(__file__).resolve().parents[1]
 pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
