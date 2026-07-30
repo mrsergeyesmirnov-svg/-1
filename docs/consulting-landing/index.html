@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Смена. — консалтинг для ресторанных команд</title>
+  <meta name="description" content="Методики работы с командой и цифровые инструменты обратной связи. Снижаем текучку, поднимаем оценки смен, меняем атмосферу в зале и на кухне." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #faf7f3;
+      --surface: #ffffff;
+      --ink: #1c1917;
+      --muted: #57534e;
+      --line: #e7e2dc;
+      --accent: #ff5a1f;
+      --accent-soft: rgba(255, 90, 31, 0.12);
+      --calm: #0d9488;
+      --calm-soft: rgba(13, 148, 136, 0.12);
+      --font: Mulish, system-ui, sans-serif;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      color: var(--ink);
+      background:
+        radial-gradient(900px 480px at 100% -10%, var(--accent-soft), transparent 55%),
+        radial-gradient(700px 420px at -10% 20%, var(--calm-soft), transparent 50%),
+        var(--bg);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; }
+    .wrap { width: min(920px, calc(100% - 32px)); margin: 0 auto; }
+
+    /* —— Hero —— */
+    .hero {
+      min-height: 100svh;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 28px 0 56px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, transparent 35%, var(--bg) 92%),
+        radial-gradient(ellipse 80% 55% at 70% 15%, rgba(255,90,31,.18), transparent 60%),
+        radial-gradient(ellipse 60% 45% at 15% 70%, rgba(13,148,136,.12), transparent 55%);
+      pointer-events: none;
+      animation: glow 8s var(--ease) infinite alternate;
+    }
+    @keyframes glow {
+      from { opacity: .85; transform: scale(1); }
+      to { opacity: 1; transform: scale(1.04); }
+    }
+    .nav {
+      position: relative; z-index: 2;
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: auto; padding-top: 8px;
+    }
+    .brand {
+      font-weight: 800; font-size: 1.35rem; letter-spacing: -0.04em;
+    }
+    .brand span { color: var(--accent); }
+    .nav a {
+      font-size: .84rem; font-weight: 700; text-decoration: none;
+      color: var(--muted);
+    }
+    .nav a:hover { color: var(--accent); }
+    .hero-copy { position: relative; z-index: 2; max-width: 18em; padding-bottom: 8px; }
+    .hero h1 {
+      margin: 0 0 14px;
+      font-size: clamp(2.1rem, 7vw, 3.4rem);
+      line-height: 1.05;
+      font-weight: 800;
+      letter-spacing: -0.045em;
+      opacity: 0;
+      transform: translateY(18px);
+      animation: rise .9s var(--ease) .15s forwards;
+    }
+    .hero p {
+      margin: 0 0 22px;
+      color: var(--muted);
+      font-size: clamp(1rem, 2.4vw, 1.12rem);
+      max-width: 28em;
+      opacity: 0;
+      transform: translateY(18px);
+      animation: rise .9s var(--ease) .35s forwards;
+    }
+    .cta-row {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      opacity: 0;
+      transform: translateY(18px);
+      animation: rise .9s var(--ease) .5s forwards;
+    }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 12px 18px; border-radius: 999px;
+      font-weight: 750; font-size: .92rem; text-decoration: none;
+      border: 1px solid transparent; transition: transform .2s var(--ease), background .2s;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn.primary { background: var(--ink); color: #fff; }
+    .btn.primary:hover { background: #000; }
+    .btn.ghost { background: #fff; border-color: var(--line); color: var(--ink); }
+    @keyframes rise {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* —— Sections —— */
+    section { padding: 64px 0; }
+    section + section { border-top: 1px solid var(--line); }
+    .eyebrow {
+      font-size: .72rem; font-weight: 800; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--accent); margin: 0 0 10px;
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-size: clamp(1.45rem, 3.5vw, 2rem);
+      font-weight: 800; letter-spacing: -0.03em; line-height: 1.15;
+    }
+    .lead { margin: 0 0 28px; color: var(--muted); max-width: 36em; }
+
+    .reveal {
+      opacity: 0; transform: translateY(22px);
+      transition: opacity .7s var(--ease), transform .7s var(--ease);
+    }
+    .reveal.in { opacity: 1; transform: none; }
+
+    .steps { display: grid; gap: 18px; counter-reset: step; }
+    @media (min-width: 720px) { .steps { grid-template-columns: repeat(3, 1fr); gap: 22px; } }
+    .step { padding-top: 8px; }
+    .step::before {
+      counter-increment: step;
+      content: "0" counter(step);
+      display: block;
+      font-size: .78rem; font-weight: 800; letter-spacing: .06em;
+      color: var(--accent); margin-bottom: 8px;
+    }
+    .step h3 { margin: 0 0 6px; font-size: 1.05rem; font-weight: 800; }
+    .step p { margin: 0; color: var(--muted); font-size: .94rem; }
+
+    .team { display: grid; gap: 28px; }
+    @media (min-width: 720px) { .team { grid-template-columns: 1fr 1fr; gap: 36px; } }
+    .person h3 { margin: 0 0 4px; font-size: 1.2rem; font-weight: 800; letter-spacing: -0.02em; }
+    .role { margin: 0 0 12px; color: var(--accent); font-weight: 700; font-size: .9rem; }
+    .person p { margin: 0; color: var(--muted); font-size: .95rem; }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+    .tag {
+      font-size: .72rem; font-weight: 700; color: var(--muted);
+      padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: #fff;
+    }
+
+    .split {
+      display: grid; gap: 28px;
+    }
+    @media (min-width: 720px) {
+      .split { grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+    }
+    .split h3 { margin: 0 0 10px; font-size: 1.05rem; font-weight: 800; }
+    .split ul { margin: 0; padding-left: 1.1em; color: var(--muted); }
+    .split li { margin: 6px 0; }
+
+    .result {
+      padding: 28px 0 8px;
+    }
+    .result-line {
+      font-size: clamp(1.25rem, 3vw, 1.65rem);
+      font-weight: 800; letter-spacing: -0.03em; line-height: 1.25;
+      max-width: 18em; margin: 0 0 18px;
+    }
+    .result-line span { color: var(--accent); }
+
+    .footer {
+      padding: 28px 0 48px;
+      border-top: 1px solid var(--line);
+      display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between;
+      color: var(--muted); font-size: .84rem;
+    }
+    .footer a { color: var(--calm); font-weight: 700; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap nav">
+      <div class="brand">Смена<span>.</span></div>
+      <a href="https://t.me/yank0vski" target="_blank" rel="noopener">Написать</a>
+    </div>
+    <div class="wrap hero-copy">
+      <h1>Команда работает лучше, когда её слышат</h1>
+      <p>
+        Консалтинг для ресторанов: методики работы с людьми
+        и цифровые инструменты обратной связи в одном контуре.
+      </p>
+      <div class="cta-row">
+        <a class="btn primary" href="https://t.me/yank0vski" target="_blank" rel="noopener">Обсудить пилот</a>
+        <a class="btn ghost" href="#how">Как это устроено</a>
+      </div>
+    </div>
+  </header>
+
+  <section id="what">
+    <div class="wrap reveal">
+      <p class="eyebrow">Чем занимаемся</p>
+      <h2>Не бот и не «мотивация». Система изменений в команде</h2>
+      <p class="lead">
+        Ресторану редко нужен ещё один сервис. Нужны меньше текучки, спокойнее смены,
+        выше оценки и меньше конфликтов между залом и кухней.
+        Мы соединяем живую работу с людьми и измеримый контур сигналов со смен.
+      </p>
+      <div class="steps">
+        <div class="step">
+          <h3>Диагностика</h3>
+          <p>Смотрим, где ломается смена: люди, процессы, коммуникация, нагрузка.</p>
+        </div>
+        <div class="step">
+          <h3>Внедрение</h3>
+          <p>Запускаем обратную связь и ритм работы с руководителями — без галочек «для галочки».</p>
+        </div>
+        <div class="step">
+          <h3>Результат</h3>
+          <p>Через 60–90 дней видно динамику: оценки, темы проблем, что реально закрыли.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="team">
+    <div class="wrap reveal">
+      <p class="eyebrow">Команда</p>
+      <h2>Методика + инструмент</h2>
+      <p class="lead">Два контура одной работы: человек, который умеет менять команду, и продукт, который делает изменения измеримыми.</p>
+      <div class="team">
+        <article class="person">
+          <h3>Артём Ботвич</h3>
+          <p class="role">Коуч · директор по счастью</p>
+          <p>
+            Работает с ресторанными командами в Петербурге — в том числе Mojo, Roppongi, Nomad, Gaijin.
+            Ведёт людей через конфликты, выгорание и культуру смены: не лозунгами, а практикой
+            ежедневного управления атмосферой и отношениями.
+          </p>
+          <div class="tags">
+            <span class="tag">коучинг</span>
+            <span class="tag">культура команды</span>
+            <span class="tag">рестораны СПб</span>
+          </div>
+        </article>
+        <article class="person">
+          <h3>Сергей Смирнов</h3>
+          <p class="role">Основатель PulseTeam · цифровые инструменты</p>
+          <p>
+            Собирает сигналы со смен в Telegram: оценки, стоп-лист, горящие вопросы, сводки для управляющего.
+            Делает так, чтобы проблемы команды не растворялись в брифинге, а попадали в понятный контур действий.
+          </p>
+          <div class="tags">
+            <span class="tag">PulseTeam</span>
+            <span class="tag">аналитика смен</span>
+            <span class="tag">внедрение</span>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap reveal">
+      <p class="eyebrow">Как внедряем</p>
+      <h2>Его методики. Мои инструменты. Общий результат</h2>
+      <p class="lead">
+        Артём выстраивает работу с руководителями и командой.
+        PulseTeam фиксирует, что происходит на сменах каждый день.
+        Вместе это даёт не «ощущение», а траекторию изменений.
+      </p>
+      <div class="split">
+        <div>
+          <h3>Методики Артёма</h3>
+          <ul>
+            <li>диагностика атмосферы и точек напряжения в коллективе</li>
+            <li>работа с руководителями: обратная связь, конфликты, ритм смены</li>
+            <li>практики, которые удерживают людей, а не «разовая мотивация»</li>
+            <li>сопровождение, пока новые привычки не станут нормой</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Инструменты PulseTeam</h3>
+          <ul>
+            <li>короткий опрос после смены — зал и кухня</li>
+            <li>темы проблем и статусы «в работе / решено»</li>
+            <li>сводки и отчёты для управляющего</li>
+            <li>видимая динамика оценок и повторяющихся болей</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="result">
+    <div class="wrap reveal">
+      <p class="eyebrow">Зачем это собственнику</p>
+      <p class="result-line">
+        За пилот показываем не слайды, а <span>как изменилась смена</span>:
+        оценки, темы, что закрыли, где ещё дыра.
+      </p>
+      <div class="cta-row">
+        <a class="btn primary" href="https://t.me/yank0vski" target="_blank" rel="noopener">Написать в Telegram</a>
+        <a class="btn ghost" href="https://pulseteam.online/" target="_blank" rel="noopener">pulseteam.online</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="wrap footer">
+    <div>Смена. · консалтинг для ресторанных команд</div>
+    <div>
+      <a href="https://t.me/yank0vski">@yank0vski</a>
+      · ИП Смирнов С.Е.
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var nodes = document.querySelectorAll(".reveal");
+      if (!("IntersectionObserver" in window)) {
+        nodes.forEach(function (n) { n.classList.add("in"); });
+        return;
+      }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) {
+            e.target.classList.add("in");
+            io.unobserve(e.target);
+          }
+        });
+      }, { threshold: 0.18 });
+      nodes.forEach(function (n) { io.observe(n); });
+    })();
+  </script>
+</body>
+</html>
