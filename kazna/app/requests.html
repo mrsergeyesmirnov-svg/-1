@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Казна · Заявки</title>
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <div class="app" id="app" hidden>
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <button class="btn ghost sm" type="button" id="logoutBtn">Выйти</button>
+    </div>
+    <nav class="nav">
+      <a href="home.html">Обзор</a>
+      <a href="money.html">Деньги</a>
+      <a href="calendar.html">Календарь</a>
+      <a class="on" href="requests.html">Заявки</a>
+      <a href="people.html">Люди</a>
+    </nav>
+    <div class="badge">Очередь</div>
+    <h1>Заявки управляющих</h1>
+    <p class="sub">Заготовка. Дальше: статусы, смена приоритета, «в календарь».</p>
+    <div class="panel" id="list"></div>
+  </div>
+  <script src="js/auth.js"></script>
+  <script src="js/seed.js"></script>
+  <script>
+    var user = KaznaAuth.requireRole(["fin_director"]);
+    if (user) {
+      document.getElementById("app").hidden = false;
+      document.getElementById("logoutBtn").onclick = KaznaAuth.logout;
+      var map = { new: "новая", plan: "согласовано" };
+      document.getElementById("list").innerHTML = KaznaSeed.requests.map(function (r) {
+        return '<div class="row req"><div><strong>' + r.title + '</strong><div class="muted">' + r.meta +
+          '</div></div><div class="amount">' + KaznaSeed.fmt(r.amount) +
+          '</div><div class="muted">—</div><div><span class="status ' + r.status + '">' +
+          (map[r.status] || r.status) + "</span></div><div></div></div>";
+      }).join("");
+    }
+  </script>
+</body>
+</html>

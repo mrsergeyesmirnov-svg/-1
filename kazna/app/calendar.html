@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Казна · Календарь</title>
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <div class="app" id="app" hidden>
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <button class="btn ghost sm" type="button" id="logoutBtn">Выйти</button>
+    </div>
+    <nav class="nav">
+      <a href="home.html">Обзор</a>
+      <a href="money.html">Деньги</a>
+      <a class="on" href="calendar.html">Календарь</a>
+      <a href="requests.html">Заявки</a>
+      <a href="people.html">Люди</a>
+    </nav>
+    <div class="badge">Платёжный календарь</div>
+    <h1>Календарь оплат</h1>
+    <p class="sub">Заготовка. Дальше: дни, drag&drop переноса, автоархив из iiko.</p>
+    <div class="panel"><p class="muted" style="margin:0;">Экран в очереди после заявок и счетов.</p></div>
+  </div>
+  <script src="js/auth.js"></script>
+  <script>
+    var user = KaznaAuth.requireRole(["fin_director"]);
+    if (user) {
+      document.getElementById("app").hidden = false;
+      document.getElementById("logoutBtn").onclick = KaznaAuth.logout;
+    }
+  </script>
+</body>
+</html>

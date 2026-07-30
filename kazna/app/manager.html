@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Казна · Управляющий</title>
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <div class="app" id="app" hidden>
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <div class="user-chip">
+        <div>
+          <strong id="userName">—</strong>
+          <div id="userRole" class="muted"></div>
+        </div>
+        <button class="btn ghost sm" type="button" id="logoutBtn">Выйти</button>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a class="on" href="manager.html">Мои заявки</a>
+      <a href="#" aria-disabled="true">Планы</a>
+    </nav>
+
+    <div class="badge">Кабинет управляющего</div>
+    <h1>Заявки своей точки</h1>
+    <p class="sub">Полный кабинет управляющего подключим следующим шагом. Сейчас важен вход с ролью и экран финдира.</p>
+
+    <div class="panel">
+      <h2>Черновик</h2>
+      <p class="muted" style="margin:0;">Здесь будет форма: сумма, дата, приоритет, комментарий → очередь финдира.</p>
+    </div>
+  </div>
+
+  <script src="js/auth.js"></script>
+  <script>
+    (function () {
+      var user = KaznaAuth.requireRole(["manager"]);
+      if (!user) return;
+      document.getElementById("app").hidden = false;
+      document.getElementById("userName").textContent = user.name;
+      document.getElementById("userRole").textContent = user.roleLabel;
+      document.getElementById("logoutBtn").addEventListener("click", KaznaAuth.logout);
+    })();
+  </script>
+</body>
+</html>
