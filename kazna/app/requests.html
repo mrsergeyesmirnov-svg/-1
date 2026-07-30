@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Казна · Заявки</title>
   <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="/css/app.css" />
 </head>
 <body>
   <div class="app" id="app" hidden>
@@ -14,32 +14,31 @@
       <button class="btn ghost sm" type="button" id="logoutBtn">Выйти</button>
     </div>
     <nav class="nav">
-      <a href="home.html">Обзор</a>
-      <a href="money.html">Деньги</a>
-      <a href="calendar.html">Календарь</a>
-      <a class="on" href="requests.html">Заявки</a>
-      <a href="people.html">Люди</a>
+      <a href="/home.html">Обзор</a>
+      <a href="/money.html">Деньги</a>
+      <a href="/calendar.html">Календарь</a>
+      <a class="on" href="/requests.html">Заявки</a>
+      <a href="/import.html">Импорт</a>
+      <a href="/people.html">Люди</a>
     </nav>
     <div class="badge">Очередь</div>
     <h1>Заявки управляющих</h1>
-    <p class="sub">Заготовка. Дальше: статусы, смена приоритета, «в календарь».</p>
-    <div class="panel" id="list"></div>
+    <p class="sub">Поток заявок подключим следующим шагом. Сейчас главное — реальные платежи из Excel.</p>
+    <div class="panel"><p class="muted" style="margin:0;" id="msg">Пока пусто.</p></div>
   </div>
-  <script src="js/auth.js"></script>
-  <script src="js/seed.js"></script>
+  <script src="/js/api.js"></script>
   <script>
-    var user = KaznaAuth.requireRole(["fin_director"]);
-    if (user) {
+    KaznaAPI.me().then(async function (user) {
+      if (user.role !== "fin_director") { location.href = "/manager.html"; return; }
       document.getElementById("app").hidden = false;
-      document.getElementById("logoutBtn").onclick = KaznaAuth.logout;
-      var map = { new: "новая", plan: "согласовано" };
-      document.getElementById("list").innerHTML = KaznaSeed.requests.map(function (r) {
-        return '<div class="row req"><div><strong>' + r.title + '</strong><div class="muted">' + r.meta +
-          '</div></div><div class="amount">' + KaznaSeed.fmt(r.amount) +
-          '</div><div class="muted">—</div><div><span class="status ' + r.status + '">' +
-          (map[r.status] || r.status) + "</span></div><div></div></div>";
-      }).join("");
-    }
+      document.getElementById("logoutBtn").onclick = async function () {
+        await KaznaAPI.logout(); location.href = "/";
+      };
+      var o = await KaznaAPI.overview();
+      document.getElementById("msg").textContent = o.requests.length
+        ? ("Заявок: " + o.requests.length)
+        : "Заявок пока нет — сначала Excel и обзор.";
+    }).catch(function () { location.href = "/"; });
   </script>
 </body>
 </html>

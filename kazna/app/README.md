@@ -1,21 +1,41 @@
-# Казна · app shell
+# Казна · рабочий контур
 
-Первый слой платформы: вход с ролями + кабинет финдира.
+FastAPI + SQLite + Excel-импорт + UI.
 
-## Открыть локально
+## Локально
 
-Открой `index.html` в браузере (лучше через локальный сервер).
+```bash
+cd kazna/app
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn server.main:app --reload --port 8765
+```
 
-Демо:
+Открой http://127.0.0.1:8765/
+
 - финдир: `fin@kazna.local` / `kazna2026`
 - управляющий: `manager@kazna.local` / `kazna2026`
 
-## Очередь работ
+На вкладке **Импорт** загрузи свой `.xlsx` с платежами.
 
-1. ~~Вход + сессия + меню финдира~~
-2. Заявки: создать / статусы / приоритет
-3. Счета и «можно платить сегодня»
-4. Календарь оплат
-5. Кабинет управляющего
-6. Backend + реальные пароли + hosted пилот
-7. iiko / автозакрытие
+## Railway
+
+Root directory сервиса: `kazna/app`
+
+```bash
+railway login
+cd kazna/app
+railway init
+railway up
+railway domain
+```
+
+Переменные:
+- `KAZNA_SECRET` — длинная строка
+- `KAZNA_HTTPS=true` — после выдачи https-домена
+
+## Excel
+
+Платежки: колонки `Дата`, `Сумма`, желательно `Контрагент`, `Назначение`, `Счёт`, `Статус`.  
+Остатки: `Счёт/Организация` + `Остаток`.

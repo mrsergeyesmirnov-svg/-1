@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Казна · Люди</title>
   <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="/css/app.css" />
 </head>
 <body>
   <div class="app" id="app" hidden>
@@ -14,30 +14,34 @@
       <button class="btn ghost sm" type="button" id="logoutBtn">Выйти</button>
     </div>
     <nav class="nav">
-      <a href="home.html">Обзор</a>
-      <a href="money.html">Деньги</a>
-      <a href="calendar.html">Календарь</a>
-      <a href="requests.html">Заявки</a>
-      <a class="on" href="people.html">Люди</a>
+      <a href="/home.html">Обзор</a>
+      <a href="/money.html">Деньги</a>
+      <a href="/calendar.html">Календарь</a>
+      <a href="/requests.html">Заявки</a>
+      <a href="/import.html">Импорт</a>
+      <a class="on" href="/people.html">Люди</a>
     </nav>
-    <div class="badge">Роли и доступы</div>
+    <div class="badge">Роли</div>
     <h1>Кто чем пользуется</h1>
-    <p class="sub">Заготовка. Финдир будет выдавать логины управляющим и ограничивать точки.</p>
     <div class="panel" id="list"></div>
   </div>
-  <script src="js/auth.js"></script>
+  <script src="/js/api.js"></script>
   <script>
-    var user = KaznaAuth.requireRole(["fin_director"]);
-    if (user) {
+    KaznaAPI.me().then(async function (user) {
+      if (user.role !== "fin_director") { location.href = "/manager.html"; return; }
       document.getElementById("app").hidden = false;
-      document.getElementById("logoutBtn").onclick = KaznaAuth.logout;
-      document.getElementById("list").innerHTML = KaznaAuth.USERS.map(function (u) {
+      document.getElementById("logoutBtn").onclick = async function () {
+        await KaznaAPI.logout(); location.href = "/";
+      };
+      var rows = await KaznaAPI.people();
+      document.getElementById("list").innerHTML = rows.map(function (u) {
         return '<div class="row pay"><div><strong>' + u.name + '</strong><div class="muted">' + u.email +
           '</div></div><div class="muted">' + u.roleLabel +
-          '</div><div class="muted">' + (u.site || "все точки") +
-          '</div><div><span class="status ok">активен</span></div><div></div></div>';
+          '</div><div class="muted">' + u.site +
+          '</div><div><span class="status ok">' + (u.active ? "активен" : "выкл") +
+          "</span></div><div></div></div>";
       }).join("");
-    }
+    }).catch(function () { location.href = "/"; });
   </script>
 </body>
 </html>

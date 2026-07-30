@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Казна · Импорт</title>
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <div class="app" id="app" hidden>
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <button class="btn ghost sm" type="button" id="logoutBtn">Выйти</button>
+    </div>
+    <nav class="nav">
+      <a href="/home.html">Обзор</a>
+      <a href="/money.html">Деньги</a>
+      <a href="/calendar.html">Календарь</a>
+      <a href="/requests.html">Заявки</a>
+      <a class="on" href="/import.html">Импорт</a>
+      <a href="/people.html">Люди</a>
+    </nav>
+
+    <div class="badge">Реальные данные</div>
+    <h1>Загрузить Excel</h1>
+    <p class="sub">
+      Сейчас важны ваши платёжки, не выдуманные цифры.
+      Потом подключим iiko тем же контуром.
+    </p>
+
+    <div class="panel">
+      <h2>1. Платёжки (.xlsx)</h2>
+      <p class="muted">Нужны колонки вроде: <strong>Дата</strong>, <strong>Сумма</strong>, контрагент, назначение, счёт, статус.</p>
+      <form id="payForm" style="margin-top:12px;display:grid;gap:10px;">
+        <input type="file" id="payFile" accept=".xlsx,.xlsm" required />
+        <label class="muted" style="display:flex;gap:8px;align-items:center;">
+          <input type="checkbox" id="replace" checked /> заменить предыдущий Excel-импорт
+        </label>
+        <button class="btn accent" type="submit">Загрузить платежи</button>
+      </form>
+      <p id="payMsg" class="muted" style="margin-top:12px;"></p>
+    </div>
+
+    <div class="panel">
+      <h2>2. Остатки по счетам (.xlsx) — по желанию</h2>
+      <p class="muted">Колонки: <strong>Счёт / Организация</strong> и <strong>Остаток</strong>. Тогда «после оплат» считается честно.</p>
+      <form id="balForm" style="margin-top:12px;display:grid;gap:10px;">
+        <input type="file" id="balFile" accept=".xlsx,.xlsm" required />
+        <button class="btn" type="submit">Загрузить остатки</button>
+      </form>
+      <p id="balMsg" class="muted" style="margin-top:12px;"></p>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    KaznaAPI.me().then(function (user) {
+      if (user.role !== "fin_director") { location.href = "/manager.html"; return; }
+      document.getElementById("app").hidden = false;
+      document.getElementById("logoutBtn").onclick = async function () {
+        await KaznaAPI.logout(); location.href = "/";
+      };
+
+      document.getElementById("payForm").onsubmit = async function (e) {
+        e.preventDefault();
+        var msg = document.getElementById("payMsg");
+        msg.textContent = "Загружаю…";
+        try {
+          var file = document.getElementById("payFile").files[0];
+          var res = await KaznaAPI.importExcel(file, document.getElementById("replace").checked);
+          msg.textContent = res.message + " Можно открывать Обзор.";
+        } catch (ex) {
+          msg.textContent = ex.message;
+        }
+      };
+
+      document.getElementById("balForm").onsubmit = async function (e) {
+        e.preventDefault();
+        var msg = document.getElementById("balMsg");
+        msg.textContent = "Загружаю…";
+        try {
+          var fd = new FormData();
+          fd.append("file", document.getElementById("balFile").files[0]);
+          var res = await fetch("/api/accounts/set-balances", { method: "POST", body: fd, credentials: "same-origin" });
+          var data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Ошибка");
+          msg.textContent = "Счетов загружено: " + data.accounts;
+        } catch (ex) {
+          msg.textContent = ex.message;
+        }
+      };
+    }).catch(function () { location.href = "/"; });
+  </script>
+</body>
+</html>

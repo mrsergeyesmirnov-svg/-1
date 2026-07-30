@@ -4,10 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Казна · Обзор</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="/css/app.css" />
 </head>
 <body>
   <div class="app" id="app" hidden>
@@ -23,108 +21,103 @@
     </div>
 
     <nav class="nav" aria-label="Главное меню">
-      <a class="on" href="home.html">Обзор</a>
-      <a href="money.html">Деньги</a>
-      <a href="calendar.html">Календарь</a>
-      <a href="requests.html">Заявки</a>
-      <a href="people.html">Люди</a>
+      <a class="on" href="/home.html">Обзор</a>
+      <a href="/money.html">Деньги</a>
+      <a href="/calendar.html">Календарь</a>
+      <a href="/requests.html">Заявки</a>
+      <a href="/import.html">Импорт</a>
+      <a href="/people.html">Люди</a>
     </nav>
 
     <div class="badge">Утро финансового директора</div>
     <h1>Можно ли платить сегодня?</h1>
-    <p class="sub">Остатки по счетам, что к оплате и очередь заявок — в одном экране.</p>
+    <p class="sub" id="subLine">Загрузите Excel с платежами — цифры станут вашими, не демо.</p>
 
-    <div class="outcome">
-      Сейчас на счетах <span id="mTotal">—</span> · к оплате сегодня <span id="mToday">—</span> ·
-      после оплат останется <span id="mAfter">—</span>
-    </div>
+    <div class="outcome" id="outcome">Загрузка…</div>
 
     <div class="grid-3">
       <div class="metric">
         <div class="label">На расчётных счетах</div>
         <div class="value" id="cardTotal">—</div>
-        <div class="hint">все организации сети</div>
+        <div class="hint">из файла остатков / счетов</div>
       </div>
       <div class="metric warn">
-        <div class="label">К оплате сегодня</div>
+        <div class="label">К оплате (сегодня / 7 дней)</div>
         <div class="value" id="cardToday">—</div>
-        <div class="hint">накладные + согласованные заявки</div>
+        <div class="hint">из Excel / iiko</div>
       </div>
       <div class="metric ok">
         <div class="label">После оплат</div>
         <div class="value" id="cardAfter">—</div>
-        <div class="hint">свободный остаток</div>
+        <div class="hint">если остатки загружены</div>
       </div>
     </div>
 
     <div class="quick">
-      <a href="money.html">Деньги<small>счета и кассы</small></a>
-      <a href="calendar.html">Календарь<small>перенос дат</small></a>
-      <a href="requests.html">Заявки<small id="reqCount">на решении</small></a>
-      <a href="people.html">Люди<small>логины и права</small></a>
+      <a href="/import.html">Импорт Excel<small>платёжки и остатки</small></a>
+      <a href="/money.html">Деньги<small>счета</small></a>
+      <a href="/calendar.html">Календарь<small>даты</small></a>
+      <a href="/requests.html">Заявки<small>очередь</small></a>
     </div>
 
     <div class="panel">
-      <h2>Сегодня к оплате</h2>
-      <div id="todayList"></div>
+      <h2>Платежи из файла</h2>
+      <div id="todayList"><p class="muted">Пока пусто — загрузите Excel на вкладке «Импорт».</p></div>
     </div>
-
-    <div class="panel">
-      <h2>Заявки на решении</h2>
-      <div id="reqList"></div>
-    </div>
-
-    <p class="foot-note">Каркас платформы · демо-данные · следующий шаг: счета, заявки, iiko</p>
   </div>
 
-  <script src="js/auth.js"></script>
-  <script src="js/seed.js"></script>
+  <script src="/js/api.js"></script>
   <script>
     (function () {
-      var user = KaznaAuth.requireRole(["fin_director"]);
-      if (!user) return;
+      var statusMap = { new: "новая", plan: "в плане", ok: "ок", done: "оплачено" };
 
-      document.getElementById("app").hidden = false;
-      document.getElementById("userName").textContent = user.name;
-      document.getElementById("userRole").textContent = user.roleLabel;
-      document.getElementById("logoutBtn").addEventListener("click", KaznaAuth.logout);
+      KaznaAPI.me().then(async function (user) {
+        if (user.role !== "fin_director") {
+          location.href = "/manager.html";
+          return;
+        }
+        document.getElementById("app").hidden = false;
+        document.getElementById("userName").textContent = user.name;
+        document.getElementById("userRole").textContent = user.roleLabel;
+        document.getElementById("logoutBtn").onclick = async function () {
+          await KaznaAPI.logout();
+          location.href = "/";
+        };
 
-      var S = KaznaSeed;
-      var total = S.fmt(S.accountsTotal);
-      var today = S.fmt(S.payToday);
-      var after = S.fmt(S.afterPay);
+        var o = await KaznaAPI.overview();
+        document.getElementById("cardTotal").textContent = o.accountsTotalLabel;
+        document.getElementById("cardToday").textContent = o.payTodayLabel;
+        document.getElementById("cardAfter").textContent = o.afterPayLabel;
+        document.getElementById("outcome").innerHTML =
+          (o.hasPayments
+            ? "В системе уже есть платежи из Excel/iiko. "
+            : "Платежей ещё нет — ") +
+          (o.hasAccounts
+            ? "На счетах <span>" + o.accountsTotalLabel + "</span>, к оплате <span>" + o.payTodayLabel + "</span>."
+            : "Загрузите остатки по счетам, чтобы считать «после оплат».");
 
-      document.getElementById("mTotal").textContent = total + " ₽";
-      document.getElementById("mToday").textContent = today + " ₽";
-      document.getElementById("mAfter").textContent = after + " ₽";
-      document.getElementById("cardTotal").textContent = total + " ₽";
-      document.getElementById("cardToday").textContent = today + " ₽";
-      document.getElementById("cardAfter").textContent = after + " ₽";
-      document.getElementById("reqCount").textContent =
-        S.requests.filter(function (r) { return r.status === "new" || r.status === "plan"; }).length + " на решении";
+        if (!o.hasPayments) {
+          document.getElementById("subLine").textContent =
+            "Сейчас пустая база. Импортируйте ваш Excel с платежками — и обзор оживет.";
+        }
 
-      var statusMap = { new: "новая", plan: "в плане", ok: "ок" };
-      document.getElementById("todayList").innerHTML = S.todayPays.map(function (p) {
-        return (
-          '<div class="row pay">' +
-          "<div><strong>" + p.title + '</strong><div class="muted">' + p.meta + "</div></div>" +
-          '<div class="amount">' + S.fmt(p.amount) + "</div>" +
-          '<div class="muted">сегодня</div>' +
-          '<div><span class="status ' + p.status + '">' + (statusMap[p.status] || p.status) + "</span></div>" +
-          "<div></div></div>"
-        );
-      }).join("");
-
-      document.getElementById("reqList").innerHTML = S.requests.map(function (r) {
-        return (
-          '<div class="row req">' +
-          "<div><strong>" + r.title + '</strong><div class="muted">' + r.meta + "</div></div>" +
-          '<div class="amount">' + S.fmt(r.amount) + "</div>" +
-          '<div class="muted">ожидает</div>' +
-          '<div><span class="status ' + r.status + '">' + (statusMap[r.status] || r.status) + "</span></div>" +
-          '<div><button class="btn sm ghost" type="button" disabled>Скоро</button></div></div>'
-        );
-      }).join("");
+        var list = o.payments.slice(0, 12);
+        document.getElementById("todayList").innerHTML = list.length
+          ? list.map(function (p) {
+              return (
+                '<div class="row pay">' +
+                "<div><strong>" + p.title + '</strong><div class="muted">' +
+                (p.account || "счёт не указан") + " · " + p.source + "</div></div>" +
+                '<div class="amount">' + p.amountLabel + "</div>" +
+                '<div class="muted">' + p.dateLabel + "</div>" +
+                '<div><span class="status ' + p.status + '">' + (statusMap[p.status] || p.status) + "</span></div>" +
+                "<div></div></div>"
+              );
+            }).join("")
+          : '<p class="muted">Пока пусто — загрузите Excel на вкладке «Импорт».</p>';
+      }).catch(function () {
+        location.href = "/";
+      });
     })();
   </script>
 </body>

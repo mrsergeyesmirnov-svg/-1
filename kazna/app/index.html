@@ -7,16 +7,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="/css/app.css" />
 </head>
 <body>
   <div class="login-page">
     <div class="login-card">
       <div class="brand">Казна<span>.</span></div>
       <p class="lead">Счета, кассы, заявки и календарь оплат — с разными входами для финдира и управляющих.</p>
-
       <div id="error" class="error" role="alert"></div>
-
       <form id="loginForm" autocomplete="on">
         <div class="field">
           <label for="email">Email</label>
@@ -28,7 +26,6 @@
         </div>
         <button class="btn block" type="submit">Войти</button>
       </form>
-
       <div class="demo">
         Демо-аккаунты:<br />
         Финдир — <code>fin@kazna.local</code> / <code>kazna2026</code><br />
@@ -36,25 +33,30 @@
       </div>
     </div>
   </div>
-
-  <script src="js/auth.js"></script>
+  <script src="/js/api.js"></script>
   <script>
     (function () {
-      var s = KaznaAuth.current();
-      if (s) location.replace(KaznaAuth.homeFor(s.role));
+      function homeFor(role) {
+        return role === "manager" ? "/manager.html" : "/home.html";
+      }
+      KaznaAPI.me().then(function (u) {
+        location.replace(homeFor(u.role));
+      }).catch(function () {});
 
-      document.getElementById("loginForm").addEventListener("submit", function (e) {
+      document.getElementById("loginForm").addEventListener("submit", async function (e) {
         e.preventDefault();
-        var email = document.getElementById("email").value;
-        var password = document.getElementById("password").value;
-        var res = KaznaAuth.login(email, password);
         var err = document.getElementById("error");
-        if (!res.ok) {
-          err.textContent = res.error;
+        err.classList.remove("on");
+        try {
+          var res = await KaznaAPI.login(
+            document.getElementById("email").value,
+            document.getElementById("password").value
+          );
+          location.href = homeFor(res.user.role);
+        } catch (ex) {
+          err.textContent = ex.message || "Ошибка входа";
           err.classList.add("on");
-          return;
         }
-        location.href = KaznaAuth.homeFor(res.session.role);
       });
     })();
   </script>
