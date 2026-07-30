@@ -100,11 +100,10 @@ ACCOUNT_KEYS = (
     "банковский счет",
     "счёт списания",
     "счет списания",
-    "счёт",
-    "счет",
-    "account",
     "наше юрлицо",
     "наша организация",
+    "наименование организации",
+    "организация плательщик",
     "организация",
     "юрлицо",
     "юр. лицо",
@@ -114,6 +113,11 @@ ACCOUNT_KEYS = (
     "точка",
     "филиал",
     "бренд",
+    "ип",
+    "ооо",
+    "счёт",
+    "счет",
+    "account",
 )
 
 NOTE_KEYS = (
@@ -129,6 +133,17 @@ NOTE_KEYS = (
 STATUS_KEYS = ("статус", "status", "состояние", "оплачено", "признак")
 
 ORG_HINT = re.compile(r"\b(ооо|оао|ао|зао|ип|пао|тоо|llc|ltd)\b", re.I)
+# Full legal name capture: ООО «Рома», ИП Смирнов С.Е., etc.
+ORG_NAME_RE = re.compile(
+    r"(?:"
+    r"(?:ООО|ОАО|АО|ЗАО|ПАО|ТОО)\s*[«\"]?[^»\"\n,]{2,80}[»\"]?"
+    r"|"
+    r"ИП\s+[А-ЯЁ][А-ЯЁа-яё\-\s\.]{2,60}"
+    r"|"
+    r"LLC\s+[A-Za-z0-9\s\.\-]{2,60}"
+    r")",
+    re.I,
+)
 
 
 def _norm(v: Any) -> str:
@@ -497,6 +512,7 @@ def inspect_payments_file(content: bytes, filename: str = "") -> dict:
         max_w = max(len(headers), max((len(r) for r in rows[:50]), default=0))
         while len(headers) < max_w:
             headers.append(f"col{len(headers)}")
+        org_hint = _org_from_sheet_context(sheet_name, rows, header_idx)
         amount, debit, credit = _resolve_amount_cols(headers, rows, header_idx if header_idx >= 0 else -1)
         if header_idx < 0 and amount is None and debit is None and credit is None:
             scored = [(_score_amount_col(rows, c, 0), c) for c in range(max_w)]
@@ -517,6 +533,7 @@ def inspect_payments_file(content: bytes, filename: str = "") -> dict:
             {
                 "name": sheet_name,
                 "headerRow": None if header_idx < 0 else header_idx + 1,
+                "orgHint": org_hint,
                 "headers": [h for h in headers if str(h).strip()],
                 "mapped": {
                     "amount": _header_label(headers, amount),
@@ -525,7 +542,7 @@ def inspect_payments_file(content: bytes, filename: str = "") -> dict:
                     "date": _header_label(headers, cols["date"]),
                     "counterparty": _header_label(headers, cols["counterparty"]),
                     "purpose": _header_label(headers, cols["title"]),
-                    "accountOrOrg": _header_label(headers, cols["account"]),
+                    "accountOrOrg": _header_label(headers, cols["account"]) or org_hint,
                     "note": _header_label(headers, cols["note"]),
                     "status": _header_label(headers, cols["status"]),
                 },
@@ -535,22 +552,95 @@ def inspect_payments_file(content: bytes, filename: str = "") -> dict:
     return result
 
 
-def parse_payments_file(content: bytes, filename: str = "", source: str = "excel") -> list[Payment]:
+def extract_org_name(text: Any) -> str | None:
+    """Pull ООО/ИП/… legal name from free text (sheet title, header cells)."""
+    if text is None:
+        return None
+    s = re.sub(r"\s+", " ", str(text)).strip()
+    if not s or len(s) > 200:
+        s = s[:200]
+    m = ORG_NAME_RE.search(s)
+    if not m:
+        return None
+    name = re.sub(r"\s+", " ", m.group(0)).strip(" ·,-")
+    # Avoid matching bare "ООО" without name
+    if _norm(name) in {"ооо", "оао", "ао", "зао", "пао", "ип", "тоо", "llc"}:
+        return None
+    return name[:255]
+
+
+def _org_from_sheet_context(sheet_name: str, rows: list[tuple], header_idx: int) -> str | None:
+    """Sheet tab name or title rows above the table often carry the legal entity."""
+    for candidate in (sheet_name,):
+        org = extract_org_name(candidate)
+        if org:
+            return org
+    # Also accept sheet name if it looks like a short brand/entity label
+    sn = (sheet_name or "").strip()
+    if sn and ORG_HINT.search(sn):
+        return sn[:255]
+
+    scan_to = header_idx if header_idx >= 0 else min(8, len(rows))
+    for row in rows[: max(scan_to, 0)]:
+        if not row:
+            continue
+        for cell in row[:8]:
+            org = extract_org_name(cell)
+            if org:
+                return org
+        # whole row joined
+        joined = " ".join(str(c) for c in row if c is not None)
+        org = extract_org_name(joined)
+        if org:
+            return org
+    return None
+
+
+def parse_payments_file(
+    content: bytes, filename: str = "", source: str = "excel"
+) -> tuple[list[Payment], dict]:
+    """Parse ALL sheets. Returns (payments, report)."""
     sheets = _load_sheets(content, filename)
     errors = []
+    all_payments: list[Payment] = []
+    sheet_reports = []
+
     for sheet_name, rows in sheets:
         try:
-            payments = _parse_sheet(rows, source=source)
+            org_hint = _org_from_sheet_context(
+                sheet_name, rows, _detect_header(rows)[0] if rows else -1
+            )
+            payments = _parse_sheet(rows, source=source, sheet_name=sheet_name, org_hint=org_hint)
+            sheet_reports.append(
+                {
+                    "name": sheet_name,
+                    "imported": len(payments),
+                    "orgHint": org_hint,
+                }
+            )
             if payments:
-                return payments
-            errors.append(f"лист «{sheet_name}»: строк с суммой не найдено")
+                all_payments.extend(payments)
+            else:
+                errors.append(f"лист «{sheet_name}»: строк с суммой не найдено")
         except ValueError as e:
             errors.append(f"лист «{sheet_name}»: {e}")
-    raise ValueError(" | ".join(errors) if errors else "Файл пустой")
+            sheet_reports.append({"name": sheet_name, "imported": 0, "orgHint": None, "error": str(e)})
+
+    if not all_payments:
+        raise ValueError(" | ".join(errors) if errors else "Файл пустой")
+
+    report = {
+        "sheetsTotal": len(sheets),
+        "sheetsWithData": sum(1 for s in sheet_reports if s.get("imported")),
+        "sheets": sheet_reports,
+        "warnings": errors,
+    }
+    return all_payments, report
 
 
 def parse_payments_xlsx(content: bytes, source: str = "excel") -> list[Payment]:
-    return parse_payments_file(content, filename="file.xlsx", source=source)
+    payments, _ = parse_payments_file(content, filename="file.xlsx", source=source)
+    return payments
 
 
 def _cell(row: list, idx: int | None) -> Any:
@@ -559,7 +649,22 @@ def _cell(row: list, idx: int | None) -> Any:
     return row[idx]
 
 
-def _parse_sheet(rows: list[tuple], source: str) -> list[Payment]:
+def _normalize_org_cell(raw: Any) -> str | None:
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    extracted = extract_org_name(s)
+    return (extracted or s)[:255]
+
+
+def _parse_sheet(
+    rows: list[tuple],
+    source: str,
+    sheet_name: str | None = None,
+    org_hint: str | None = None,
+) -> list[Payment]:
     if not rows:
         return []
 
@@ -569,8 +674,12 @@ def _parse_sheet(rows: list[tuple], source: str) -> list[Payment]:
     while len(headers) < max_w:
         headers.append(f"col{len(headers)}")
 
-    amount_col, debit_col, credit_col = _resolve_amount_cols(headers, rows, max(header_idx, 0) if header_idx >= 0 else -1)
-    # When no header, resolve amounts against all rows from start
+    if org_hint is None:
+        org_hint = _org_from_sheet_context(sheet_name or "", rows, header_idx)
+
+    amount_col, debit_col, credit_col = _resolve_amount_cols(
+        headers, rows, max(header_idx, 0) if header_idx >= 0 else -1
+    )
     if header_idx < 0 and amount_col is None and debit_col is None and credit_col is None:
         width = max_w
         scored = [(_score_amount_col(rows, c, 0), c) for c in range(width)]
@@ -614,6 +723,12 @@ def _parse_sheet(rows: list[tuple], source: str) -> list[Payment]:
         counterparty = None
         if cols["counterparty"] is not None and row[cols["counterparty"]] is not None:
             counterparty = str(row[cols["counterparty"]]).strip() or None
+            # If "counterparty" cell is actually our org, keep as text but prefer org extract
+            cp_org = extract_org_name(counterparty)
+            if cp_org and counterparty and len(counterparty) > len(cp_org):
+                pass  # keep full string
+            elif cp_org:
+                counterparty = cp_org
 
         probe = _norm(f"{purpose} {counterparty or ''}")
         if probe in {"итого", "всего", "total", "сумма"}:
@@ -621,13 +736,29 @@ def _parse_sheet(rows: list[tuple], source: str) -> list[Payment]:
 
         account_name = None
         if cols["account"] is not None and row[cols["account"]] is not None:
-            account_name = str(row[cols["account"]]).strip() or None
+            account_name = _normalize_org_cell(row[cols["account"]])
+
+        # Fallback: sheet/tab/title org (ООО / ИП)
+        if not account_name and org_hint:
+            account_name = org_hint
+
+        # Last resort: scan other text cells on the row for ООО/ИП (our side often alone)
+        if not account_name:
+            for j, cell in enumerate(row):
+                if j in reserved or j in {cols.get("date"), cols.get("title"), cols.get("counterparty"), cols.get("note"), cols.get("status")}:
+                    continue
+                org = extract_org_name(cell)
+                if org and (not counterparty or org not in counterparty):
+                    account_name = org
+                    break
 
         note = None
         if cols["note"] is not None and row[cols["note"]] is not None:
             note = str(row[cols["note"]]).strip() or None
+        if sheet_name and sheet_name not in {"Sheet", "Sheet1", "Лист1", "csv"}:
+            sheet_tag = f"лист: {sheet_name}"
+            note = f"{note} · {sheet_tag}" if note else sheet_tag
 
-        # Build readable title: кому · за что
         if counterparty and purpose and purpose != counterparty:
             title = f"{counterparty} · {purpose}"
         else:

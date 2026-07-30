@@ -456,7 +456,7 @@ def _import_payments(
     dest.write_bytes(content)
 
     try:
-        payments = parse_payments_file(content, filename=filename, source=source)
+        payments, report = parse_payments_file(content, filename=filename, source=source)
     except Exception as e:
         raise HTTPException(400, f"Не разобрал файл: {e}") from e
 
@@ -469,13 +469,16 @@ def _import_payments(
     db.add_all(payments)
     db.commit()
 
-    # Accounts / юрлица from column «организация / р/с»
+    # Accounts / юрлица from column, sheet name, title rows
     org_names = sorted({p.account_name for p in payments if p.account_name})
     if org_names:
         existing = {a.name for a in db.scalars(select(Account)).all()}
         for name in org_names:
             if name not in existing:
-                db.add(Account(name=name, kind="юрлицо / р/с", balance=0, org=name))
+                kind = "ИП" if name.upper().startswith("ИП") else "юрлицо / р/с"
+                if "ООО" in name.upper() or "АО" in name.upper() or "ПАО" in name.upper():
+                    kind = "ООО / юрлицо"
+                db.add(Account(name=name, kind=kind, balance=0, org=name))
         db.commit()
     elif db.scalar(select(func.count()).select_from(Account)) == 0:
         db.add(Account(name="Не указано", kind="юрлицо / р/с", balance=0, org=None))
@@ -484,18 +487,36 @@ def _import_payments(
     no_date = sum(1 for p in payments if not p.pay_date)
     no_who = sum(1 for p in payments if not p.counterparty)
     no_org = sum(1 for p in payments if not p.account_name)
-    warnings = []
+    warnings = list(report.get("warnings") or [])
     if no_who > len(payments) // 2:
         warnings.append("у многих строк не найден контрагент (кому)")
     if no_date > len(payments) // 2:
         warnings.append("у многих строк нет даты/срока")
     if no_org > len(payments) // 2:
-        warnings.append("не нашли колонку юрлица/р/с — укажите «Организация» или «Плательщик»")
+        warnings.append(
+            "не нашли юрлицо/ИП — добавьте колонку «Организация»/«Плательщик» "
+            "или назовите листы как «ООО …» / «ИП …»"
+        )
 
+    sheet_bits = [
+        f"«{s['name']}»:{s['imported']}" + (f" ({s['orgHint']})" if s.get("orgHint") else "")
+        for s in report.get("sheets", [])
+        if s.get("imported")
+    ]
     sample = [payment_dict(p) for p in payments[:3]]
-    msg = f"Загружено платежей: {len(payments)} ({source})"
-    if warnings:
-        msg += ". Внимание: " + "; ".join(warnings) + ". Нажмите «Показать заголовки»."
+    msg = (
+        f"Загружено платежей: {len(payments)} ({source}) "
+        f"с {report.get('sheetsWithData', 0)} из {report.get('sheetsTotal', 0)} листов"
+    )
+    if sheet_bits:
+        msg += ": " + "; ".join(sheet_bits)
+    if no_org == 0 and org_names:
+        msg += f". Юрлица/ИП: {', '.join(org_names[:8])}"
+        if len(org_names) > 8:
+            msg += f" и ещё {len(org_names) - 8}"
+    soft = [w for w in warnings if "строк с суммой не найдено" not in w]
+    if soft:
+        msg += ". Внимание: " + "; ".join(soft[:4])
 
     return {
         "ok": True,
@@ -504,6 +525,8 @@ def _import_payments(
         "source": source,
         "message": msg,
         "warnings": warnings,
+        "sheets": report.get("sheets", []),
+        "orgs": org_names,
         "sample": sample,
     }
 
