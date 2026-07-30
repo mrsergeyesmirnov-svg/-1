@@ -22,44 +22,23 @@
       <a href="/people.html">Люди</a>
     </nav>
 
-    <div class="badge">Реальные данные</div>
-    <h1>Excel и iiko</h1>
+    <div class="badge">Данные</div>
+    <h1>iiko и остатки</h1>
     <p class="sub">
-      Excel — ручной контур. iiko API — приходные накладные в календарь;
-      если в iiko стоит дата оплаты, позиция закрывается сама.
+      Платежи — из <strong>iiko</strong> и ручных платёжек финдира.
+      Excel нужен в основном для <strong>остатков по счетам</strong>.
     </p>
 
     <div class="panel">
-      <h2>1. Платёжки Excel / CSV</h2>
+      <h2>1. iiko → платежи</h2>
       <p class="muted">
-        Читаем <strong>все листы</strong> файла. Юрлицо/ИП берём из колонки
-        «Организация» / «Плательщик», из названия листа или из шапки таблицы.
-      </p>
-      <form id="payForm" style="margin-top:12px;display:grid;gap:10px;">
-        <input type="file" id="payFile" accept=".xlsx,.xlsm,.csv" required />
-        <label class="muted" style="display:flex;gap:8px;align-items:center;">
-          <input type="checkbox" id="replace" checked /> заменить предыдущий Excel-импорт
-        </label>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;">
-          <button class="btn accent" type="submit">Загрузить платежи</button>
-          <button class="btn ghost" type="button" id="inspectBtn">Показать заголовки</button>
-        </div>
-      </form>
-      <p id="payMsg" class="muted" style="margin-top:12px;"></p>
-      <pre id="inspectOut" class="inspect" hidden></pre>
-    </div>
-
-    <div class="panel">
-      <h2>2. API iikoCloud</h2>
-      <p class="muted">
-        Нужен <strong>apiLogin</strong> из iikoCloud (Transport API).
-        Тянем приходные накладные за период → платежи в Казне.
-        Оплаченные в iiko помечаются «оплачено».
+        apiLogin iikoCloud → приходные накладные в календарь.
+        Если в iiko есть дата оплаты — статус «оплачено» сам.
       </p>
       <form id="iikoCfg" class="form-grid" style="margin-top:12px;">
         <div class="field">
           <label for="apiLogin">apiLogin</label>
-          <input id="apiLogin" placeholder="логин API (оставьте пустым, если уже сохранён)" autocomplete="off" />
+          <input id="apiLogin" placeholder="если уже сохранён — можно пусто" autocomplete="off" />
           <div class="muted" id="loginHint" style="margin-top:4px;"></div>
         </div>
         <div class="field">
@@ -67,7 +46,7 @@
           <input id="daysBack" type="number" min="1" max="366" value="30" />
         </div>
         <div class="field full">
-          <label for="orgSelect">Организация</label>
+          <label for="orgSelect">Организация iiko</label>
           <select id="orgSelect">
             <option value="">все доступные</option>
           </select>
@@ -81,34 +60,48 @@
           <button class="btn ghost" type="button" id="iikoTestBtn">Проверить связь</button>
           <button class="btn accent" type="button" id="iikoSyncBtn">Синхронизировать</button>
         </div>
-        <label class="muted full" style="display:flex;gap:8px;align-items:center;">
-          <input type="checkbox" id="iikoSyncReplace" /> перед синком удалить старые платежи из iiko
-        </label>
       </form>
       <p id="iikoCfgMsg" class="muted" style="margin-top:12px;"></p>
       <pre id="iikoOut" class="inspect" hidden></pre>
-
-      <hr class="soft" />
-      <h2>Файл-выгрузка iiko (запасной путь)</h2>
-      <p class="muted">Если API недоступен — тот же Excel/CSV, источник <strong>iiko</strong>.</p>
-      <form id="iikoForm" style="margin-top:12px;display:grid;gap:10px;">
-        <input type="file" id="iikoFile" accept=".xlsx,.xlsm,.csv" required />
-        <label class="muted" style="display:flex;gap:8px;align-items:center;">
-          <input type="checkbox" id="iikoReplace" checked /> заменить предыдущий iiko-импорт
-        </label>
-        <button class="btn" type="submit">Загрузить файл iiko</button>
-      </form>
-      <p id="iikoMsg" class="muted" style="margin-top:12px;"></p>
     </div>
 
     <div class="panel">
-      <h2>3. Остатки по счетам (.xlsx) — по желанию</h2>
-      <p class="muted">Колонки: <strong>Счёт / Организация</strong> и <strong>Остаток</strong>.</p>
+      <h2>2. Excel → остатки по счетам</h2>
+      <p class="muted">
+        Колонки: <strong>Счёт / Организация</strong> и <strong>Остаток</strong>.
+        Обновляет деньги сети, не ломает список юрлиц из iiko.
+      </p>
       <form id="balForm" style="margin-top:12px;display:grid;gap:10px;">
         <input type="file" id="balFile" accept=".xlsx,.xlsm" required />
-        <button class="btn" type="submit">Загрузить остатки</button>
+        <button class="btn accent" type="submit">Загрузить остатки</button>
       </form>
       <p id="balMsg" class="muted" style="margin-top:12px;"></p>
+    </div>
+
+    <div class="panel">
+      <h2>3. По желанию: старый Excel с платёжками</h2>
+      <p class="muted">
+        Лучше не использовать как основной источник — путает счета.
+        Если уже залили мусор: удалите excel-платежи одной кнопкой.
+      </p>
+      <div class="req-actions" style="margin:10px 0;">
+        <button class="btn ghost sm" type="button" id="purgeExcel">Удалить все платежи из Excel</button>
+      </div>
+      <details>
+        <summary class="muted" style="cursor:pointer;font-weight:700;">Показать загрузку Excel-платежей</summary>
+        <form id="payForm" style="margin-top:12px;display:grid;gap:10px;">
+          <input type="file" id="payFile" accept=".xlsx,.xlsm,.csv" />
+          <label class="muted" style="display:flex;gap:8px;align-items:center;">
+            <input type="checkbox" id="replace" checked /> заменить предыдущий Excel-импорт
+          </label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <button class="btn" type="submit">Загрузить платежи из Excel</button>
+            <button class="btn ghost" type="button" id="inspectBtn">Показать заголовки</button>
+          </div>
+        </form>
+        <p id="payMsg" class="muted" style="margin-top:12px;"></p>
+        <pre id="inspectOut" class="inspect" hidden></pre>
+      </details>
     </div>
   </div>
 
@@ -147,42 +140,7 @@
         var msg = document.getElementById("iikoCfgMsg");
         if (cfg.lastResult) msg.textContent = "Последний синк: " + cfg.lastResult;
         if (cfg.lastError) msg.textContent = "Ошибка: " + cfg.lastError;
-        return cfg;
       }
-
-      document.getElementById("payForm").onsubmit = async function (e) {
-        e.preventDefault();
-        var msg = document.getElementById("payMsg");
-        msg.textContent = "Загружаю…";
-        try {
-          var file = document.getElementById("payFile").files[0];
-          var res = await KaznaAPI.importExcel(file, document.getElementById("replace").checked);
-          msg.textContent = res.message + " Можно открывать Обзор.";
-          if (res.sample && res.sample.length) {
-            var out = document.getElementById("inspectOut");
-            out.hidden = false;
-            out.textContent = "Пример разобранных строк:\n" + JSON.stringify(res.sample, null, 2);
-          }
-        } catch (ex) {
-          msg.textContent = ex.message;
-        }
-      };
-
-      document.getElementById("inspectBtn").onclick = async function () {
-        var file = document.getElementById("payFile").files[0];
-        var out = document.getElementById("inspectOut");
-        var msg = document.getElementById("payMsg");
-        if (!file) { msg.textContent = "Сначала выберите файл."; return; }
-        msg.textContent = "Смотрю заголовки…";
-        try {
-          var info = await KaznaAPI.inspectImport(file);
-          out.hidden = false;
-          out.textContent = JSON.stringify(info, null, 2);
-          msg.textContent = "Ниже — что система увидела в файле.";
-        } catch (ex) {
-          msg.textContent = ex.message;
-        }
-      };
 
       document.getElementById("iikoCfg").onsubmit = async function (e) {
         e.preventDefault();
@@ -211,7 +169,6 @@
         var out = document.getElementById("iikoOut");
         msg.textContent = "Проверяю…";
         try {
-          // save days/org first if login typed
           var login = document.getElementById("apiLogin").value.trim();
           if (login) {
             await KaznaAPI.saveIikoConfig({
@@ -225,7 +182,7 @@
           fillOrgs(res.organizations, document.getElementById("orgSelect").value);
           out.hidden = false;
           out.textContent = JSON.stringify(res.organizations, null, 2);
-          msg.textContent = res.message + " Выберите организацию и нажмите «Синхронизировать».";
+          msg.textContent = res.message;
           await loadIikoCfg();
         } catch (ex) {
           msg.textContent = ex.message;
@@ -235,31 +192,16 @@
       document.getElementById("iikoSyncBtn").onclick = async function () {
         var msg = document.getElementById("iikoCfgMsg");
         var out = document.getElementById("iikoOut");
-        msg.textContent = "Синхронизирую накладные…";
+        msg.textContent = "Синхронизирую…";
         try {
           var res = await KaznaAPI.syncIiko({
             organization_id: document.getElementById("orgSelect").value || null,
             days_back: Number(document.getElementById("daysBack").value || 30),
-            replace: document.getElementById("iikoSyncReplace").checked
+            replace: false
           });
           out.hidden = false;
           out.textContent = JSON.stringify(res, null, 2);
-          msg.textContent = res.message + " Смотрите Обзор / Календарь.";
-        } catch (ex) {
-          msg.textContent = ex.message;
-        }
-      };
-
-      document.getElementById("iikoForm").onsubmit = async function (e) {
-        e.preventDefault();
-        var msg = document.getElementById("iikoMsg");
-        msg.textContent = "Загружаю…";
-        try {
-          var res = await KaznaAPI.importIiko(
-            document.getElementById("iikoFile").files[0],
-            document.getElementById("iikoReplace").checked
-          );
-          msg.textContent = res.message;
+          msg.textContent = res.message + " → Календарь.";
         } catch (ex) {
           msg.textContent = ex.message;
         }
@@ -275,13 +217,52 @@
           var res = await fetch("/api/accounts/set-balances", { method: "POST", body: fd, credentials: "same-origin" });
           var data = await res.json();
           if (!res.ok) throw new Error(data.detail || "Ошибка");
-          msg.textContent = "Счетов загружено: " + data.accounts;
+          msg.textContent = data.message || ("Счетов: " + data.accounts);
         } catch (ex) {
           msg.textContent = ex.message;
         }
       };
 
-      try { await loadIikoCfg(); } catch (e) { /* empty db ok */ }
+      document.getElementById("purgeExcel").onclick = async function () {
+        if (!confirm("Удалить все платежи, загруженные из Excel?")) return;
+        try {
+          var res = await KaznaAPI.deletePaymentsSource("excel");
+          alert(res.message);
+        } catch (ex) {
+          alert(ex.message);
+        }
+      };
+
+      document.getElementById("payForm").onsubmit = async function (e) {
+        e.preventDefault();
+        var msg = document.getElementById("payMsg");
+        var file = document.getElementById("payFile").files[0];
+        if (!file) { msg.textContent = "Выберите файл."; return; }
+        msg.textContent = "Загружаю…";
+        try {
+          var res = await KaznaAPI.importExcel(file, document.getElementById("replace").checked);
+          msg.textContent = res.message;
+        } catch (ex) {
+          msg.textContent = ex.message;
+        }
+      };
+
+      document.getElementById("inspectBtn").onclick = async function () {
+        var file = document.getElementById("payFile").files[0];
+        var out = document.getElementById("inspectOut");
+        var msg = document.getElementById("payMsg");
+        if (!file) { msg.textContent = "Сначала выберите файл."; return; }
+        try {
+          var info = await KaznaAPI.inspectImport(file);
+          out.hidden = false;
+          out.textContent = JSON.stringify(info, null, 2);
+          msg.textContent = "Заголовки ниже.";
+        } catch (ex) {
+          msg.textContent = ex.message;
+        }
+      };
+
+      try { await loadIikoCfg(); } catch (e) {}
     }).catch(function () { location.href = "/"; });
   </script>
 </body>

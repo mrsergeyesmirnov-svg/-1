@@ -31,7 +31,7 @@
 
     <div class="badge">Утро финансового директора</div>
     <h1>Можно ли платить сегодня?</h1>
-    <p class="sub" id="subLine">Загрузите Excel с платежами — цифры станут вашими, не демо.</p>
+    <p class="sub" id="subLine">Платежи из iiko и ваши ручные. Остатки счетов — из Excel на Импорте.</p>
 
     <div class="outcome" id="outcome">Загрузка…</div>
 
@@ -44,7 +44,7 @@
       <div class="metric warn">
         <div class="label">К оплате (сегодня / 7 дней)</div>
         <div class="value" id="cardToday">—</div>
-        <div class="hint">из Excel / iiko</div>
+        <div class="hint">iiko + ручные + заявки</div>
       </div>
       <div class="metric ok">
         <div class="label">После оплат</div>
@@ -54,7 +54,7 @@
     </div>
 
     <div class="quick">
-      <a href="/import.html">Импорт<small>Excel и iiko</small></a>
+      <a href="/import.html">Импорт<small>iiko и остатки</small></a>
       <a href="/money.html">Деньги<small>счета</small></a>
       <a href="/calendar.html">Календарь<small>даты</small></a>
       <a href="/requests.html">Заявки<small id="reqHint">очередь</small></a>
@@ -62,9 +62,9 @@
 
     <div class="panel">
       <h2>Платежи</h2>
-      <p class="muted" style="margin:0 0 8px;">Быстро: на сегодня / оплачено. Полное редактирование — в Календаре.</p>
+      <p class="muted" style="margin:0 0 8px;">Быстро: на сегодня / оплачено / отложить. Полный контроль — в Календаре.</p>
       <p id="homeMsg" class="muted" style="margin:0 0 8px;"></p>
-      <div id="todayList"><p class="muted">Пока пусто — загрузите Excel на вкладке «Импорт».</p></div>
+      <div id="todayList"><p class="muted">Пока пусто — синк iiko или создайте платёжку в Календаре.</p></div>
     </div>
   </div>
 
@@ -86,7 +86,7 @@
         }
         document.getElementById("outcome").innerHTML =
           (o.hasPayments
-            ? "В системе уже есть платежи из Excel/iiko. "
+            ? "В системе есть платежи (iiko / ручные / заявки). "
             : "Платежей ещё нет — ") +
           (o.pendingRequests
             ? "Заявок от управляющих: <span>" + o.pendingRequests + "</span>. "
@@ -97,13 +97,13 @@
 
         if (!o.hasPayments) {
           document.getElementById("subLine").textContent =
-            "Сейчас пустая база. Импортируйте ваш Excel с платежками — и обзор оживет.";
+            "Пусто. Сделайте синк iiko на Импорте или создайте платёжку в Календаре.";
         }
 
         var list = o.payments.slice(0, 12);
         var el = document.getElementById("todayList");
         if (!list.length) {
-          el.innerHTML = '<p class="muted">Пока пусто — загрузите Excel на вкладке «Импорт».</p>';
+          el.innerHTML = '<p class="muted">Пока пусто — синк iiko или создайте платёжку в Календаре.</p>';
           return;
         }
         el.innerHTML = list.map(function (p) {
@@ -111,8 +111,9 @@
             '<div class="pay-edit">' + KaznaPayRow.render(p) +
             '<div class="req-actions" style="margin-top:6px;">' +
             (p.date ? "" : '<button class="btn sm accent" type="button" data-today="' + p.id + '">На сегодня</button>') +
+            (p.status === "done" ? "" : '<button class="btn sm ghost" type="button" data-p3="' + p.id + '">+3 дня</button>') +
             (p.status === "done" ? "" : '<button class="btn sm" type="button" data-done="' + p.id + '">Оплачено</button>') +
-            '<a class="btn sm ghost" href="/calendar.html">Править</a>' +
+            '<a class="btn sm ghost" href="/calendar.html">Календарь</a>' +
             "</div></div>"
           );
         }).join("");
@@ -125,6 +126,18 @@
                 pay_date: todayISO(), status: "plan"
               });
               document.getElementById("homeMsg").textContent = "Дата на сегодня.";
+              await load();
+            } catch (ex) {
+              document.getElementById("homeMsg").textContent = ex.message;
+            }
+          };
+        });
+        el.querySelectorAll("[data-p3]").forEach(function (btn) {
+          btn.onclick = async function () {
+            document.getElementById("homeMsg").textContent = "Откладываю…";
+            try {
+              await KaznaAPI.patchPayment(Number(btn.getAttribute("data-p3")), { postpone_days: 3 });
+              document.getElementById("homeMsg").textContent = "+3 дня.";
               await load();
             } catch (ex) {
               document.getElementById("homeMsg").textContent = ex.message;

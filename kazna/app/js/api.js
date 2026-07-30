@@ -49,14 +49,25 @@
     overview: function () {
       return req("/api/overview");
     },
-    payments: function () {
-      return req("/api/payments");
+    payments: function (params) {
+      var q = "";
+      if (params) {
+        var parts = [];
+        if (params.source) parts.push("source=" + encodeURIComponent(params.source));
+        if (params.account) parts.push("account=" + encodeURIComponent(params.account));
+        if (params.status) parts.push("status=" + encodeURIComponent(params.status));
+        if (parts.length) q = "?" + parts.join("&");
+      }
+      return req("/api/payments" + q);
     },
     createPayment: function (payload) {
       return req("/api/payments", { method: "POST", json: payload });
     },
     patchPayment: function (id, payload) {
       return req("/api/payments/" + id, { method: "PATCH", json: payload });
+    },
+    deletePaymentsSource: function (source) {
+      return req("/api/payments/source/" + encodeURIComponent(source), { method: "DELETE" });
     },
     people: function () {
       return req("/api/people");

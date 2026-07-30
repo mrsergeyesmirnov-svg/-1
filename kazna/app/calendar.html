@@ -21,23 +21,33 @@
       <a href="/import.html">Импорт</a>
       <a href="/people.html">Люди</a>
     </nav>
-    <div class="badge">Управление оплатами</div>
+    <div class="badge">Оплаты</div>
     <h1>Календарь</h1>
-    <p class="sub">Ставьте срок, юрлицо и статус — «к оплате сегодня» на обзоре оживает.</p>
+    <p class="sub">Основное — из iiko и ваши ручные платёжки. Отложите срок или закройте оплату.</p>
 
     <div class="panel">
-      <div class="filt" id="filters">
-        <button type="button" class="chip on" data-f="all">Все</button>
-        <button type="button" class="chip" data-f="nodate">Без даты</button>
-        <button type="button" class="chip" data-f="week">7 дней</button>
-        <button type="button" class="chip" data-f="open">Не оплачены</button>
-        <button type="button" class="chip" data-f="done">Оплачены</button>
+      <div class="filt" id="filters"></div>
+      <div class="form-grid" style="margin-top:12px;">
+        <div class="field">
+          <label for="fSource">Источник</label>
+          <select id="fSource">
+            <option value="">все</option>
+            <option value="iiko">iiko</option>
+            <option value="manual">мои / ручные</option>
+            <option value="request">из заявок</option>
+            <option value="excel">excel (старые)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="fAcc">Юрлицо</label>
+          <select id="fAcc"><option value="">все</option></select>
+        </div>
       </div>
       <p id="msg" class="muted" style="margin:10px 0 0;"></p>
     </div>
 
     <div class="panel">
-      <h2>Добавить платёж вручную</h2>
+      <h2>Новая платёжка</h2>
       <form id="addForm" class="form-grid">
         <div class="field">
           <label for="aWho">Кому</label>
@@ -45,7 +55,7 @@
         </div>
         <div class="field">
           <label for="aWhat">За что</label>
-          <input id="aWhat" required placeholder="продукты" />
+          <input id="aWhat" required placeholder="продукты / аренда" />
         </div>
         <div class="field">
           <label for="aSum">Сумма</label>
@@ -56,7 +66,7 @@
           <input id="aDate" type="date" />
         </div>
         <div class="field">
-          <label for="aAcc">Юрлицо / р/с</label>
+          <label for="aAcc">С какого юрлица</label>
           <select id="aAcc"></select>
         </div>
         <div class="field">
@@ -64,13 +74,13 @@
           <input id="aNote" placeholder="по желанию" />
         </div>
         <div class="full">
-          <button class="btn accent" type="submit">В календарь</button>
+          <button class="btn accent" type="submit">Создать</button>
         </div>
       </form>
     </div>
 
     <div class="panel">
-      <h2>Очередь</h2>
+      <h2>Очередь <span class="muted" id="countLabel"></span></h2>
       <div id="list"><p class="muted">Загрузка…</p></div>
     </div>
   </div>
@@ -80,8 +90,9 @@
     (function () {
       var all = [];
       var accounts = [];
-      var filter = "all";
+      var filter = "open";
       var statusMap = { new: "новая", plan: "в плане", ok: "ок", done: "оплачено" };
+      var sourceMap = { iiko: "iiko", manual: "моя", request: "заявка", excel: "excel" };
 
       function esc(s) {
         return String(s == null ? "" : s)
@@ -90,7 +101,12 @@
       }
 
       function todayISO() {
-        var d = new Date();
+        return new Date().toISOString().slice(0, 10);
+      }
+
+      function addDaysISO(iso, n) {
+        var d = iso ? new Date(iso + "T00:00:00") : new Date();
+        d.setDate(d.getDate() + n);
         return d.toISOString().slice(0, 10);
       }
 
@@ -102,23 +118,93 @@
         return x >= t && x <= end;
       }
 
-      function filtered() {
+      function isOverdue(p) {
+        if (!p.date || p.status === "done") return false;
+        return p.date < todayISO();
+      }
+
+      function baseFiltered() {
+        var src = document.getElementById("fSource").value;
+        var acc = document.getElementById("fAcc").value;
         return all.filter(function (p) {
-          if (filter === "nodate") return !p.date;
-          if (filter === "week") return inWeek(p.date);
-          if (filter === "open") return p.status !== "done";
-          if (filter === "done") return p.status === "done";
+          if (src && p.source !== src) return false;
+          if (acc && p.account !== acc) return false;
           return true;
         });
       }
 
-      function fillAccSelect(sel, value) {
-        var opts = '<option value="">не указано</option>' +
-          accounts.map(function (a) {
-            var v = a.name;
-            return '<option value="' + esc(v) + '"' + (value === v ? " selected" : "") + ">" +
-              esc(a.name) + "</option>";
-          }).join("");
+      function filtered() {
+        return baseFiltered().filter(function (p) {
+          if (filter === "today") return p.date === todayISO() && p.status !== "done";
+          if (filter === "week") return inWeek(p.date) && p.status !== "done";
+          if (filter === "overdue") return isOverdue(p);
+          if (filter === "nodate") return !p.date && p.status !== "done";
+          if (filter === "open") return p.status !== "done";
+          if (filter === "done") return p.status === "done";
+          if (filter === "manual") return p.source === "manual";
+          if (filter === "iiko") return p.source === "iiko";
+          return true;
+        });
+      }
+
+      function counts() {
+        var base = baseFiltered();
+        function n(fn) { return base.filter(fn).length; }
+        return {
+          open: n(function (p) { return p.status !== "done"; }),
+          today: n(function (p) { return p.date === todayISO() && p.status !== "done"; }),
+          week: n(function (p) { return inWeek(p.date) && p.status !== "done"; }),
+          overdue: n(isOverdue),
+          nodate: n(function (p) { return !p.date && p.status !== "done"; }),
+          iiko: n(function (p) { return p.source === "iiko"; }),
+          manual: n(function (p) { return p.source === "manual"; }),
+          done: n(function (p) { return p.status === "done"; }),
+          all: base.length
+        };
+      }
+
+      function renderFilters() {
+        var c = counts();
+        var items = [
+          ["open", "К оплате", c.open],
+          ["today", "Сегодня", c.today],
+          ["week", "7 дней", c.week],
+          ["overdue", "Просрочено", c.overdue],
+          ["nodate", "Без даты", c.nodate],
+          ["iiko", "iiko", c.iiko],
+          ["manual", "Мои", c.manual],
+          ["done", "Оплачено", c.done],
+          ["all", "Все", c.all]
+        ];
+        document.getElementById("filters").innerHTML = items.map(function (it) {
+          return '<button type="button" class="chip' + (filter === it[0] ? " on" : "") +
+            '" data-f="' + it[0] + '">' + it[1] + " · " + it[2] + "</button>";
+        }).join("");
+        document.querySelectorAll("#filters .chip").forEach(function (chip) {
+          chip.onclick = function () {
+            filter = chip.getAttribute("data-f");
+            renderFilters();
+            render();
+          };
+        });
+      }
+
+      function fillAccSelect(sel, value, withAll) {
+        var opts = withAll ? '<option value="">все</option>' : '<option value="">не указано</option>';
+        opts += accounts.map(function (a) {
+          return '<option value="' + esc(a.name) + '"' + (value === a.name ? " selected" : "") + ">" +
+            esc(a.name) + "</option>";
+        }).join("");
+        // keep orphan account names from payments
+        var names = {};
+        accounts.forEach(function (a) { names[a.name] = 1; });
+        all.forEach(function (p) {
+          if (p.account && !names[p.account]) {
+            names[p.account] = 1;
+            opts += '<option value="' + esc(p.account) + '"' + (value === p.account ? " selected" : "") + ">" +
+              esc(p.account) + "</option>";
+          }
+        });
         sel.innerHTML = opts;
       }
 
@@ -127,7 +213,7 @@
         msg.textContent = "Сохраняю…";
         try {
           await KaznaAPI.patchPayment(id, patch);
-          msg.textContent = "Сохранено.";
+          msg.textContent = "Готово.";
           await reload();
         } catch (ex) {
           msg.textContent = ex.message;
@@ -136,15 +222,20 @@
 
       function render() {
         var rows = filtered();
+        document.getElementById("countLabel").textContent = "(" + rows.length + ")";
         var el = document.getElementById("list");
         if (!rows.length) {
-          el.innerHTML = '<p class="muted">Пусто в этом фильтре.</p>';
+          el.innerHTML = '<p class="muted">Пусто в этом фильтре. Синк iiko или создайте платёжку выше.</p>';
           return;
         }
         el.innerHTML = rows.map(function (p) {
+          var src = sourceMap[p.source] || p.source;
           return (
             '<div class="pay-edit" data-id="' + p.id + '">' +
             KaznaPayRow.render(p) +
+            '<div class="muted" style="margin:2px 0 8px;">источник: <strong>' + esc(src) + "</strong>" +
+            (isOverdue(p) ? ' · <span style="color:var(--danger)">просрочено</span>' : "") +
+            "</div>" +
             '<div class="pay-controls form-grid">' +
             '<div class="field"><label>Срок</label><input type="date" data-date="' + p.id + '" value="' + esc(p.date || "") + '" /></div>' +
             '<div class="field"><label>Статус</label><select data-status="' + p.id + '">' +
@@ -153,19 +244,24 @@
                 (statusMap[s] || s) + "</option>";
             }).join("") +
             "</select></div>" +
-            '<div class="field"><label>Юрлицо / р/с</label><select data-acc="' + p.id + '"></select></div>' +
-            '<div class="field"><label>Коммент</label><input data-note="' + p.id + '" value="' + esc(p.note || "") + '" /></div>' +
+            '<div class="field"><label>Юрлицо</label><select data-acc="' + p.id + '"></select></div>' +
+            '<div class="field"><label>Кому</label><input data-who="' + p.id + '" value="' + esc(p.counterparty || "") + '" /></div>' +
+            '<div class="field full"><label>За что / коммент</label><input data-note="' + p.id + '" value="' +
+              esc(p.note || p.purpose || "") + '" /></div>' +
             '<div class="full req-actions">' +
             '<button class="btn sm accent" type="button" data-save="' + p.id + '">Сохранить</button>' +
             '<button class="btn sm" type="button" data-today="' + p.id + '">На сегодня</button>' +
-            '<button class="btn sm ghost" type="button" data-done="' + p.id + '">Оплачено</button>' +
+            '<button class="btn sm ghost" type="button" data-p1="' + p.id + '">+1 день</button>' +
+            '<button class="btn sm ghost" type="button" data-p3="' + p.id + '">+3 дня</button>' +
+            '<button class="btn sm ghost" type="button" data-p7="' + p.id + '">+7 дней</button>' +
+            '<button class="btn sm" type="button" data-done="' + p.id + '">Оплачено</button>' +
             "</div></div></div>"
           );
         }).join("");
 
         rows.forEach(function (p) {
           var sel = el.querySelector('select[data-acc="' + p.id + '"]');
-          if (sel) fillAccSelect(sel, p.account || "");
+          if (sel) fillAccSelect(sel, p.account || "", false);
         });
 
         el.querySelectorAll("[data-save]").forEach(function (btn) {
@@ -175,6 +271,7 @@
               pay_date: el.querySelector('input[data-date="' + id + '"]').value || "",
               status: el.querySelector('select[data-status="' + id + '"]').value,
               account_name: el.querySelector('select[data-acc="' + id + '"]').value,
+              counterparty: el.querySelector('input[data-who="' + id + '"]').value,
               note: el.querySelector('input[data-note="' + id + '"]').value
             });
           };
@@ -183,6 +280,15 @@
           btn.onclick = function () {
             save(Number(btn.getAttribute("data-today")), { pay_date: todayISO(), status: "plan" });
           };
+        });
+        el.querySelectorAll("[data-p1]").forEach(function (btn) {
+          btn.onclick = function () { save(Number(btn.getAttribute("data-p1")), { postpone_days: 1 }); };
+        });
+        el.querySelectorAll("[data-p3]").forEach(function (btn) {
+          btn.onclick = function () { save(Number(btn.getAttribute("data-p3")), { postpone_days: 3 }); };
+        });
+        el.querySelectorAll("[data-p7]").forEach(function (btn) {
+          btn.onclick = function () { save(Number(btn.getAttribute("data-p7")), { postpone_days: 7 }); };
         });
         el.querySelectorAll("[data-done]").forEach(function (btn) {
           btn.onclick = function () {
@@ -194,7 +300,9 @@
       async function reload() {
         all = await KaznaAPI.payments();
         accounts = await KaznaAPI.accounts();
-        fillAccSelect(document.getElementById("aAcc"), "");
+        fillAccSelect(document.getElementById("aAcc"), "", false);
+        fillAccSelect(document.getElementById("fAcc"), document.getElementById("fAcc").value, true);
+        renderFilters();
         render();
       }
 
@@ -210,19 +318,13 @@
           await KaznaAPI.logout(); location.href = "/";
         };
 
-        document.querySelectorAll("#filters .chip").forEach(function (chip) {
-          chip.onclick = function () {
-            document.querySelectorAll("#filters .chip").forEach(function (c) { c.classList.remove("on"); });
-            chip.classList.add("on");
-            filter = chip.getAttribute("data-f");
-            render();
-          };
-        });
+        document.getElementById("fSource").onchange = function () { renderFilters(); render(); };
+        document.getElementById("fAcc").onchange = function () { renderFilters(); render(); };
 
         document.getElementById("addForm").onsubmit = async function (e) {
           e.preventDefault();
           var msg = document.getElementById("msg");
-          msg.textContent = "Добавляю…";
+          msg.textContent = "Создаю…";
           try {
             await KaznaAPI.createPayment({
               title: document.getElementById("aWhat").value,
@@ -233,8 +335,9 @@
               note: document.getElementById("aNote").value || null,
               status: "plan"
             });
-            msg.textContent = "Платёж в календаре.";
+            msg.textContent = "Платёжка создана.";
             e.target.reset();
+            filter = "manual";
             await reload();
           } catch (ex) {
             msg.textContent = ex.message;

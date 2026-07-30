@@ -21,30 +21,135 @@
       <a href="/import.html">Импорт</a>
       <a href="/people.html">Люди</a>
     </nav>
-    <div class="badge">Счета и юрлица</div>
+    <div class="badge">Расчётные счета</div>
     <h1>Деньги сети</h1>
-    <p class="sub">Юрлица/р/с из платёжек и файл остатков. Здесь видно, чьи деньги — ООО или ИП.</p>
-    <div class="panel" id="list"></div>
+    <p class="sub">Один список юрлиц/р/с. Остатки — из Excel, названия — ваши или из iiko. Без мусора из платёжных Excel.</p>
+
+    <div class="panel">
+      <h2>Добавить счёт / юрлицо</h2>
+      <form id="accForm" class="form-grid">
+        <div class="field">
+          <label for="aName">Название счёта</label>
+          <input id="aName" required placeholder="Р/с Альфа · ООО Север" />
+        </div>
+        <div class="field">
+          <label for="aOrg">Юрлицо</label>
+          <input id="aOrg" placeholder="ООО Север / ИП …" />
+        </div>
+        <div class="field">
+          <label for="aKind">Тип</label>
+          <select id="aKind">
+            <option value="р/с">р/с</option>
+            <option value="юрлицо">юрлицо</option>
+            <option value="ИП">ИП</option>
+            <option value="касса">касса</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="aBal">Остаток</label>
+          <input id="aBal" type="number" step="0.01" value="0" />
+        </div>
+        <div class="full">
+          <button class="btn accent" type="submit">Добавить</button>
+        </div>
+      </form>
+      <p id="msg" class="muted" style="margin-top:10px;"></p>
+    </div>
+
+    <div class="panel">
+      <h2>Счета</h2>
+      <div id="list"><p class="muted">Загрузка…</p></div>
+    </div>
   </div>
   <script src="/js/api.js"></script>
   <script>
-    KaznaAPI.me().then(async function (user) {
-      if (user.role === "manager") { location.href = "/manager.html"; return; }
-      document.getElementById("app").hidden = false;
-      document.getElementById("logoutBtn").onclick = async function () {
-        await KaznaAPI.logout(); location.href = "/";
-      };
-      var o = await KaznaAPI.overview();
-      document.getElementById("list").innerHTML = o.accounts.length
-        ? o.accounts.map(function (a) {
-            return '<div class="row pay"><div><strong>' + a.name + '</strong><div class="muted">' +
-              (a.kind || "юрлицо / р/с") + (a.org && a.org !== a.name ? (" · " + a.org) : "") +
-              '</div></div><div class="amount">' + a.balanceLabel +
-              '</div><div class="muted">остаток</div>' +
-              '<div><span class="status ok">счёт</span></div><div></div></div>';
-          }).join("")
-        : '<p class="muted">Счетов нет. Загрузите остатки или Excel с колонкой «Организация» / «Плательщик».</p>';
-    }).catch(function () { location.href = "/"; });
+    (function () {
+      function esc(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+
+      async function reload() {
+        var rows = await KaznaAPI.accounts();
+        var el = document.getElementById("list");
+        if (!rows.length) {
+          el.innerHTML = '<p class="muted">Счетов нет. Добавьте вручную или загрузите остатки Excel на Импорте.</p>';
+          return;
+        }
+        el.innerHTML = rows.map(function (a) {
+          return (
+            '<div class="person-card">' +
+            '<div class="person-head"><strong>' + esc(a.name) + '</strong>' +
+            '<span class="amount">' + esc(a.balanceLabel) + "</span></div>" +
+            '<div class="muted" style="margin-bottom:10px;">' +
+            esc(a.kind || "р/с") +
+            (a.org ? " · юрлицо: " + esc(a.org) : "") +
+            " · #" + a.id +
+            "</div>" +
+            '<div class="form-grid">' +
+            '<div class="field"><label>Остаток</label><input type="number" step="0.01" data-bal="' + a.id + '" value="' + a.balance + '" /></div>' +
+            '<div class="field"><label>Юрлицо</label><input data-org="' + a.id + '" value="' + esc(a.org || "") + '" /></div>' +
+            '<div class="full"><button class="btn sm accent" type="button" data-save="' + a.id + '">Сохранить</button></div>' +
+            "</div></div>"
+          );
+        }).join("");
+
+        el.querySelectorAll("[data-save]").forEach(function (btn) {
+          btn.onclick = async function () {
+            var id = Number(btn.getAttribute("data-save"));
+            var msg = document.getElementById("msg");
+            msg.textContent = "Сохраняю…";
+            try {
+              await KaznaAPI.patchAccount(id, {
+                balance: Number(el.querySelector('input[data-bal="' + id + '"]').value || 0),
+                org: el.querySelector('input[data-org="' + id + '"]').value || null
+              });
+              msg.textContent = "Сохранено.";
+              await reload();
+            } catch (ex) {
+              msg.textContent = ex.message;
+            }
+          };
+        });
+      }
+
+      KaznaAPI.me().then(async function (user) {
+        if (user.role === "manager") { location.href = "/manager.html"; return; }
+        document.getElementById("app").hidden = false;
+        if (user.role !== "fin_director") {
+          document.querySelectorAll('a[href="/people.html"], a[href="/import.html"]').forEach(function (a) {
+            a.hidden = true;
+          });
+        }
+        document.getElementById("logoutBtn").onclick = async function () {
+          await KaznaAPI.logout(); location.href = "/";
+        };
+
+        document.getElementById("accForm").onsubmit = async function (e) {
+          e.preventDefault();
+          var msg = document.getElementById("msg");
+          msg.textContent = "Добавляю…";
+          try {
+            await KaznaAPI.createAccount({
+              name: document.getElementById("aName").value,
+              org: document.getElementById("aOrg").value || null,
+              kind: document.getElementById("aKind").value,
+              balance: Number(document.getElementById("aBal").value || 0)
+            });
+            msg.textContent = "Счёт добавлен.";
+            e.target.reset();
+            document.getElementById("aKind").value = "р/с";
+            document.getElementById("aBal").value = "0";
+            await reload();
+          } catch (ex) {
+            msg.textContent = ex.message;
+          }
+        };
+
+        await reload();
+      }).catch(function () { location.href = "/"; });
+    })();
   </script>
 </body>
 </html>

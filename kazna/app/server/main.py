@@ -183,6 +183,7 @@ class PaymentPatch(BaseModel):
     amount: float | None = None
     pay_date: str | None = None  # ISO or empty to clear
     clear_date: bool = False
+    postpone_days: int | None = None  # shift from current/today
     account_name: str | None = None
     status: str | None = None
     note: str | None = None
@@ -382,8 +383,21 @@ def overview(user: User = Depends(require_office), db: Session = Depends(get_db)
 
 
 @app.get("/api/payments")
-def list_payments(user: User = Depends(require_user), db: Session = Depends(get_db)):
-    rows = db.scalars(select(Payment).order_by(Payment.pay_date.is_(None), Payment.pay_date, Payment.id)).all()
+def list_payments(
+    source: str | None = None,
+    account: str | None = None,
+    status: str | None = None,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    q = select(Payment).order_by(Payment.pay_date.is_(None), Payment.pay_date, Payment.id)
+    if source:
+        q = q.where(Payment.source == source)
+    if account:
+        q = q.where(Payment.account_name == account)
+    if status:
+        q = q.where(Payment.status == status)
+    rows = db.scalars(q).all()
     return [payment_dict(p) for p in rows]
 
 
@@ -431,6 +445,12 @@ def patch_payment(
         pay.amount = float(payload.amount)
     if payload.clear_date:
         pay.pay_date = None
+    elif payload.postpone_days is not None:
+        days = int(payload.postpone_days)
+        base = pay.pay_date or date.today()
+        pay.pay_date = base + timedelta(days=days)
+        if pay.status == "done":
+            pay.status = "plan"
     elif payload.pay_date is not None:
         pay.pay_date = parse_iso_date(payload.pay_date) if payload.pay_date.strip() else None
     if payload.account_name is not None:
@@ -447,12 +467,29 @@ def patch_payment(
     return payment_dict(pay)
 
 
+@app.delete("/api/payments/source/{source_name}")
+def delete_payments_by_source(
+    source_name: str,
+    user: User = Depends(require_fin),
+    db: Session = Depends(get_db),
+):
+    """Remove noisy Excel imports without touching iiko/manual."""
+    if source_name not in {"excel", "iiko"}:
+        raise HTTPException(400, "Можно удалить только excel или iiko")
+    n = db.scalar(select(func.count()).select_from(Payment).where(Payment.source == source_name)) or 0
+    db.execute(delete(Payment).where(Payment.source == source_name))
+    db.commit()
+    return {"ok": True, "deleted": int(n), "message": f"Удалено платежей ({source_name}): {n}"}
+
+
 def _import_payments(
     content: bytes,
     filename: str,
     source: str,
     replace: bool,
     db: Session,
+    *,
+    create_accounts: bool = False,
 ) -> dict:
     stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in (filename or "upload.xlsx"))
@@ -473,34 +510,24 @@ def _import_payments(
     db.add_all(payments)
     db.commit()
 
-    # Accounts / юрлица from column, sheet name, title rows
     org_names = sorted({p.account_name for p in payments if p.account_name})
-    if org_names:
+    # Do NOT invent р/с from Excel payment columns — that made org/account chaos.
+    # Accounts come from: Excel остатки, ручное создание, iiko org names.
+    if create_accounts and org_names:
         existing = {a.name for a in db.scalars(select(Account)).all()}
         for name in org_names:
             if name not in existing:
-                kind = "ИП" if name.upper().startswith("ИП") else "юрлицо / р/с"
-                if "ООО" in name.upper() or "АО" in name.upper() or "ПАО" in name.upper():
-                    kind = "ООО / юрлицо"
+                kind = "ИП" if name.upper().startswith("ИП") else "юрлицо"
                 db.add(Account(name=name, kind=kind, balance=0, org=name))
-        db.commit()
-    elif db.scalar(select(func.count()).select_from(Account)) == 0:
-        db.add(Account(name="Не указано", kind="юрлицо / р/с", balance=0, org=None))
         db.commit()
 
     no_date = sum(1 for p in payments if not p.pay_date)
     no_who = sum(1 for p in payments if not p.counterparty)
-    no_org = sum(1 for p in payments if not p.account_name)
     warnings = list(report.get("warnings") or [])
     if no_who > len(payments) // 2:
         warnings.append("у многих строк не найден контрагент (кому)")
     if no_date > len(payments) // 2:
         warnings.append("у многих строк нет даты/срока")
-    if no_org > len(payments) // 2:
-        warnings.append(
-            "не нашли юрлицо/ИП — добавьте колонку «Организация»/«Плательщик» "
-            "или назовите листы как «ООО …» / «ИП …»"
-        )
 
     sheet_bits = [
         f"«{s['name']}»:{s['imported']}" + (f" ({s['orgHint']})" if s.get("orgHint") else "")
@@ -514,10 +541,6 @@ def _import_payments(
     )
     if sheet_bits:
         msg += ": " + "; ".join(sheet_bits)
-    if no_org == 0 and org_names:
-        msg += f". Юрлица/ИП: {', '.join(org_names[:8])}"
-        if len(org_names) > 8:
-            msg += f" и ещё {len(org_names) - 8}"
     soft = [w for w in warnings if "строк с суммой не найдено" not in w]
     if soft:
         msg += ". Внимание: " + "; ".join(soft[:4])
@@ -695,18 +718,45 @@ async def set_balances(
     user: User = Depends(require_fin),
     db: Session = Depends(get_db),
 ):
+    """Upsert balances by account name — does not wipe iiko/manual accounts."""
     content = await file.read()
     try:
-        wb_payments = parse_balance_sheet(content)
+        rows = parse_balance_sheet(content)
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(400, f"Не разобрал остатки: {e}") from e
-    db.execute(delete(Account))
-    for row in wb_payments:
-        db.add(Account(name=row["name"], kind=row.get("kind") or "р/с", balance=row["balance"], org=row.get("org")))
+
+    existing = {a.name: a for a in db.scalars(select(Account)).all()}
+    updated = 0
+    created = 0
+    for row in rows:
+        name = row["name"]
+        if name in existing:
+            acc = existing[name]
+            acc.balance = row["balance"]
+            if row.get("org"):
+                acc.org = row["org"]
+            acc.kind = row.get("kind") or acc.kind or "р/с"
+            updated += 1
+        else:
+            db.add(
+                Account(
+                    name=name,
+                    kind=row.get("kind") or "р/с",
+                    balance=row["balance"],
+                    org=row.get("org") or name,
+                )
+            )
+            created += 1
     db.commit()
-    return {"ok": True, "accounts": len(wb_payments)}
+    return {
+        "ok": True,
+        "accounts": len(rows),
+        "updated": updated,
+        "created": created,
+        "message": f"Остатки: обновлено {updated}, новых счетов {created}",
+    }
 
 
 def parse_balance_sheet(content: bytes) -> list[dict]:
