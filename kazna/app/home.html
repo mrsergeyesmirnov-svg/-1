@@ -62,15 +62,15 @@
 
     <div class="panel">
       <h2>Платежи из файла</h2>
+      <p class="muted" style="margin:0 0 8px;">Кому · за что · юрлицо/р/с · срок · комментарий</p>
       <div id="todayList"><p class="muted">Пока пусто — загрузите Excel на вкладке «Импорт».</p></div>
     </div>
   </div>
 
   <script src="/js/api.js"></script>
+  <script src="/js/pay-row.js"></script>
   <script>
     (function () {
-      var statusMap = { new: "новая", plan: "в плане", ok: "ок", done: "оплачено" };
-
       KaznaAPI.me().then(async function (user) {
         if (user.role !== "fin_director") {
           location.href = "/manager.html";
@@ -109,17 +109,7 @@
 
         var list = o.payments.slice(0, 12);
         document.getElementById("todayList").innerHTML = list.length
-          ? list.map(function (p) {
-              return (
-                '<div class="row pay">' +
-                "<div><strong>" + p.title + '</strong><div class="muted">' +
-                (p.account || "счёт не указан") + " · " + p.source + "</div></div>" +
-                '<div class="amount">' + p.amountLabel + "</div>" +
-                '<div class="muted">' + p.dateLabel + "</div>" +
-                '<div><span class="status ' + p.status + '">' + (statusMap[p.status] || p.status) + "</span></div>" +
-                "<div></div></div>"
-              );
-            }).join("")
+          ? list.map(KaznaPayRow.render).join("")
           : '<p class="muted">Пока пусто — загрузите Excel на вкладке «Импорт».</p>';
       }).catch(function () {
         location.href = "/";

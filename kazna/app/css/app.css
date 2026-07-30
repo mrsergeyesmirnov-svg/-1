@@ -95,6 +95,9 @@ h1 {
   .row.req { grid-template-columns: 1.4fr .6fr .7fr .7fr auto; }
 }
 .muted { color: var(--muted); font-size: .8rem; }
+.pay-purpose {
+  margin-top: 3px; font-size: .86rem; font-weight: 650; color: var(--ink);
+}
 .amount { font-weight: 800; letter-spacing: -0.02em; }
 .status {
   display: inline-flex; font-size: .72rem; font-weight: 700;

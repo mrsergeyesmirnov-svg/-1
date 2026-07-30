@@ -31,7 +31,12 @@
 
     <div class="panel">
       <h2>1. Платёжки Excel / CSV</h2>
-      <p class="muted">Ищем колонки вроде <strong>Дата</strong>, <strong>Сумма</strong> / <strong>Дебет</strong>, контрагент, назначение. Заголовок может быть не в первой строке.</p>
+      <p class="muted">
+        Нужны (или близкие названия): <strong>Дата/срок</strong>, <strong>Сумма</strong>,
+        <strong>Контрагент/Получатель</strong>, <strong>Назначение</strong>,
+        <strong>Организация/Плательщик</strong> (ваше ООО или ИП), комментарий.
+        Если названий нет — угадаем по содержимому ячеек. После загрузки старый импорт лучше заменить и залить заново.
+      </p>
       <form id="payForm" style="margin-top:12px;display:grid;gap:10px;">
         <input type="file" id="payFile" accept=".xlsx,.xlsm,.csv" required />
         <label class="muted" style="display:flex;gap:8px;align-items:center;">
@@ -109,6 +114,11 @@
           var file = document.getElementById("payFile").files[0];
           var res = await KaznaAPI.importExcel(file, document.getElementById("replace").checked);
           msg.textContent = res.message + " Можно открывать Обзор.";
+          if (res.sample && res.sample.length) {
+            var out = document.getElementById("inspectOut");
+            out.hidden = false;
+            out.textContent = "Пример разобранных строк:\n" + JSON.stringify(res.sample, null, 2);
+          }
         } catch (ex) {
           msg.textContent = ex.message;
         }

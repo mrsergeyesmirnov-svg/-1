@@ -170,6 +170,30 @@ def request_dict(r: RequestItem, creator: User | None = None) -> dict:
     }
 
 
+def payment_dict(p: Payment) -> dict:
+    # title often "контрагент · назначение" — split for UI
+    purpose = p.title or ""
+    counterparty = p.counterparty
+    if counterparty and purpose.startswith(counterparty):
+        rest = purpose[len(counterparty) :].lstrip(" ·")
+        if rest:
+            purpose = rest
+    return {
+        "id": p.id,
+        "title": p.title,
+        "counterparty": counterparty,
+        "purpose": purpose if purpose != (counterparty or "") else None,
+        "amount": p.amount,
+        "amountLabel": fmt_money(p.amount),
+        "date": p.pay_date.isoformat() if p.pay_date else None,
+        "dateLabel": p.pay_date.strftime("%d.%m.%Y") if p.pay_date else "без даты",
+        "status": p.status,
+        "source": p.source,
+        "account": p.account_name,
+        "note": p.note,
+    }
+
+
 @app.get("/api/health")
 def health():
     return {"ok": True, "service": "kazna"}
@@ -270,21 +294,7 @@ def overview(user: User = Depends(require_fin), db: Session = Depends(get_db)):
             }
             for a in accounts
         ],
-        "payments": [
-            {
-                "id": p.id,
-                "title": p.title,
-                "amount": p.amount,
-                "amountLabel": fmt_money(p.amount),
-                "date": p.pay_date.isoformat() if p.pay_date else None,
-                "dateLabel": p.pay_date.strftime("%d.%m.%Y") if p.pay_date else "без даты",
-                "status": p.status,
-                "source": p.source,
-                "account": p.account_name,
-                "note": p.note,
-            }
-            for p in recent_pays
-        ],
+        "payments": [payment_dict(p) for p in recent_pays],
         "requests": [request_dict(r) for r in requests],
     }
 
@@ -292,20 +302,7 @@ def overview(user: User = Depends(require_fin), db: Session = Depends(get_db)):
 @app.get("/api/payments")
 def list_payments(user: User = Depends(require_user), db: Session = Depends(get_db)):
     rows = db.scalars(select(Payment).order_by(Payment.pay_date.is_(None), Payment.pay_date, Payment.id)).all()
-    return [
-        {
-            "id": p.id,
-            "title": p.title,
-            "amount": p.amount,
-            "amountLabel": fmt_money(p.amount),
-            "date": p.pay_date.isoformat() if p.pay_date else None,
-            "dateLabel": p.pay_date.strftime("%d.%m.%Y") if p.pay_date else "без даты",
-            "status": p.status,
-            "source": p.source,
-            "account": p.account_name,
-        }
-        for p in rows
-    ]
+    return [payment_dict(p) for p in rows]
 
 
 def _import_payments(
@@ -334,23 +331,42 @@ def _import_payments(
     db.add_all(payments)
     db.commit()
 
-    if db.scalar(select(func.count()).select_from(Account)) == 0:
-        names = sorted({p.account_name for p in payments if p.account_name})
-        for name in names or ["Основной р/с"]:
-            due = sum(
-                p.amount
-                for p in payments
-                if (p.account_name or "Основной р/с") == name and p.status != "done"
-            )
-            db.add(Account(name=name, kind="р/с", balance=max(due * 1.15, due), org=name))
+    # Accounts / юрлица from column «организация / р/с»
+    org_names = sorted({p.account_name for p in payments if p.account_name})
+    if org_names:
+        existing = {a.name for a in db.scalars(select(Account)).all()}
+        for name in org_names:
+            if name not in existing:
+                db.add(Account(name=name, kind="юрлицо / р/с", balance=0, org=name))
         db.commit()
+    elif db.scalar(select(func.count()).select_from(Account)) == 0:
+        db.add(Account(name="Не указано", kind="юрлицо / р/с", balance=0, org=None))
+        db.commit()
+
+    no_date = sum(1 for p in payments if not p.pay_date)
+    no_who = sum(1 for p in payments if not p.counterparty)
+    no_org = sum(1 for p in payments if not p.account_name)
+    warnings = []
+    if no_who > len(payments) // 2:
+        warnings.append("у многих строк не найден контрагент (кому)")
+    if no_date > len(payments) // 2:
+        warnings.append("у многих строк нет даты/срока")
+    if no_org > len(payments) // 2:
+        warnings.append("не нашли колонку юрлица/р/с — укажите «Организация» или «Плательщик»")
+
+    sample = [payment_dict(p) for p in payments[:3]]
+    msg = f"Загружено платежей: {len(payments)} ({source})"
+    if warnings:
+        msg += ". Внимание: " + "; ".join(warnings) + ". Нажмите «Показать заголовки»."
 
     return {
         "ok": True,
         "imported": len(payments),
         "file": dest.name,
         "source": source,
-        "message": f"Загружено платежей: {len(payments)} ({source})",
+        "message": msg,
+        "warnings": warnings,
+        "sample": sample,
     }
 
 

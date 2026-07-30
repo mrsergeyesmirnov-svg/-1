@@ -27,6 +27,7 @@
     <div class="panel" id="list"></div>
   </div>
   <script src="/js/api.js"></script>
+  <script src="/js/pay-row.js"></script>
   <script>
     KaznaAPI.me().then(async function (user) {
       if (user.role !== "fin_director") { location.href = "/manager.html"; return; }
@@ -35,15 +36,8 @@
         await KaznaAPI.logout(); location.href = "/";
       };
       var rows = await KaznaAPI.payments();
-      var map = { new: "новая", plan: "в плане", ok: "ок", done: "оплачено" };
       document.getElementById("list").innerHTML = rows.length
-        ? rows.map(function (p) {
-            return '<div class="row pay"><div><strong>' + p.title + '</strong><div class="muted">' +
-              (p.account || "") + "</div></div><div class=\"amount\">" + p.amountLabel +
-              "</div><div class=\"muted\">" + p.dateLabel +
-              "</div><div><span class=\"status " + p.status + "\">" + (map[p.status] || p.status) +
-              "</span></div><div></div></div>";
-          }).join("")
+        ? rows.map(KaznaPayRow.render).join("")
         : '<p class="muted">Пусто. Загрузите Excel.</p>';
     }).catch(function () { location.href = "/"; });
   </script>

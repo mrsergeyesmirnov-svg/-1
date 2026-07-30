@@ -21,9 +21,9 @@
       <a href="/import.html">Импорт</a>
       <a href="/people.html">Люди</a>
     </nav>
-    <div class="badge">Счета</div>
+    <div class="badge">Счета и юрлица</div>
     <h1>Деньги сети</h1>
-    <p class="sub">Остатки из Excel. Кассы и iiko — следующим слоем.</p>
+    <p class="sub">Юрлица/р/с из платёжек и файл остатков. Здесь видно, чьи деньги — ООО или ИП.</p>
     <div class="panel" id="list"></div>
   </div>
   <script src="/js/api.js"></script>
@@ -37,12 +37,13 @@
       var o = await KaznaAPI.overview();
       document.getElementById("list").innerHTML = o.accounts.length
         ? o.accounts.map(function (a) {
-            return '<div class="row pay"><div><strong>' + a.name + '</strong><div class="muted">' + a.kind +
+            return '<div class="row pay"><div><strong>' + a.name + '</strong><div class="muted">' +
+              (a.kind || "юрлицо / р/с") + (a.org && a.org !== a.name ? (" · " + a.org) : "") +
               '</div></div><div class="amount">' + a.balanceLabel +
-              '</div><div class="muted">' + (a.org || "") +
-              '</div><div><span class="status ok">остаток</span></div><div></div></div>';
+              '</div><div class="muted">остаток</div>' +
+              '<div><span class="status ok">счёт</span></div><div></div></div>';
           }).join("")
-        : '<p class="muted">Счетов нет. Загрузите остатки на вкладке «Импорт».</p>';
+        : '<p class="muted">Счетов нет. Загрузите остатки или Excel с колонкой «Организация» / «Плательщик».</p>';
     }).catch(function () { location.href = "/"; });
   </script>
 </body>
