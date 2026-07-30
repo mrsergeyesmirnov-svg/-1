@@ -55,6 +55,24 @@
     people: function () {
       return req("/api/people");
     },
+    roles: function () {
+      return req("/api/roles");
+    },
+    accounts: function () {
+      return req("/api/accounts");
+    },
+    createAccount: function (payload) {
+      return req("/api/accounts", { method: "POST", json: payload });
+    },
+    patchAccount: function (id, payload) {
+      return req("/api/accounts/" + id, { method: "PATCH", json: payload });
+    },
+    createPerson: function (payload) {
+      return req("/api/people", { method: "POST", json: payload });
+    },
+    patchPerson: function (id, payload) {
+      return req("/api/people/" + id, { method: "PATCH", json: payload });
+    },
     requests: function () {
       return req("/api/requests");
     },

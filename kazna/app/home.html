@@ -72,13 +72,18 @@
   <script>
     (function () {
       KaznaAPI.me().then(async function (user) {
-        if (user.role !== "fin_director") {
+        if (user.role === "manager") {
           location.href = "/manager.html";
           return;
         }
         document.getElementById("app").hidden = false;
         document.getElementById("userName").textContent = user.name;
         document.getElementById("userRole").textContent = user.roleLabel;
+        if (user.role !== "fin_director") {
+          document.querySelectorAll('a[href="/people.html"], a[href="/import.html"]').forEach(function (a) {
+            a.hidden = true;
+          });
+        }
         document.getElementById("logoutBtn").onclick = async function () {
           await KaznaAPI.logout();
           location.href = "/";

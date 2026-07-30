@@ -15,7 +15,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     name: Mapped[str] = mapped_column(String(255))
-    role: Mapped[str] = mapped_column(String(64))  # fin_director | manager
+    role: Mapped[str] = mapped_column(String(64))  # fin_director | manager | accountant
     role_label: Mapped[str] = mapped_column(String(255), default="")
     site: Mapped[str | None] = mapped_column(String(255), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -29,6 +29,16 @@ class Account(Base):
     kind: Mapped[str] = mapped_column(String(128), default="р/с")
     balance: Mapped[float] = mapped_column(Float, default=0)
     org: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class UserAccount(Base):
+    """Which settlement accounts / legal entities a user may work with."""
+
+    __tablename__ = "user_accounts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), index=True)
 
 
 class Payment(Base):

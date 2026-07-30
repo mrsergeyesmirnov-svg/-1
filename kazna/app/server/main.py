@@ -16,10 +16,17 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .database import UPLOADS, Base, SessionLocal, engine, get_db
 from .excel_import import inspect_payments_file, parse_payments_file
-from .models import Account, Payment, RequestItem, User
+from .models import Account, Payment, RequestItem, User, UserAccount
 
 ROOT = Path(__file__).resolve().parents[1]
 pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+ROLE_LABELS = {
+    "fin_director": "Финансовый директор",
+    "manager": "Управляющий",
+    "accountant": "Бухгалтер",
+}
+ALLOWED_ROLES = set(ROLE_LABELS)
 
 app = FastAPI(title="Казна")
 app.add_middleware(
@@ -104,6 +111,13 @@ def require_fin(user: User = Depends(require_user)) -> User:
     return user
 
 
+def require_office(user: User = Depends(require_user)) -> User:
+    """Финдир или бухгалтер — кабинет сети, не точка управляющего."""
+    if user.role not in {"fin_director", "accountant"}:
+        raise HTTPException(status_code=403, detail="Нет доступа")
+    return user
+
+
 class LoginIn(BaseModel):
     email: str
     password: str
@@ -124,6 +138,40 @@ class RequestPatch(BaseModel):
     comment: str | None = None
     due_date: str | None = None
     to_calendar: bool = False
+
+
+class PersonCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=255)
+    email: str = Field(min_length=3, max_length=255)
+    password: str = Field(min_length=6, max_length=128)
+    role: str = "manager"
+    site: str | None = None
+    account_ids: list[int] = Field(default_factory=list)
+    active: bool = True
+
+
+class PersonPatch(BaseModel):
+    name: str | None = None
+    email: str | None = None
+    password: str | None = None
+    role: str | None = None
+    site: str | None = None
+    account_ids: list[int] | None = None
+    active: bool | None = None
+
+
+class AccountCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    kind: str = "юрлицо / р/с"
+    org: str | None = None
+    balance: float = 0
+
+
+class AccountPatch(BaseModel):
+    name: str | None = None
+    kind: str | None = None
+    org: str | None = None
+    balance: float | None = None
 
 
 def fmt_money(n: float) -> str:
@@ -241,7 +289,7 @@ def me(request: Request, db: Session = Depends(get_db)):
 
 
 @app.get("/api/overview")
-def overview(user: User = Depends(require_fin), db: Session = Depends(get_db)):
+def overview(user: User = Depends(require_office), db: Session = Depends(get_db)):
     today = date.today()
     accounts = db.scalars(select(Account).order_by(Account.id)).all()
     accounts_total = sum(a.balance for a in accounts) if accounts else 0.0
@@ -491,20 +539,195 @@ def parse_balance_sheet(content: bytes) -> list[dict]:
     return out
 
 
+def _account_ids_for_user(db: Session, user_id: int) -> list[int]:
+    return list(
+        db.scalars(select(UserAccount.account_id).where(UserAccount.user_id == user_id)).all()
+    )
+
+
+def _set_user_accounts(db: Session, user_id: int, account_ids: list[int]) -> None:
+    db.execute(delete(UserAccount).where(UserAccount.user_id == user_id))
+    if not account_ids:
+        return
+    valid = set(db.scalars(select(Account.id).where(Account.id.in_(account_ids))).all())
+    for aid in account_ids:
+        if aid in valid:
+            db.add(UserAccount(user_id=user_id, account_id=aid))
+
+
+def _role_label(role: str, site: str | None = None) -> str:
+    base = ROLE_LABELS.get(role, role)
+    if role == "manager" and site:
+        return f"{base} · {site}"
+    return base
+
+
+def person_dict(u: User, db: Session) -> dict:
+    aids = _account_ids_for_user(db, u.id)
+    accounts = []
+    if aids:
+        accounts = [
+            {"id": a.id, "name": a.name, "org": a.org}
+            for a in db.scalars(select(Account).where(Account.id.in_(aids)).order_by(Account.id)).all()
+        ]
+    return {
+        "id": u.id,
+        "name": u.name,
+        "email": u.email,
+        "role": u.role,
+        "roleLabel": u.role_label or _role_label(u.role, u.site),
+        "site": u.site,
+        "siteLabel": u.site or ("все точки" if u.role == "fin_director" else "не назначена"),
+        "active": u.active,
+        "accountIds": aids,
+        "accounts": accounts,
+    }
+
+
+def account_dict(a: Account) -> dict:
+    return {
+        "id": a.id,
+        "name": a.name,
+        "kind": a.kind,
+        "balance": a.balance,
+        "balanceLabel": fmt_money(a.balance),
+        "org": a.org,
+    }
+
+
+@app.get("/api/roles")
+def list_roles(user: User = Depends(require_fin)):
+    return [{"id": k, "label": v} for k, v in ROLE_LABELS.items()]
+
+
+@app.get("/api/accounts")
+def list_accounts(user: User = Depends(require_user), db: Session = Depends(get_db)):
+    rows = db.scalars(select(Account).order_by(Account.id)).all()
+    if user.role == "fin_director":
+        return [account_dict(a) for a in rows]
+    allowed = set(_account_ids_for_user(db, user.id))
+    if not allowed:
+        return []
+    return [account_dict(a) for a in rows if a.id in allowed]
+
+
+@app.post("/api/accounts")
+def create_account(payload: AccountCreate, user: User = Depends(require_fin), db: Session = Depends(get_db)):
+    acc = Account(
+        name=payload.name.strip(),
+        kind=(payload.kind or "юрлицо / р/с").strip(),
+        org=(payload.org or payload.name).strip() if payload.org or payload.name else None,
+        balance=float(payload.balance or 0),
+    )
+    db.add(acc)
+    db.commit()
+    db.refresh(acc)
+    return account_dict(acc)
+
+
+@app.patch("/api/accounts/{account_id}")
+def patch_account(
+    account_id: int,
+    payload: AccountPatch,
+    user: User = Depends(require_fin),
+    db: Session = Depends(get_db),
+):
+    acc = db.get(Account, account_id)
+    if not acc:
+        raise HTTPException(404, "Счёт не найден")
+    if payload.name is not None:
+        acc.name = payload.name.strip()
+    if payload.kind is not None:
+        acc.kind = payload.kind.strip()
+    if payload.org is not None:
+        acc.org = payload.org.strip() or None
+    if payload.balance is not None:
+        acc.balance = float(payload.balance)
+    db.commit()
+    db.refresh(acc)
+    return account_dict(acc)
+
+
 @app.get("/api/people")
 def people(user: User = Depends(require_fin), db: Session = Depends(get_db)):
     rows = db.scalars(select(User).order_by(User.id)).all()
-    return [
-        {
-            "id": u.id,
-            "name": u.name,
-            "email": u.email,
-            "roleLabel": u.role_label,
-            "site": u.site or "все точки",
-            "active": u.active,
-        }
-        for u in rows
-    ]
+    return [person_dict(u, db) for u in rows]
+
+
+@app.post("/api/people")
+def create_person(payload: PersonCreate, user: User = Depends(require_fin), db: Session = Depends(get_db)):
+    email = payload.email.strip().lower()
+    if db.scalar(select(User).where(User.email == email)):
+        raise HTTPException(400, "Такой email уже есть")
+    role = payload.role if payload.role in ALLOWED_ROLES else "manager"
+    site = (payload.site or "").strip() or None
+    person = User(
+        email=email,
+        password_hash=pwd.hash(payload.password),
+        name=payload.name.strip(),
+        role=role,
+        role_label=_role_label(role, site),
+        site=site,
+        active=bool(payload.active),
+    )
+    db.add(person)
+    db.flush()
+    _set_user_accounts(db, person.id, payload.account_ids)
+    db.commit()
+    db.refresh(person)
+    return person_dict(person, db)
+
+
+@app.patch("/api/people/{person_id}")
+def patch_person(
+    person_id: int,
+    payload: PersonPatch,
+    user: User = Depends(require_fin),
+    db: Session = Depends(get_db),
+):
+    person = db.get(User, person_id)
+    if not person:
+        raise HTTPException(404, "Пользователь не найден")
+
+    if payload.email is not None:
+        email = payload.email.strip().lower()
+        other = db.scalar(select(User).where(User.email == email, User.id != person.id))
+        if other:
+            raise HTTPException(400, "Такой email уже есть")
+        person.email = email
+    if payload.name is not None:
+        person.name = payload.name.strip()
+    if payload.password:
+        if len(payload.password) < 6:
+            raise HTTPException(400, "Пароль минимум 6 символов")
+        person.password_hash = pwd.hash(payload.password)
+    if payload.role is not None:
+        if payload.role not in ALLOWED_ROLES:
+            raise HTTPException(400, "Неизвестная роль")
+        # Don't lock yourself out of being the last fin director
+        if person.id == user.id and payload.role != "fin_director":
+            others = db.scalar(
+                select(func.count())
+                .select_from(User)
+                .where(User.role == "fin_director")
+                .where(User.active.is_(True))
+                .where(User.id != person.id)
+            )
+            if not others:
+                raise HTTPException(400, "Нужен хотя бы один активный финдир")
+        person.role = payload.role
+    if payload.site is not None:
+        person.site = payload.site.strip() or None
+    if payload.active is not None:
+        if person.id == user.id and not payload.active:
+            raise HTTPException(400, "Нельзя выключить самого себя")
+        person.active = bool(payload.active)
+    person.role_label = _role_label(person.role, person.site)
+    if payload.account_ids is not None:
+        _set_user_accounts(db, person.id, payload.account_ids)
+    db.commit()
+    db.refresh(person)
+    return person_dict(person, db)
 
 
 # ——— Requests: manager ↔ fin director ———

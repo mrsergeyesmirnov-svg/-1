@@ -152,6 +152,25 @@ h1 {
 }
 hr.soft { border: 0; border-top: 1px solid var(--line); margin: 18px 0 14px; }
 
+.check-grid {
+  display: flex; flex-wrap: wrap; gap: 8px 14px;
+  padding: 8px 0 2px;
+}
+.check {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .82rem; font-weight: 650; color: var(--ink);
+}
+.check input { width: auto; }
+.person-card {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.person-card:last-child { border-bottom: 0; }
+.person-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-bottom: 4px;
+}
+
 .btn {
   appearance: none; border: 0; cursor: pointer; font-weight: 750; font-size: .84rem;
   padding: 10px 14px; border-radius: 999px; background: var(--ink); color: #fff;

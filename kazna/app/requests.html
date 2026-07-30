@@ -118,7 +118,7 @@
       }
 
       KaznaAPI.me().then(async function (user) {
-        if (user.role !== "fin_director") { location.href = "/manager.html"; return; }
+        if (user.role === "manager") { location.href = "/manager.html"; return; }
         document.getElementById("app").hidden = false;
         document.getElementById("logoutBtn").onclick = async function () {
           await KaznaAPI.logout(); location.href = "/";
