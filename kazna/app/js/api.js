@@ -52,6 +52,12 @@
     payments: function () {
       return req("/api/payments");
     },
+    createPayment: function (payload) {
+      return req("/api/payments", { method: "POST", json: payload });
+    },
+    patchPayment: function (id, payload) {
+      return req("/api/payments/" + id, { method: "PATCH", json: payload });
+    },
     people: function () {
       return req("/api/people");
     },

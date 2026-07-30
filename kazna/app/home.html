@@ -61,8 +61,9 @@
     </div>
 
     <div class="panel">
-      <h2>Платежи из файла</h2>
-      <p class="muted" style="margin:0 0 8px;">Кому · за что · юрлицо/р/с · срок · комментарий</p>
+      <h2>Платежи</h2>
+      <p class="muted" style="margin:0 0 8px;">Быстро: на сегодня / оплачено. Полное редактирование — в Календаре.</p>
+      <p id="homeMsg" class="muted" style="margin:0 0 8px;"></p>
       <div id="todayList"><p class="muted">Пока пусто — загрузите Excel на вкладке «Импорт».</p></div>
     </div>
   </div>
@@ -71,24 +72,11 @@
   <script src="/js/pay-row.js"></script>
   <script>
     (function () {
-      KaznaAPI.me().then(async function (user) {
-        if (user.role === "manager") {
-          location.href = "/manager.html";
-          return;
-        }
-        document.getElementById("app").hidden = false;
-        document.getElementById("userName").textContent = user.name;
-        document.getElementById("userRole").textContent = user.roleLabel;
-        if (user.role !== "fin_director") {
-          document.querySelectorAll('a[href="/people.html"], a[href="/import.html"]').forEach(function (a) {
-            a.hidden = true;
-          });
-        }
-        document.getElementById("logoutBtn").onclick = async function () {
-          await KaznaAPI.logout();
-          location.href = "/";
-        };
+      function todayISO() {
+        return new Date().toISOString().slice(0, 10);
+      }
 
+      async function load() {
         var o = await KaznaAPI.overview();
         document.getElementById("cardTotal").textContent = o.accountsTotalLabel;
         document.getElementById("cardToday").textContent = o.payTodayLabel;
@@ -113,9 +101,68 @@
         }
 
         var list = o.payments.slice(0, 12);
-        document.getElementById("todayList").innerHTML = list.length
-          ? list.map(KaznaPayRow.render).join("")
-          : '<p class="muted">Пока пусто — загрузите Excel на вкладке «Импорт».</p>';
+        var el = document.getElementById("todayList");
+        if (!list.length) {
+          el.innerHTML = '<p class="muted">Пока пусто — загрузите Excel на вкладке «Импорт».</p>';
+          return;
+        }
+        el.innerHTML = list.map(function (p) {
+          return (
+            '<div class="pay-edit">' + KaznaPayRow.render(p) +
+            '<div class="req-actions" style="margin-top:6px;">' +
+            (p.date ? "" : '<button class="btn sm accent" type="button" data-today="' + p.id + '">На сегодня</button>') +
+            (p.status === "done" ? "" : '<button class="btn sm" type="button" data-done="' + p.id + '">Оплачено</button>') +
+            '<a class="btn sm ghost" href="/calendar.html">Править</a>' +
+            "</div></div>"
+          );
+        }).join("");
+
+        el.querySelectorAll("[data-today]").forEach(function (btn) {
+          btn.onclick = async function () {
+            document.getElementById("homeMsg").textContent = "Ставлю дату…";
+            try {
+              await KaznaAPI.patchPayment(Number(btn.getAttribute("data-today")), {
+                pay_date: todayISO(), status: "plan"
+              });
+              document.getElementById("homeMsg").textContent = "Дата на сегодня.";
+              await load();
+            } catch (ex) {
+              document.getElementById("homeMsg").textContent = ex.message;
+            }
+          };
+        });
+        el.querySelectorAll("[data-done]").forEach(function (btn) {
+          btn.onclick = async function () {
+            document.getElementById("homeMsg").textContent = "Закрываю…";
+            try {
+              await KaznaAPI.patchPayment(Number(btn.getAttribute("data-done")), { status: "done" });
+              document.getElementById("homeMsg").textContent = "Оплачено.";
+              await load();
+            } catch (ex) {
+              document.getElementById("homeMsg").textContent = ex.message;
+            }
+          };
+        });
+      }
+
+      KaznaAPI.me().then(async function (user) {
+        if (user.role === "manager") {
+          location.href = "/manager.html";
+          return;
+        }
+        document.getElementById("app").hidden = false;
+        document.getElementById("userName").textContent = user.name;
+        document.getElementById("userRole").textContent = user.roleLabel;
+        if (user.role !== "fin_director") {
+          document.querySelectorAll('a[href="/people.html"], a[href="/import.html"]').forEach(function (a) {
+            a.hidden = true;
+          });
+        }
+        document.getElementById("logoutBtn").onclick = async function () {
+          await KaznaAPI.logout();
+          location.href = "/";
+        };
+        await load();
       }).catch(function () {
         location.href = "/";
       });

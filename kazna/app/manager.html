@@ -26,6 +26,11 @@
     <h1>Заявка на оплату</h1>
     <p class="sub">Пишете сумму и зачем — финдир видит очередь, ставит приоритет и кидает в календарь оплат.</p>
 
+    <div class="panel" id="accPanel">
+      <h2>Ваши счета / юрлица</h2>
+      <div id="myAccounts"><p class="muted">Загрузка…</p></div>
+    </div>
+
     <div class="panel">
       <h2>Новая заявка</h2>
       <form id="reqForm" class="form-grid">
@@ -79,6 +84,21 @@
       };
       var prioMap = { urgent: "срочно", high: "высокая", normal: "обычная", low: "низкая" };
 
+      function renderAccounts(user) {
+        var el = document.getElementById("myAccounts");
+        var acc = user.accounts || [];
+        if (!acc.length) {
+          el.innerHTML = '<p class="muted">Финдир ещё не привязал вам счета — напишите ему или работайте заявками по точке <strong>' +
+            (user.site || "без точки") + "</strong>.</p>";
+          return;
+        }
+        el.innerHTML = acc.map(function (a) {
+          return '<div class="row req"><div><strong>' + a.name + '</strong><div class="muted">' +
+            (a.org || "юрлицо / р/с") + "</div></div><div></div><div></div><div>" +
+            '<span class="status ok">ваш</span></div><div></div></div>';
+        }).join("");
+      }
+
       function render(rows) {
         var el = document.getElementById("list");
         if (!rows.length) {
@@ -86,18 +106,33 @@
           return;
         }
         el.innerHTML = rows.map(function (r) {
+          var canCancel = r.status === "new" || r.status === "reviewing";
           return (
             '<div class="row req">' +
             "<div><strong>" + r.title + '</strong><div class="muted">' +
             (r.site || "") + " · " + r.dueDateLabel +
             (r.comment ? " · " + r.comment : "") +
+            (r.paymentId ? " · уже в календаре оплат" : "") +
             "</div></div>" +
             '<div class="amount">' + r.amountLabel + "</div>" +
             '<div><span class="prio ' + r.priority + '">' + (prioMap[r.priority] || r.priority) + "</span></div>" +
             '<div><span class="status ' + r.status + '">' + (statusMap[r.status] || r.status) + "</span></div>" +
-            "<div></div></div>"
+            "<div>" + (canCancel
+              ? '<button class="btn sm ghost" type="button" data-cancel="' + r.id + '">Отменить</button>'
+              : "") + "</div></div>"
           );
         }).join("");
+
+        el.querySelectorAll("[data-cancel]").forEach(function (btn) {
+          btn.onclick = async function () {
+            try {
+              await KaznaAPI.patchRequest(Number(btn.getAttribute("data-cancel")), { status: "rejected" });
+              await reload();
+            } catch (ex) {
+              alert(ex.message);
+            }
+          };
+        });
       }
 
       async function reload() {
@@ -109,6 +144,7 @@
         document.getElementById("app").hidden = false;
         document.getElementById("userName").textContent = user.name;
         document.getElementById("userRole").textContent = user.roleLabel;
+        renderAccounts(user);
         document.getElementById("logoutBtn").onclick = async function () {
           await KaznaAPI.logout(); location.href = "/";
         };

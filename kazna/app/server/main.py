@@ -174,6 +174,27 @@ class AccountPatch(BaseModel):
     balance: float | None = None
 
 
+class PaymentPatch(BaseModel):
+    title: str | None = None
+    counterparty: str | None = None
+    amount: float | None = None
+    pay_date: str | None = None  # ISO or empty to clear
+    clear_date: bool = False
+    account_name: str | None = None
+    status: str | None = None
+    note: str | None = None
+
+
+class PaymentCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=512)
+    counterparty: str | None = None
+    amount: float = Field(gt=0)
+    pay_date: str | None = None
+    account_name: str | None = None
+    status: str = "plan"
+    note: str | None = None
+
+
 def fmt_money(n: float) -> str:
     n = float(n or 0)
     if abs(n) >= 1_000_000:
@@ -278,6 +299,13 @@ def me(request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
+    aids = _account_ids_for_user(db, user.id)
+    accounts = []
+    if aids:
+        accounts = [
+            {"id": a.id, "name": a.name, "org": a.org}
+            for a in db.scalars(select(Account).where(Account.id.in_(aids)).order_by(Account.id)).all()
+        ]
     return {
         "id": user.id,
         "email": user.email,
@@ -285,6 +313,8 @@ def me(request: Request, db: Session = Depends(get_db)):
         "role": user.role,
         "roleLabel": user.role_label,
         "site": user.site,
+        "accountIds": aids,
+        "accounts": accounts,
     }
 
 
@@ -351,6 +381,66 @@ def overview(user: User = Depends(require_office), db: Session = Depends(get_db)
 def list_payments(user: User = Depends(require_user), db: Session = Depends(get_db)):
     rows = db.scalars(select(Payment).order_by(Payment.pay_date.is_(None), Payment.pay_date, Payment.id)).all()
     return [payment_dict(p) for p in rows]
+
+
+@app.post("/api/payments")
+def create_payment(payload: PaymentCreate, user: User = Depends(require_office), db: Session = Depends(get_db)):
+    status = payload.status if payload.status in {"new", "plan", "ok", "done"} else "plan"
+    title = payload.title.strip()
+    counterparty = (payload.counterparty or "").strip() or None
+    if counterparty and counterparty not in title:
+        title = f"{counterparty} · {title}"
+    pay = Payment(
+        title=title[:512],
+        counterparty=counterparty,
+        amount=float(payload.amount),
+        pay_date=parse_iso_date(payload.pay_date),
+        account_name=(payload.account_name or "").strip() or None,
+        status=status,
+        source="manual",
+        note=(payload.note or "").strip() or None,
+    )
+    db.add(pay)
+    db.commit()
+    db.refresh(pay)
+    return payment_dict(pay)
+
+
+@app.patch("/api/payments/{payment_id}")
+def patch_payment(
+    payment_id: int,
+    payload: PaymentPatch,
+    user: User = Depends(require_office),
+    db: Session = Depends(get_db),
+):
+    pay = db.get(Payment, payment_id)
+    if not pay:
+        raise HTTPException(404, "Платёж не найден")
+
+    if payload.title is not None:
+        pay.title = payload.title.strip()[:512] or pay.title
+    if payload.counterparty is not None:
+        pay.counterparty = payload.counterparty.strip() or None
+    if payload.amount is not None:
+        if payload.amount <= 0:
+            raise HTTPException(400, "Сумма должна быть больше 0")
+        pay.amount = float(payload.amount)
+    if payload.clear_date:
+        pay.pay_date = None
+    elif payload.pay_date is not None:
+        pay.pay_date = parse_iso_date(payload.pay_date) if payload.pay_date.strip() else None
+    if payload.account_name is not None:
+        pay.account_name = payload.account_name.strip() or None
+    if payload.status is not None:
+        if payload.status not in {"new", "plan", "ok", "done"}:
+            raise HTTPException(400, "Неверный статус")
+        pay.status = payload.status
+    if payload.note is not None:
+        pay.note = payload.note.strip() or None
+
+    db.commit()
+    db.refresh(pay)
+    return payment_dict(pay)
 
 
 def _import_payments(
