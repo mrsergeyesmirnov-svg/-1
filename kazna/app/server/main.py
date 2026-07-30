@@ -5,17 +5,17 @@ import secrets
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from passlib.context import CryptContext
-from pydantic import BaseModel
-from sqlalchemy import delete, func, select
+from pydantic import BaseModel, Field
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from .database import UPLOADS, Base, SessionLocal, engine, get_db
-from .excel_import import parse_payments_xlsx
+from .excel_import import inspect_payments_file, parse_payments_file
 from .models import Account, Payment, RequestItem, User
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,8 +31,27 @@ app.add_middleware(
 )
 
 
+def _migrate_schema() -> None:
+    """Add new columns on existing DBs (create_all alone won't alter)."""
+    stmts = [
+        "ALTER TABLE requests ADD COLUMN comment TEXT",
+        "ALTER TABLE requests ADD COLUMN due_date DATE",
+        "ALTER TABLE requests ADD COLUMN decided_by INTEGER",
+        "ALTER TABLE requests ADD COLUMN payment_id INTEGER",
+        "ALTER TABLE requests ADD COLUMN created_at TIMESTAMP",
+        "ALTER TABLE requests ADD COLUMN updated_at TIMESTAMP",
+    ]
+    with engine.begin() as conn:
+        for sql in stmts:
+            try:
+                conn.execute(text(sql))
+            except Exception:
+                pass
+
+
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    _migrate_schema()
     db = SessionLocal()
     try:
         if db.scalar(select(func.count()).select_from(User)) == 0:
@@ -90,6 +109,23 @@ class LoginIn(BaseModel):
     password: str
 
 
+class RequestCreate(BaseModel):
+    title: str = Field(min_length=2, max_length=512)
+    amount: float = Field(gt=0)
+    due_date: str | None = None
+    comment: str | None = None
+    meta: str | None = None
+    priority: str = "normal"
+
+
+class RequestPatch(BaseModel):
+    status: str | None = None
+    priority: str | None = None
+    comment: str | None = None
+    due_date: str | None = None
+    to_calendar: bool = False
+
+
 def fmt_money(n: float) -> str:
     n = float(n or 0)
     if abs(n) >= 1_000_000:
@@ -97,6 +133,41 @@ def fmt_money(n: float) -> str:
     if abs(n) >= 1_000:
         return f"{round(n / 1000):,}".replace(",", " ") + " тыс."
     return f"{round(n):,}".replace(",", " ") + " ₽"
+
+
+def parse_iso_date(s: str | None) -> date | None:
+    if not s:
+        return None
+    s = str(s).strip()
+    try:
+        return date.fromisoformat(s[:10])
+    except ValueError:
+        for fmt in ("%d.%m.%Y", "%d/%m/%Y"):
+            try:
+                return datetime.strptime(s[:10], fmt).date()
+            except ValueError:
+                continue
+    return None
+
+
+def request_dict(r: RequestItem, creator: User | None = None) -> dict:
+    return {
+        "id": r.id,
+        "title": r.title,
+        "amount": r.amount,
+        "amountLabel": fmt_money(r.amount),
+        "meta": r.meta,
+        "comment": r.comment,
+        "status": r.status,
+        "priority": r.priority,
+        "site": r.site,
+        "dueDate": r.due_date.isoformat() if r.due_date else None,
+        "dueDateLabel": r.due_date.strftime("%d.%m.%Y") if r.due_date else "без срока",
+        "createdBy": r.created_by,
+        "creatorName": creator.name if creator else None,
+        "paymentId": r.payment_id,
+        "createdAt": r.created_at.isoformat() if r.created_at else None,
+    }
 
 
 @app.get("/api/health")
@@ -154,7 +225,6 @@ def overview(user: User = Depends(require_fin), db: Session = Depends(get_db)):
     pays_today = db.scalars(
         select(Payment).where(Payment.pay_date == today).where(Payment.status != "done")
     ).all()
-    # if no exact today matches, show nearest upcoming unpaid in next 7 days as "к оплате сейчас"
     if not pays_today:
         pays_today = db.scalars(
             select(Payment)
@@ -173,6 +243,11 @@ def overview(user: User = Depends(require_fin), db: Session = Depends(get_db)):
         select(Payment).order_by(Payment.pay_date.is_(None), Payment.pay_date, Payment.id).limit(30)
     ).all()
     requests = db.scalars(select(RequestItem).order_by(RequestItem.id.desc()).limit(20)).all()
+    pending = db.scalar(
+        select(func.count())
+        .select_from(RequestItem)
+        .where(RequestItem.status.in_(("new", "reviewing")))
+    )
 
     return {
         "accountsTotal": accounts_total,
@@ -183,6 +258,7 @@ def overview(user: User = Depends(require_fin), db: Session = Depends(get_db)):
         "afterPayLabel": fmt_money(after) if after is not None else "—",
         "hasAccounts": bool(accounts),
         "hasPayments": db.scalar(select(func.count()).select_from(Payment)) > 0,
+        "pendingRequests": int(pending or 0),
         "accounts": [
             {
                 "id": a.id,
@@ -209,18 +285,7 @@ def overview(user: User = Depends(require_fin), db: Session = Depends(get_db)):
             }
             for p in recent_pays
         ],
-        "requests": [
-            {
-                "id": r.id,
-                "title": r.title,
-                "amount": r.amount,
-                "amountLabel": fmt_money(r.amount),
-                "meta": r.meta,
-                "status": r.status,
-                "priority": r.priority,
-            }
-            for r in requests
-        ],
+        "requests": [request_dict(r) for r in requests],
     }
 
 
@@ -243,38 +308,32 @@ def list_payments(user: User = Depends(require_user), db: Session = Depends(get_
     ]
 
 
-@app.post("/api/import/excel")
-async def import_excel(
-    file: UploadFile = File(...),
-    replace: bool = True,
-    user: User = Depends(require_fin),
-    db: Session = Depends(get_db),
-):
-    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xlsm")):
-        raise HTTPException(400, "Нужен файл .xlsx")
-    content = await file.read()
-    if len(content) > 15 * 1024 * 1024:
-        raise HTTPException(400, "Файл больше 15 МБ")
-
+def _import_payments(
+    content: bytes,
+    filename: str,
+    source: str,
+    replace: bool,
+    db: Session,
+) -> dict:
     stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    dest = UPLOADS / f"{stamp}_{file.filename}"
+    safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in (filename or "upload.xlsx"))
+    dest = UPLOADS / f"{stamp}_{safe}"
     dest.write_bytes(content)
 
     try:
-        payments = parse_payments_xlsx(content, source="excel")
+        payments = parse_payments_file(content, filename=filename, source=source)
     except Exception as e:
-        raise HTTPException(400, f"Не разобрал Excel: {e}") from e
+        raise HTTPException(400, f"Не разобрал файл: {e}") from e
 
     if not payments:
         raise HTTPException(400, "В файле не нашёл ни одной строки с суммой")
 
     if replace:
-        db.execute(delete(Payment).where(Payment.source == "excel"))
+        db.execute(delete(Payment).where(Payment.source == source))
 
     db.add_all(payments)
     db.commit()
 
-    # If no accounts yet — create from account column (balances still better via separate file)
     if db.scalar(select(func.count()).select_from(Account)) == 0:
         names = sorted({p.account_name for p in payments if p.account_name})
         for name in names or ["Основной р/с"]:
@@ -290,7 +349,74 @@ async def import_excel(
         "ok": True,
         "imported": len(payments),
         "file": dest.name,
-        "message": f"Загружено платежей: {len(payments)}",
+        "source": source,
+        "message": f"Загружено платежей: {len(payments)} ({source})",
+    }
+
+
+@app.post("/api/import/excel")
+async def import_excel(
+    file: UploadFile = File(...),
+    replace: bool = True,
+    user: User = Depends(require_fin),
+    db: Session = Depends(get_db),
+):
+    name = (file.filename or "").lower()
+    if not name.endswith((".xlsx", ".xlsm", ".csv")):
+        raise HTTPException(400, "Нужен файл .xlsx или .csv")
+    content = await file.read()
+    if len(content) > 15 * 1024 * 1024:
+        raise HTTPException(400, "Файл больше 15 МБ")
+    return _import_payments(content, file.filename or "payments.xlsx", "excel", replace, db)
+
+
+@app.post("/api/import/iiko")
+async def import_iiko(
+    file: UploadFile = File(...),
+    replace: bool = True,
+    user: User = Depends(require_fin),
+    db: Session = Depends(get_db),
+):
+    """Import iiko export (xlsx/csv). Live API credentials come next."""
+    name = (file.filename or "").lower()
+    if not name.endswith((".xlsx", ".xlsm", ".csv")):
+        raise HTTPException(400, "Нужен выгрузка iiko: .xlsx или .csv")
+    content = await file.read()
+    if len(content) > 15 * 1024 * 1024:
+        raise HTTPException(400, "Файл больше 15 МБ")
+    return _import_payments(content, file.filename or "iiko.xlsx", "iiko", replace, db)
+
+
+@app.post("/api/import/inspect")
+async def import_inspect(
+    file: UploadFile = File(...),
+    user: User = Depends(require_fin),
+):
+    content = await file.read()
+    try:
+        info = inspect_payments_file(content, filename=file.filename or "")
+    except Exception as e:
+        raise HTTPException(400, f"Не открыл файл: {e}") from e
+    return {"ok": True, "filename": file.filename, **info}
+
+
+class IikoConfigIn(BaseModel):
+    api_login: str | None = None
+    org_id: str | None = None
+    note: str | None = None
+
+
+@app.post("/api/import/iiko/config")
+def iiko_config_stub(payload: IikoConfigIn, user: User = Depends(require_fin)):
+    """Store intent for live iiko API — credentials kept for next iteration."""
+    return {
+        "ok": True,
+        "message": "Конфиг принят. Живой API iiko подключим следующим шагом; сейчас работает выгрузка файлом.",
+        "saved": {
+            "apiLogin": bool(payload.api_login),
+            "orgId": payload.org_id,
+            "note": payload.note,
+        },
     }
 
 
@@ -300,9 +426,13 @@ async def set_balances(
     user: User = Depends(require_fin),
     db: Session = Depends(get_db),
 ):
-    """Optional second Excel: columns Организация/Счёт + Остаток."""
     content = await file.read()
-    wb_payments = parse_balance_sheet(content)
+    try:
+        wb_payments = parse_balance_sheet(content)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"Не разобрал остатки: {e}") from e
     db.execute(delete(Account))
     for row in wb_payments:
         db.add(Account(name=row["name"], kind=row.get("kind") or "р/с", balance=row["balance"], org=row.get("org")))
@@ -311,8 +441,9 @@ async def set_balances(
 
 
 def parse_balance_sheet(content: bytes) -> list[dict]:
-    from openpyxl import load_workbook
     from io import BytesIO
+
+    from openpyxl import load_workbook
 
     wb = load_workbook(BytesIO(content), data_only=True)
     ws = wb.active
@@ -323,7 +454,7 @@ def parse_balance_sheet(content: bytes) -> list[dict]:
     name_i = None
     bal_i = None
     for i, h in enumerate(headers):
-        hn = h.strip().lower()
+        hn = h.strip().lower().replace("ё", "е")
         if name_i is None and any(x in hn for x in ("счёт", "счет", "организ", "account", "название")):
             name_i = i
         if bal_i is None and any(x in hn for x in ("остаток", "баланс", "balance", "сумма")):
@@ -335,7 +466,7 @@ def parse_balance_sheet(content: bytes) -> list[dict]:
         if not row or row[name_i] is None:
             continue
         try:
-            bal = float(str(row[bal_i]).replace(" ", "").replace(",", "."))
+            bal = float(str(row[bal_i]).replace(" ", "").replace(",", ".").replace("\u00a0", ""))
         except Exception:
             continue
         out.append({"name": str(row[name_i]).strip(), "balance": bal, "kind": "р/с", "org": str(row[name_i]).strip()})
@@ -358,6 +489,112 @@ def people(user: User = Depends(require_fin), db: Session = Depends(get_db)):
         }
         for u in rows
     ]
+
+
+# ——— Requests: manager ↔ fin director ———
+
+
+@app.get("/api/requests")
+def list_requests(user: User = Depends(require_user), db: Session = Depends(get_db)):
+    q = select(RequestItem).order_by(RequestItem.id.desc())
+    if user.role == "manager":
+        q = q.where(RequestItem.created_by == user.id)
+    rows = db.scalars(q).all()
+    creators = {u.id: u for u in db.scalars(select(User)).all()}
+    return [request_dict(r, creators.get(r.created_by)) for r in rows]
+
+
+@app.post("/api/requests")
+def create_request(payload: RequestCreate, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    if user.role not in {"manager", "fin_director"}:
+        raise HTTPException(403, "Нет доступа")
+    priority = payload.priority if payload.priority in {"urgent", "high", "normal", "low"} else "normal"
+    item = RequestItem(
+        title=payload.title.strip()[:512],
+        amount=float(payload.amount),
+        meta=(payload.meta or "").strip()[:512] or None,
+        comment=(payload.comment or "").strip() or None,
+        status="new",
+        priority=priority,
+        site=user.site,
+        due_date=parse_iso_date(payload.due_date),
+        created_by=user.id,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return request_dict(item, user)
+
+
+@app.patch("/api/requests/{request_id}")
+def patch_request(
+    request_id: int,
+    payload: RequestPatch,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    item = db.get(RequestItem, request_id)
+    if not item:
+        raise HTTPException(404, "Заявка не найдена")
+
+    is_fin = user.role == "fin_director"
+    is_owner = item.created_by == user.id
+
+    if not is_fin and not is_owner:
+        raise HTTPException(403, "Нет доступа")
+
+    if payload.priority and is_fin:
+        if payload.priority not in {"urgent", "high", "normal", "low"}:
+            raise HTTPException(400, "Неверный приоритет")
+        item.priority = payload.priority
+
+    if payload.comment is not None and (is_fin or is_owner):
+        item.comment = payload.comment.strip() or None
+
+    if payload.due_date is not None and (is_fin or (is_owner and item.status == "new")):
+        item.due_date = parse_iso_date(payload.due_date)
+
+    if payload.status:
+        if not is_fin and not (is_owner and payload.status == "new" and item.status == "new"):
+            # manager can only cancel own new requests
+            if is_owner and payload.status == "rejected" and item.status in {"new", "reviewing"}:
+                item.status = "rejected"
+            elif not is_fin:
+                raise HTTPException(403, "Статус меняет только финдир")
+        if is_fin:
+            allowed = {"new", "reviewing", "approved", "rejected", "scheduled", "paid"}
+            if payload.status not in allowed:
+                raise HTTPException(400, "Неверный статус")
+            item.status = payload.status
+            item.decided_by = user.id
+
+    # Approve / to calendar → create Payment linked to request
+    if is_fin and (payload.to_calendar or payload.status in {"approved", "scheduled"}):
+        if item.payment_id is None:
+            pay = Payment(
+                title=f"{item.site + ' · ' if item.site else ''}{item.title}",
+                counterparty=item.site,
+                amount=item.amount,
+                pay_date=item.due_date or date.today(),
+                account_name=None,
+                status="plan",
+                source="request",
+                note=item.comment,
+            )
+            db.add(pay)
+            db.flush()
+            item.payment_id = pay.id
+        if item.status not in {"paid", "rejected"}:
+            item.status = "scheduled" if payload.to_calendar or payload.status == "scheduled" else "approved"
+        item.decided_by = user.id
+
+    item.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(item)
+    creator = db.get(User, item.created_by) if item.created_by else None
+    return request_dict(item, creator)
 
 
 # Static frontend

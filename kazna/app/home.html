@@ -54,10 +54,10 @@
     </div>
 
     <div class="quick">
-      <a href="/import.html">Импорт Excel<small>платёжки и остатки</small></a>
+      <a href="/import.html">Импорт<small>Excel и iiko</small></a>
       <a href="/money.html">Деньги<small>счета</small></a>
       <a href="/calendar.html">Календарь<small>даты</small></a>
-      <a href="/requests.html">Заявки<small>очередь</small></a>
+      <a href="/requests.html">Заявки<small id="reqHint">очередь</small></a>
     </div>
 
     <div class="panel">
@@ -88,10 +88,16 @@
         document.getElementById("cardTotal").textContent = o.accountsTotalLabel;
         document.getElementById("cardToday").textContent = o.payTodayLabel;
         document.getElementById("cardAfter").textContent = o.afterPayLabel;
+        if (o.pendingRequests) {
+          document.getElementById("reqHint").textContent = "ждут: " + o.pendingRequests;
+        }
         document.getElementById("outcome").innerHTML =
           (o.hasPayments
             ? "В системе уже есть платежи из Excel/iiko. "
             : "Платежей ещё нет — ") +
+          (o.pendingRequests
+            ? "Заявок от управляющих: <span>" + o.pendingRequests + "</span>. "
+            : "") +
           (o.hasAccounts
             ? "На счетах <span>" + o.accountsTotalLabel + "</span>, к оплате <span>" + o.payTodayLabel + "</span>."
             : "Загрузите остатки по счетам, чтобы считать «после оплат».");

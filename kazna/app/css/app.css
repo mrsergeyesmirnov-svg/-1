@@ -101,8 +101,53 @@ h1 {
   padding: 4px 9px; border-radius: 999px; background: #f3f0eb; color: var(--muted);
 }
 .status.new { background: var(--danger-soft); color: var(--danger); }
-.status.ok { background: var(--ok-soft); color: var(--ok); }
-.status.plan { background: var(--accent-soft); color: var(--accent); }
+.status.ok, .status.approved, .status.scheduled { background: var(--ok-soft); color: var(--ok); }
+.status.plan, .status.reviewing { background: var(--accent-soft); color: var(--accent); }
+.status.rejected { background: #f3f0eb; color: var(--muted); }
+.status.paid, .status.done { background: var(--ok-soft); color: var(--ok); }
+
+.prio {
+  display: inline-flex; font-size: .72rem; font-weight: 700;
+  padding: 4px 9px; border-radius: 999px; background: #f3f0eb; color: var(--muted);
+}
+.prio.urgent { background: var(--danger-soft); color: var(--danger); }
+.prio.high { background: var(--warn-soft); color: var(--warn); }
+.prio.low { background: #f3f0eb; color: var(--muted); }
+
+.form-grid {
+  display: grid; gap: 10px;
+}
+@media (min-width: 700px) {
+  .form-grid { grid-template-columns: 1fr 1fr; }
+  .form-grid .full { grid-column: 1 / -1; }
+}
+.form-grid select, .form-grid textarea {
+  width: 100%; padding: 11px 12px; border-radius: 12px;
+  border: 1px solid var(--line); background: #fff; color: var(--ink);
+  font: inherit; outline: none;
+}
+.form-grid textarea { resize: vertical; min-height: 72px; }
+.form-grid select:focus, .form-grid textarea:focus {
+  border-color: rgba(255,90,31,.45); box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.req-actions {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+}
+.req-actions select {
+  font: inherit; font-size: .74rem; font-weight: 700;
+  padding: 6px 8px; border-radius: 999px; border: 1px solid var(--line); background: #fff;
+}
+@media (min-width: 700px) {
+  .row.req-fin { grid-template-columns: 1.4fr .6fr .7fr auto; }
+}
+
+.inspect {
+  margin: 10px 0 0; padding: 12px; border-radius: 12px;
+  background: #f7f4ef; border: 1px solid var(--line);
+  font-size: .72rem; overflow: auto; max-height: 220px; white-space: pre-wrap;
+}
+hr.soft { border: 0; border-top: 1px solid var(--line); margin: 18px 0 14px; }
 
 .btn {
   appearance: none; border: 0; cursor: pointer; font-weight: 750; font-size: .84rem;

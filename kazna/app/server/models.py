@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, Boolean
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
 
@@ -41,7 +41,7 @@ class Payment(Base):
     pay_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     account_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(64), default="plan")  # plan|ok|done|new
-    source: Mapped[str] = mapped_column(String(64), default="excel")  # excel|iiko|manual
+    source: Mapped[str] = mapped_column(String(64), default="excel")  # excel|iiko|manual|request
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -53,7 +53,15 @@ class RequestItem(Base):
     title: Mapped[str] = mapped_column(String(512))
     amount: Mapped[float] = mapped_column(Float)
     meta: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(64), default="new")
+    # new | reviewing | approved | rejected | scheduled | paid
     priority: Mapped[str] = mapped_column(String(64), default="normal")
+    # urgent | high | normal | low
     site: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    payment_id: Mapped[int | None] = mapped_column(ForeignKey("payments.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

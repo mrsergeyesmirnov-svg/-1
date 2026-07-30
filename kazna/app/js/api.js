@@ -17,8 +17,22 @@
     }
     const data = await res.json().catch(function () { return {}; });
     if (!res.ok) {
-      throw new Error(data.detail || data.message || "Ошибка запроса");
+      var detail = data.detail;
+      if (Array.isArray(detail)) {
+        detail = detail.map(function (d) { return d.msg || JSON.stringify(d); }).join("; ");
+      }
+      throw new Error(detail || data.message || "Ошибка запроса");
     }
+    return data;
+  }
+
+  async function upload(path, file, replace) {
+    const fd = new FormData();
+    fd.append("file", file);
+    const q = replace === false ? "?replace=false" : "?replace=true";
+    const res = await fetch(path + q, { method: "POST", body: fd, credentials: "same-origin" });
+    const data = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(data.detail || "Не удалось импортировать");
     return data;
   }
 
@@ -41,14 +55,31 @@
     people: function () {
       return req("/api/people");
     },
-    importExcel: async function (file, replace) {
+    requests: function () {
+      return req("/api/requests");
+    },
+    createRequest: function (payload) {
+      return req("/api/requests", { method: "POST", json: payload });
+    },
+    patchRequest: function (id, payload) {
+      return req("/api/requests/" + id, { method: "PATCH", json: payload });
+    },
+    importExcel: function (file, replace) {
+      return upload("/api/import/excel", file, replace);
+    },
+    importIiko: function (file, replace) {
+      return upload("/api/import/iiko", file, replace);
+    },
+    inspectImport: async function (file) {
       const fd = new FormData();
       fd.append("file", file);
-      const q = replace === false ? "?replace=false" : "?replace=true";
-      const res = await fetch("/api/import/excel" + q, { method: "POST", body: fd, credentials: "same-origin" });
+      const res = await fetch("/api/import/inspect", { method: "POST", body: fd, credentials: "same-origin" });
       const data = await res.json().catch(function () { return {}; });
-      if (!res.ok) throw new Error(data.detail || "Не удалось импортировать");
+      if (!res.ok) throw new Error(data.detail || "Не удалось разобрать заголовки");
       return data;
+    },
+    saveIikoConfig: function (payload) {
+      return req("/api/import/iiko/config", { method: "POST", json: payload });
     },
   };
 })(window);
