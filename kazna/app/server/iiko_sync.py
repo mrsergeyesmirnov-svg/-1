@@ -45,14 +45,28 @@ def settings_public(row: IikoSettings) -> dict:
     }
 
 
-def _ensure_org_account(db: Session, org_name: str | None) -> None:
+def _ensure_org_account(
+    db: Session, org_name: str | None, iiko_org_id: str | None = None
+) -> None:
     if not org_name:
         return
     existing = db.scalar(select(Account).where(Account.name == org_name))
     if existing:
+        if iiko_org_id and not existing.iiko_org_id:
+            existing.iiko_org_id = iiko_org_id
+        if not existing.org:
+            existing.org = org_name
         return
-    kind = "ИП" if org_name.upper().startswith("ИП") else "ООО / юрлицо"
-    db.add(Account(name=org_name, kind=kind, balance=0, org=org_name))
+    kind = "ИП" if org_name.upper().startswith("ИП") else "р/с"
+    db.add(
+        Account(
+            name=org_name,
+            kind=kind,
+            balance=0,
+            org=org_name,
+            iiko_org_id=iiko_org_id,
+        )
+    )
 
 
 def sync_iiko_invoices(
@@ -137,7 +151,7 @@ def sync_iiko_invoices(
                     closed += 1
             org_count += 1
 
-        _ensure_org_account(db, org["name"])
+        _ensure_org_account(db, org["name"], iiko_org_id=org.get("id"))
         per_org.append(
             {
                 "org": org["name"],

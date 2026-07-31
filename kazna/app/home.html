@@ -30,41 +30,58 @@
     </nav>
 
     <div class="badge">Утро финансового директора</div>
-    <h1>Можно ли платить сегодня?</h1>
-    <p class="sub" id="subLine">Платежи из iiko и ваши ручные. Остатки счетов — из Excel на Импорте.</p>
+    <h1>Что оплатить сегодня?</h1>
+    <p class="sub" id="subLine">
+      По каждой организации: остаток р/с → к оплате сегодня (и просрочка) → сколько останется.
+      Кассы точек — отдельно.
+    </p>
 
     <div class="outcome" id="outcome">Загрузка…</div>
 
     <div class="grid-3">
       <div class="metric">
-        <div class="label">На расчётных счетах</div>
+        <div class="label">На р/с сети</div>
         <div class="value" id="cardTotal">—</div>
-        <div class="hint">из файла остатков / счетов</div>
+        <div class="hint">без касс точек</div>
       </div>
       <div class="metric warn">
-        <div class="label">К оплате (сегодня / 7 дней)</div>
+        <div class="label">К оплате сегодня</div>
         <div class="value" id="cardToday">—</div>
-        <div class="hint">iiko + ручные + заявки</div>
+        <div class="hint">сегодня + просрочка</div>
       </div>
-      <div class="metric ok">
-        <div class="label">После оплат</div>
+      <div class="metric ok" id="cardAfterWrap">
+        <div class="label" id="cardAfterLabel">После оплат</div>
         <div class="value" id="cardAfter">—</div>
-        <div class="hint">если остатки загружены</div>
+        <div class="hint" id="cardAfterHint">если остатки загружены</div>
       </div>
     </div>
 
     <div class="quick">
       <a href="/import.html">Импорт<small>iiko и остатки</small></a>
-      <a href="/money.html">Деньги<small>счета</small></a>
+      <a href="/money.html">Деньги<small>р/с и кассы</small></a>
       <a href="/calendar.html">Календарь<small>даты</small></a>
       <a href="/requests.html">Заявки<small id="reqHint">очередь</small></a>
     </div>
 
     <div class="panel">
-      <h2>Платежи</h2>
-      <p class="muted" style="margin:0 0 8px;">Быстро: на сегодня / оплачено / отложить. Полный контроль — в Календаре.</p>
+      <h2>По организациям</h2>
+      <p class="muted" style="margin:0 0 10px;">Кассовый разрыв считается по р/с организации и её платежам (iiko / ручные).</p>
+      <div id="orgBoard"><p class="muted">Загрузка…</p></div>
+    </div>
+
+    <div class="panel">
+      <h2>Касса на точках</h2>
+      <p class="muted" style="margin:0 0 10px;">
+        Живой остаток кассы из iiko Cloud не приходит — ведите вручную или из Excel.
+      </p>
+      <div id="cashBoard"><p class="muted">Касс пока нет.</p></div>
+    </div>
+
+    <div class="panel">
+      <h2>Платежи на сегодня</h2>
+      <p class="muted" style="margin:0 0 8px;">Быстро: оплачено / +3 дня. Полный контроль — в Календаре.</p>
       <p id="homeMsg" class="muted" style="margin:0 0 8px;"></p>
-      <div id="todayList"><p class="muted">Пока пусто — синк iiko или создайте платёжку в Календаре.</p></div>
+      <div id="todayList"><p class="muted">Пока пусто.</p></div>
     </div>
   </div>
 
@@ -72,52 +89,80 @@
   <script src="/js/pay-row.js"></script>
   <script>
     (function () {
+      function esc(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+
       function todayISO() {
         return new Date().toISOString().slice(0, 10);
       }
 
-      async function load() {
-        var o = await KaznaAPI.overview();
-        document.getElementById("cardTotal").textContent = o.accountsTotalLabel;
-        document.getElementById("cardToday").textContent = o.payTodayLabel;
-        document.getElementById("cardAfter").textContent = o.afterPayLabel;
-        if (o.pendingRequests) {
-          document.getElementById("reqHint").textContent = "ждут: " + o.pendingRequests;
-        }
-        document.getElementById("outcome").innerHTML =
-          (o.hasPayments
-            ? "В системе есть платежи (iiko / ручные / заявки). "
-            : "Платежей ещё нет — ") +
-          (o.pendingRequests
-            ? "Заявок от управляющих: <span>" + o.pendingRequests + "</span>. "
-            : "") +
-          (o.hasAccounts
-            ? "На счетах <span>" + o.accountsTotalLabel + "</span>, к оплате <span>" + o.payTodayLabel + "</span>."
-            : "Загрузите остатки по счетам, чтобы считать «после оплат».");
-
-        if (!o.hasPayments) {
-          document.getElementById("subLine").textContent =
-            "Пусто. Сделайте синк iiko на Импорте или создайте платёжку в Календаре.";
-        }
-
-        var list = o.payments.slice(0, 12);
-        var el = document.getElementById("todayList");
-        if (!list.length) {
-          el.innerHTML = '<p class="muted">Пока пусто — синк iiko или создайте платёжку в Календаре.</p>';
+      function renderOrgs(o) {
+        var el = document.getElementById("orgBoard");
+        var rows = o.organizations || [];
+        if (!rows.length) {
+          el.innerHTML = '<p class="muted">Нет р/с. Добавьте на «Деньги» или загрузите остатки / синк iiko.</p>';
           return;
         }
-        el.innerHTML = list.map(function (p) {
+        var html = rows.map(function (g) {
+          var cls = g.hasGap ? "gap-card danger" : (g.canPayAll ? "gap-card ok" : "gap-card");
+          var status = g.hasGap
+            ? "разрыв " + esc(g.gapLabel)
+            : (g.dueToday > 0 ? "хватит" : "оплат нет");
           return (
-            '<div class="pay-edit">' + KaznaPayRow.render(p) +
-            '<div class="req-actions" style="margin-top:6px;">' +
-            (p.date ? "" : '<button class="btn sm accent" type="button" data-today="' + p.id + '">На сегодня</button>') +
-            (p.status === "done" ? "" : '<button class="btn sm ghost" type="button" data-p3="' + p.id + '">+3 дня</button>') +
-            (p.status === "done" ? "" : '<button class="btn sm" type="button" data-done="' + p.id + '">Оплачено</button>') +
-            '<a class="btn sm ghost" href="/calendar.html">Календарь</a>' +
-            "</div></div>"
+            '<div class="' + cls + '">' +
+            '<div class="gap-head"><strong>' + esc(g.org) + '</strong>' +
+            '<span class="gap-status">' + status + "</span></div>" +
+            '<div class="gap-grid">' +
+            '<div><span class="muted">Сейчас</span><div class="amount">' + esc(g.balanceLabel) + "</div></div>" +
+            '<div><span class="muted">К оплате</span><div class="amount">' + esc(g.dueTodayLabel) + "</div></div>" +
+            '<div><span class="muted">После</span><div class="amount">' + esc(g.afterLabel) + "</div></div>" +
+            "</div>" +
+            (g.paymentCount
+              ? '<div class="muted" style="margin-top:8px;">платежей: ' + g.paymentCount + "</div>"
+              : "") +
+            "</div>"
           );
         }).join("");
 
+        var u = o.unassigned;
+        if (u && u.paymentCount) {
+          html +=
+            '<div class="gap-card warn">' +
+            '<div class="gap-head"><strong>Без организации</strong>' +
+            '<span class="gap-status">' + esc(u.dueTodayLabel) + "</span></div>" +
+            '<p class="muted" style="margin:6px 0 0;">Назначьте счёт в Календаре — иначе не попадут в разрыв по орг.</p>' +
+            "</div>";
+        }
+        el.innerHTML = html;
+      }
+
+      function renderCash(o) {
+        var el = document.getElementById("cashBoard");
+        var rows = o.cashDesks || [];
+        if (!rows.length) {
+          el.innerHTML = '<p class="muted">Касс нет. Добавьте тип «касса» и точку на странице «Деньги».</p>';
+          return;
+        }
+        el.innerHTML =
+          '<div class="cash-grid">' +
+          rows.map(function (a) {
+            return (
+              '<div class="cash-tile">' +
+              '<div class="muted">' + esc(a.siteLabel || a.site || "точка") + "</div>" +
+              "<strong>" + esc(a.name) + "</strong>" +
+              '<div class="amount">' + esc(a.balanceLabel) + "</div>" +
+              "</div>"
+            );
+          }).join("") +
+          "</div>" +
+          '<p class="muted" style="margin:10px 0 0;">Всего в кассах: <strong>' +
+          esc(o.cashTotalLabel) + "</strong></p>";
+      }
+
+      function bindPayActions(el) {
         el.querySelectorAll("[data-today]").forEach(function (btn) {
           btn.onclick = async function () {
             document.getElementById("homeMsg").textContent = "Ставлю дату…";
@@ -156,6 +201,49 @@
             }
           };
         });
+      }
+
+      async function load() {
+        var o = await KaznaAPI.overview();
+        document.getElementById("cardTotal").textContent = o.settlementTotalLabel || o.accountsTotalLabel;
+        document.getElementById("cardToday").textContent = o.payTodayLabel;
+        document.getElementById("cardAfter").textContent = o.hasGap ? o.gapLabel : o.afterPayLabel;
+        document.getElementById("cardAfterLabel").textContent = o.hasGap ? "Разрыв" : "После оплат";
+        document.getElementById("cardAfterHint").textContent = o.hasGap
+          ? "не хватает на все оплаты сегодня"
+          : (o.weekAhead ? "на неделю ещё " + o.weekAheadLabel : "если остатки загружены");
+        var wrap = document.getElementById("cardAfterWrap");
+        wrap.className = "metric " + (o.hasGap ? "warn" : "ok");
+
+        var out = document.getElementById("outcome");
+        out.className = "outcome " + (o.verdictKind || "");
+        out.textContent = o.verdict || "—";
+
+        if (o.pendingRequests) {
+          document.getElementById("reqHint").textContent = "ждут: " + o.pendingRequests;
+        }
+
+        renderOrgs(o);
+        renderCash(o);
+
+        var list = o.payments || [];
+        var el = document.getElementById("todayList");
+        if (!list.length) {
+          el.innerHTML = '<p class="muted">На сегодня и просрочки нет — смотрите Календарь на неделю.</p>';
+          return;
+        }
+        el.innerHTML = list.slice(0, 15).map(function (p) {
+          return (
+            '<div class="pay-edit">' + KaznaPayRow.render(p) +
+            '<div class="req-actions" style="margin-top:6px;">' +
+            (p.date ? "" : '<button class="btn sm accent" type="button" data-today="' + p.id + '">На сегодня</button>') +
+            (p.status === "done" ? "" : '<button class="btn sm ghost" type="button" data-p3="' + p.id + '">+3 дня</button>') +
+            (p.status === "done" ? "" : '<button class="btn sm" type="button" data-done="' + p.id + '">Оплачено</button>') +
+            '<a class="btn sm ghost" href="/calendar.html">Календарь</a>' +
+            "</div></div>"
+          );
+        }).join("");
+        bindPayActions(el);
       }
 
       KaznaAPI.me().then(async function (user) {

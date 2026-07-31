@@ -26,9 +26,11 @@ class Account(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(255))
-    kind: Mapped[str] = mapped_column(String(128), default="р/с")
+    kind: Mapped[str] = mapped_column(String(128), default="р/с")  # р/с | касса | юрлицо | ИП
     balance: Mapped[float] = mapped_column(Float, default=0)
     org: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    site: Mapped[str | None] = mapped_column(String(255), nullable=True)  # точка для кассы
+    iiko_org_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class UserAccount(Base):

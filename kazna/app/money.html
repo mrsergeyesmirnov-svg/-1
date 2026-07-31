@@ -21,19 +21,22 @@
       <a href="/import.html">Импорт</a>
       <a href="/people.html">Люди</a>
     </nav>
-    <div class="badge">Расчётные счета</div>
+    <div class="badge">Р/с и кассы</div>
     <h1>Деньги сети</h1>
-    <p class="sub">Один список юрлиц/р/с. Остатки — из Excel, названия — ваши или из iiko. Без мусора из платёжных Excel.</p>
+    <p class="sub">
+      Расчётные счета по организациям — для кассового разрыва.
+      Кассы — отдельно по точкам (остаток вручную / Excel; из iiko Cloud живой кассы нет).
+    </p>
 
     <div class="panel">
-      <h2>Добавить счёт / юрлицо</h2>
+      <h2>Добавить</h2>
       <form id="accForm" class="form-grid">
         <div class="field">
-          <label for="aName">Название счёта</label>
-          <input id="aName" required placeholder="Р/с Альфа · ООО Север" />
+          <label for="aName">Название</label>
+          <input id="aName" required placeholder="Р/с Альфа · ООО Север / Касса Невский" />
         </div>
         <div class="field">
-          <label for="aOrg">Юрлицо</label>
+          <label for="aOrg">Юрлицо / организация</label>
           <input id="aOrg" placeholder="ООО Север / ИП …" />
         </div>
         <div class="field">
@@ -44,6 +47,10 @@
             <option value="ИП">ИП</option>
             <option value="касса">касса</option>
           </select>
+        </div>
+        <div class="field" id="siteField" hidden>
+          <label for="aSite">Точка</label>
+          <input id="aSite" placeholder="Невский" />
         </div>
         <div class="field">
           <label for="aBal">Остаток</label>
@@ -57,8 +64,13 @@
     </div>
 
     <div class="panel">
-      <h2>Счета</h2>
-      <div id="list"><p class="muted">Загрузка…</p></div>
+      <h2>Расчётные счета</h2>
+      <div id="bankList"><p class="muted">Загрузка…</p></div>
+    </div>
+
+    <div class="panel">
+      <h2>Кассы точек</h2>
+      <div id="cashList"><p class="muted">Загрузка…</p></div>
     </div>
   </div>
   <script src="/js/api.js"></script>
@@ -70,41 +82,54 @@
           .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
       }
 
-      async function reload() {
-        var rows = await KaznaAPI.accounts();
-        var el = document.getElementById("list");
-        if (!rows.length) {
-          el.innerHTML = '<p class="muted">Счетов нет. Добавьте вручную или загрузите остатки Excel на Импорте.</p>';
-          return;
-        }
-        el.innerHTML = rows.map(function (a) {
-          return (
-            '<div class="person-card">' +
-            '<div class="person-head"><strong>' + esc(a.name) + '</strong>' +
-            '<span class="amount">' + esc(a.balanceLabel) + "</span></div>" +
-            '<div class="muted" style="margin-bottom:10px;">' +
-            esc(a.kind || "р/с") +
-            (a.org ? " · юрлицо: " + esc(a.org) : "") +
-            " · #" + a.id +
-            "</div>" +
-            '<div class="form-grid">' +
-            '<div class="field"><label>Остаток</label><input type="number" step="0.01" data-bal="' + a.id + '" value="' + a.balance + '" /></div>' +
-            '<div class="field"><label>Юрлицо</label><input data-org="' + a.id + '" value="' + esc(a.org || "") + '" /></div>' +
-            '<div class="full"><button class="btn sm accent" type="button" data-save="' + a.id + '">Сохранить</button></div>' +
-            "</div></div>"
-          );
-        }).join("");
+      function isCash(a) {
+        return a.isCashDesk || String(a.kind || "").toLowerCase().indexOf("касс") >= 0;
+      }
 
-        el.querySelectorAll("[data-save]").forEach(function (btn) {
+      function syncSiteField() {
+        var cash = document.getElementById("aKind").value === "касса";
+        document.getElementById("siteField").hidden = !cash;
+        document.getElementById("aSite").required = cash;
+      }
+
+      function card(a, cash) {
+        return (
+          '<div class="person-card">' +
+          '<div class="person-head"><strong>' + esc(a.name) + '</strong>' +
+          '<span class="amount">' + esc(a.balanceLabel) + "</span></div>" +
+          '<div class="muted" style="margin-bottom:10px;">' +
+          esc(a.kind || (cash ? "касса" : "р/с")) +
+          (a.org ? " · " + esc(a.org) : "") +
+          (cash ? " · точка: " + esc(a.site || "—") : "") +
+          " · #" + a.id +
+          "</div>" +
+          '<div class="form-grid">' +
+          '<div class="field"><label>Остаток</label><input type="number" step="0.01" data-bal="' + a.id + '" value="' + a.balance + '" /></div>' +
+          (cash
+            ? '<div class="field"><label>Точка</label><input data-site="' + a.id + '" value="' + esc(a.site || "") + '" /></div>'
+            : '<div class="field"><label>Юрлицо</label><input data-org="' + a.id + '" value="' + esc(a.org || "") + '" /></div>') +
+          '<div class="full"><button class="btn sm accent" type="button" data-save="' + a.id + '" data-cash="' + (cash ? "1" : "0") + '">Сохранить</button></div>' +
+          "</div></div>"
+        );
+      }
+
+      function bindSaves(root) {
+        root.querySelectorAll("[data-save]").forEach(function (btn) {
           btn.onclick = async function () {
             var id = Number(btn.getAttribute("data-save"));
+            var cash = btn.getAttribute("data-cash") === "1";
             var msg = document.getElementById("msg");
             msg.textContent = "Сохраняю…";
             try {
-              await KaznaAPI.patchAccount(id, {
-                balance: Number(el.querySelector('input[data-bal="' + id + '"]').value || 0),
-                org: el.querySelector('input[data-org="' + id + '"]').value || null
-              });
+              var payload = {
+                balance: Number(root.querySelector('input[data-bal="' + id + '"]').value || 0)
+              };
+              if (cash) {
+                payload.site = root.querySelector('input[data-site="' + id + '"]').value || null;
+              } else {
+                payload.org = root.querySelector('input[data-org="' + id + '"]').value || null;
+              }
+              await KaznaAPI.patchAccount(id, payload);
               msg.textContent = "Сохранено.";
               await reload();
             } catch (ex) {
@@ -112,6 +137,28 @@
             }
           };
         });
+      }
+
+      async function reload() {
+        var rows = await KaznaAPI.accounts();
+        var banks = rows.filter(function (a) { return !isCash(a); });
+        var cash = rows.filter(isCash);
+        var bankEl = document.getElementById("bankList");
+        var cashEl = document.getElementById("cashList");
+
+        if (!banks.length) {
+          bankEl.innerHTML = '<p class="muted">Р/с нет. Добавьте или загрузите остатки / синк iiko.</p>';
+        } else {
+          bankEl.innerHTML = banks.map(function (a) { return card(a, false); }).join("");
+          bindSaves(bankEl);
+        }
+
+        if (!cash.length) {
+          cashEl.innerHTML = '<p class="muted">Касс нет. Добавьте тип «касса» и укажите точку.</p>';
+        } else {
+          cashEl.innerHTML = cash.map(function (a) { return card(a, true); }).join("");
+          bindSaves(cashEl);
+        }
       }
 
       KaznaAPI.me().then(async function (user) {
@@ -126,21 +173,27 @@
           await KaznaAPI.logout(); location.href = "/";
         };
 
+        document.getElementById("aKind").onchange = syncSiteField;
+        syncSiteField();
+
         document.getElementById("accForm").onsubmit = async function (e) {
           e.preventDefault();
           var msg = document.getElementById("msg");
           msg.textContent = "Добавляю…";
           try {
+            var kind = document.getElementById("aKind").value;
             await KaznaAPI.createAccount({
               name: document.getElementById("aName").value,
               org: document.getElementById("aOrg").value || null,
-              kind: document.getElementById("aKind").value,
+              kind: kind,
+              site: kind === "касса" ? (document.getElementById("aSite").value || null) : null,
               balance: Number(document.getElementById("aBal").value || 0)
             });
-            msg.textContent = "Счёт добавлен.";
+            msg.textContent = "Добавлено.";
             e.target.reset();
             document.getElementById("aKind").value = "р/с";
             document.getElementById("aBal").value = "0";
+            syncSiteField();
             await reload();
           } catch (ex) {
             msg.textContent = ex.message;

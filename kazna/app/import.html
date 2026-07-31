@@ -25,14 +25,15 @@
     <div class="badge">Данные</div>
     <h1>iiko и остатки</h1>
     <p class="sub">
-      Платежи — из <strong>iiko</strong> и ручных платёжек финдира.
-      Excel нужен в основном для <strong>остатков по счетам</strong>.
+      Платежи и список организаций — из <strong>iiko</strong>.
+      Живые остатки р/с и касса на точке из Cloud API не приходят — их грузите Excel’ем или правите на «Деньги».
     </p>
 
     <div class="panel">
       <h2>1. iiko → платежи</h2>
       <p class="muted">
-        apiLogin iikoCloud → приходные накладные в календарь.
+        apiLogin iikoCloud → организации + приходные накладные в календарь.
+        Юрлица подтягиваются как счета (остаток 0, пока не загрузите Excel).
         Если в iiko есть дата оплаты — статус «оплачено» сам.
       </p>
       <form id="iikoCfg" class="form-grid" style="margin-top:12px;">

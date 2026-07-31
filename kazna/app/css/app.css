@@ -213,6 +213,54 @@ a.btn {
   font-weight: 750; letter-spacing: -0.02em;
 }
 .outcome span { color: var(--accent); }
+.outcome.ok {
+  background: linear-gradient(135deg, #f0fdfa 0%, #fff 60%);
+  border-color: rgba(13, 148, 136, 0.35);
+}
+.outcome.danger {
+  background: linear-gradient(135deg, #fff1f2 0%, #fff 60%);
+  border-color: rgba(190, 18, 60, 0.3);
+}
+.outcome.warn {
+  background: linear-gradient(135deg, #fffbeb 0%, #fff 60%);
+  border-color: rgba(180, 83, 9, 0.3);
+}
+
+.gap-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+.gap-card:last-child { margin-bottom: 0; }
+.gap-card.ok { border-color: rgba(13, 148, 136, 0.35); background: #f8fffd; }
+.gap-card.danger { border-color: rgba(190, 18, 60, 0.28); background: #fff8f9; }
+.gap-card.warn { border-color: rgba(180, 83, 9, 0.28); background: #fffdf8; }
+.gap-head {
+  display: flex; justify-content: space-between; gap: 10px; align-items: baseline;
+  margin-bottom: 10px; flex-wrap: wrap;
+}
+.gap-status {
+  font-size: .78rem; font-weight: 800;
+  color: var(--muted); text-transform: lowercase;
+}
+.gap-card.ok .gap-status { color: var(--ok); }
+.gap-card.danger .gap-status { color: var(--danger); }
+.gap-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+.gap-grid .muted { font-size: .72rem; display: block; margin-bottom: 2px; }
+
+.cash-grid {
+  display: grid; gap: 8px;
+}
+@media (min-width: 640px) { .cash-grid { grid-template-columns: repeat(2, 1fr); } }
+.cash-tile {
+  border: 1px solid var(--line); border-radius: 12px; padding: 12px;
+  background: #fff;
+}
+.cash-tile strong { display: block; margin: 4px 0 6px; font-size: .95rem; }
 
 .quick { display: grid; gap: 8px; margin-top: 14px; }
 @media (min-width: 640px) { .quick { grid-template-columns: repeat(4, 1fr); } }

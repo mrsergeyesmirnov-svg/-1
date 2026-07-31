@@ -50,6 +50,8 @@ def _migrate_schema() -> None:
         "ALTER TABLE requests ADD COLUMN created_at TIMESTAMP",
         "ALTER TABLE requests ADD COLUMN updated_at TIMESTAMP",
         "ALTER TABLE payments ADD COLUMN external_id VARCHAR(255)",
+        "ALTER TABLE accounts ADD COLUMN site VARCHAR(255)",
+        "ALTER TABLE accounts ADD COLUMN iiko_org_id VARCHAR(64)",
     ]
     with engine.begin() as conn:
         for sql in stmts:
@@ -165,8 +167,9 @@ class PersonPatch(BaseModel):
 
 class AccountCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
-    kind: str = "юрлицо / р/с"
+    kind: str = "р/с"
     org: str | None = None
+    site: str | None = None
     balance: float = 0
 
 
@@ -174,6 +177,7 @@ class AccountPatch(BaseModel):
     name: str | None = None
     kind: str | None = None
     org: str | None = None
+    site: str | None = None
     balance: float | None = None
 
 
@@ -323,61 +327,153 @@ def me(request: Request, db: Session = Depends(get_db)):
     }
 
 
+def _is_cash_desk(kind: str | None) -> bool:
+    return "касс" in (kind or "").lower()
+
+
+def _org_key(account: Account) -> str:
+    return (account.org or account.name or "Без организации").strip() or "Без организации"
+
+
+def _payment_matches_org(p: Payment, org: str, account_names: set[str]) -> bool:
+    an = (p.account_name or "").strip()
+    if an and (an in account_names or an == org):
+        return True
+    blob = f"{p.title or ''} {p.counterparty or ''} {an}".lower()
+    return bool(org) and org.lower() in blob
+
+
 @app.get("/api/overview")
 def overview(user: User = Depends(require_office), db: Session = Depends(get_db)):
+    """Утренний кассовый разрыв: по организациям + кассы точек."""
     today = date.today()
-    accounts = db.scalars(select(Account).order_by(Account.id)).all()
-    accounts_total = sum(a.balance for a in accounts) if accounts else 0.0
+    accounts = list(db.scalars(select(Account).order_by(Account.id)).all())
+    settlement = [a for a in accounts if not _is_cash_desk(a.kind)]
+    cash_desks = [a for a in accounts if _is_cash_desk(a.kind)]
 
-    pays_today = db.scalars(
-        select(Payment).where(Payment.pay_date == today).where(Payment.status != "done")
-    ).all()
-    if not pays_today:
-        pays_today = db.scalars(
+    settlement_total = sum(a.balance for a in settlement)
+    cash_total = sum(a.balance for a in cash_desks)
+    accounts_total = settlement_total + cash_total
+
+    open_pays = list(
+        db.scalars(
             select(Payment)
             .where(Payment.status != "done")
-            .where(Payment.pay_date.is_not(None))
-            .where(Payment.pay_date >= today)
-            .where(Payment.pay_date <= today + timedelta(days=7))
-            .order_by(Payment.pay_date, Payment.id)
-            .limit(20)
+            .order_by(Payment.pay_date.is_(None), Payment.pay_date, Payment.id)
         ).all()
+    )
+    due_today = [
+        p
+        for p in open_pays
+        if p.pay_date is None or p.pay_date <= today
+    ]
+    week_pays = [
+        p
+        for p in open_pays
+        if p.pay_date is not None and today < p.pay_date <= today + timedelta(days=7)
+    ]
 
-    pay_today_sum = sum(p.amount for p in pays_today)
-    after = accounts_total - pay_today_sum if accounts else None
+    pay_today_sum = sum(p.amount for p in due_today)
+    after = settlement_total - pay_today_sum if settlement else None
+    gap = max(0.0, -(after or 0)) if after is not None else None
 
-    recent_pays = db.scalars(
-        select(Payment).order_by(Payment.pay_date.is_(None), Payment.pay_date, Payment.id).limit(30)
-    ).all()
-    requests = db.scalars(select(RequestItem).order_by(RequestItem.id.desc()).limit(20)).all()
+    # Group settlement accounts by org
+    by_org: dict[str, list[Account]] = {}
+    for a in settlement:
+        by_org.setdefault(_org_key(a), []).append(a)
+
+    org_boards = []
+    assigned_ids: set[int] = set()
+    for org, accs in sorted(by_org.items(), key=lambda x: x[0].lower()):
+        names = {a.name for a in accs} | {org}
+        bal = sum(a.balance for a in accs)
+        matched = [p for p in due_today if _payment_matches_org(p, org, names)]
+        for p in matched:
+            assigned_ids.add(p.id)
+        due_sum = sum(p.amount for p in matched)
+        after_org = bal - due_sum
+        gap_org = max(0.0, -after_org)
+        org_boards.append(
+            {
+                "org": org,
+                "balance": bal,
+                "balanceLabel": fmt_money(bal),
+                "dueToday": due_sum,
+                "dueTodayLabel": fmt_money(due_sum),
+                "after": after_org,
+                "afterLabel": fmt_money(after_org),
+                "gap": gap_org,
+                "gapLabel": fmt_money(gap_org),
+                "hasGap": after_org < 0,
+                "canPayAll": due_sum > 0 and after_org >= 0,
+                "accounts": [account_dict(a) for a in accs],
+                "payments": [payment_dict(p) for p in matched[:12]],
+                "paymentCount": len(matched),
+            }
+        )
+
+    unassigned = [p for p in due_today if p.id not in assigned_ids]
+    unassigned_sum = sum(p.amount for p in unassigned)
+
     pending = db.scalar(
         select(func.count())
         .select_from(RequestItem)
         .where(RequestItem.status.in_(("new", "reviewing")))
     )
+    requests = db.scalars(select(RequestItem).order_by(RequestItem.id.desc()).limit(20)).all()
+
+    if after is not None and after < 0:
+        verdict = f"Кассовый разрыв {fmt_money(gap or 0)} — сегодня всё не закрыть без переноса."
+        verdict_kind = "danger"
+    elif pay_today_sum <= 0:
+        verdict = "На сегодня обязательных оплат нет — можно планировать неделю."
+        verdict_kind = "ok"
+    elif after is not None:
+        verdict = f"Можно оплатить сегодня: останется {fmt_money(after)} на р/с."
+        verdict_kind = "ok"
+    else:
+        verdict = "Загрузите остатки р/с, чтобы видеть разрыв по организациям."
+        verdict_kind = "warn"
 
     return {
+        "today": today.isoformat(),
+        "verdict": verdict,
+        "verdictKind": verdict_kind,
         "accountsTotal": accounts_total,
         "accountsTotalLabel": fmt_money(accounts_total) if accounts else "нет данных",
+        "settlementTotal": settlement_total,
+        "settlementTotalLabel": fmt_money(settlement_total) if settlement else "нет данных",
+        "cashTotal": cash_total,
+        "cashTotalLabel": fmt_money(cash_total) if cash_desks else "нет касс",
         "payToday": pay_today_sum,
         "payTodayLabel": fmt_money(pay_today_sum),
+        "weekAhead": sum(p.amount for p in week_pays),
+        "weekAheadLabel": fmt_money(sum(p.amount for p in week_pays)),
         "afterPay": after,
         "afterPayLabel": fmt_money(after) if after is not None else "—",
-        "hasAccounts": bool(accounts),
+        "gap": gap,
+        "gapLabel": fmt_money(gap) if gap is not None else "—",
+        "hasGap": bool(after is not None and after < 0),
+        "hasAccounts": bool(settlement),
         "hasPayments": db.scalar(select(func.count()).select_from(Payment)) > 0,
         "pendingRequests": int(pending or 0),
-        "accounts": [
+        "organizations": org_boards,
+        "cashDesks": [
             {
-                "id": a.id,
-                "name": a.name,
-                "kind": a.kind,
-                "balance": a.balance,
-                "balanceLabel": fmt_money(a.balance),
-                "org": a.org,
+                **account_dict(a),
+                "siteLabel": a.site or "точка не указана",
             }
-            for a in accounts
+            for a in sorted(cash_desks, key=lambda x: ((x.site or ""), x.name))
         ],
-        "payments": [payment_dict(p) for p in recent_pays],
+        "unassigned": {
+            "dueToday": unassigned_sum,
+            "dueTodayLabel": fmt_money(unassigned_sum),
+            "paymentCount": len(unassigned),
+            "payments": [payment_dict(p) for p in unassigned[:12]],
+        },
+        "accounts": [account_dict(a) for a in accounts],
+        "payments": [payment_dict(p) for p in due_today[:30]],
+        "weekPayments": [payment_dict(p) for p in week_pays[:20]],
         "requests": [request_dict(r) for r in requests],
     }
 
@@ -847,6 +943,9 @@ def account_dict(a: Account) -> dict:
         "balance": a.balance,
         "balanceLabel": fmt_money(a.balance),
         "org": a.org,
+        "site": a.site,
+        "iikoOrgId": a.iiko_org_id,
+        "isCashDesk": _is_cash_desk(a.kind),
     }
 
 
@@ -868,10 +967,21 @@ def list_accounts(user: User = Depends(require_user), db: Session = Depends(get_
 
 @app.post("/api/accounts")
 def create_account(payload: AccountCreate, user: User = Depends(require_fin), db: Session = Depends(get_db)):
+    kind = (payload.kind or "р/с").strip()
+    site = (payload.site or "").strip() or None
+    if _is_cash_desk(kind) and not site:
+        raise HTTPException(400, "Для кассы укажите точку")
+    if payload.org and payload.org.strip():
+        org = payload.org.strip()
+    elif _is_cash_desk(kind):
+        org = None
+    else:
+        org = payload.name.strip()
     acc = Account(
         name=payload.name.strip(),
-        kind=(payload.kind or "юрлицо / р/с").strip(),
-        org=(payload.org or payload.name).strip() if payload.org or payload.name else None,
+        kind=kind,
+        org=org,
+        site=site,
         balance=float(payload.balance or 0),
     )
     db.add(acc)
@@ -896,8 +1006,12 @@ def patch_account(
         acc.kind = payload.kind.strip()
     if payload.org is not None:
         acc.org = payload.org.strip() or None
+    if payload.site is not None:
+        acc.site = payload.site.strip() or None
     if payload.balance is not None:
         acc.balance = float(payload.balance)
+    if _is_cash_desk(acc.kind) and not acc.site:
+        raise HTTPException(400, "Для кассы укажите точку")
     db.commit()
     db.refresh(acc)
     return account_dict(acc)
