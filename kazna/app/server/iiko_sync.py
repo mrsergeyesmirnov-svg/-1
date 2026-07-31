@@ -30,10 +30,15 @@ def settings_public(row: IikoSettings) -> dict:
     login = row.api_login or ""
     masked = ""
     if login:
-        masked = login[:3] + "…" + login[-2:] if len(login) > 6 else "***"
+        if login.startswith("enc:"):
+            masked = "•••• (зашифрован в БД)"
+        else:
+            masked = login[:3] + "…" + login[-2:] if len(login) > 6 else "***"
+    env_set = bool((os.environ.get("IIKO_API_LOGIN") or "").strip())
     return {
-        "configured": bool(login),
-        "apiLoginMasked": masked,
+        "configured": bool(login) or env_set,
+        "apiLoginMasked": "из env IIKO_API_LOGIN" if env_set and not login else masked,
+        "fromEnv": env_set,
         "organizationId": row.organization_id,
         "organizationName": row.organization_name,
         "daysBack": row.days_back or 30,

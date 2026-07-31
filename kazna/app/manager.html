@@ -84,17 +84,23 @@
       };
       var prioMap = { urgent: "срочно", high: "высокая", normal: "обычная", low: "низкая" };
 
+      function esc(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+
       function renderAccounts(user) {
         var el = document.getElementById("myAccounts");
         var acc = user.accounts || [];
         if (!acc.length) {
           el.innerHTML = '<p class="muted">Финдир ещё не привязал вам счета — напишите ему или работайте заявками по точке <strong>' +
-            (user.site || "без точки") + "</strong>.</p>";
+            esc(user.site || "без точки") + "</strong>.</p>";
           return;
         }
         el.innerHTML = acc.map(function (a) {
-          return '<div class="row req"><div><strong>' + a.name + '</strong><div class="muted">' +
-            (a.org || "юрлицо / р/с") + "</div></div><div></div><div></div><div>" +
+          return '<div class="row req"><div><strong>' + esc(a.name) + '</strong><div class="muted">' +
+            esc(a.org || "юрлицо / р/с") + "</div></div><div></div><div></div><div>" +
             '<span class="status ok">ваш</span></div><div></div></div>';
         }).join("");
       }
@@ -109,14 +115,14 @@
           var canCancel = r.status === "new" || r.status === "reviewing";
           return (
             '<div class="row req">' +
-            "<div><strong>" + r.title + '</strong><div class="muted">' +
-            (r.site || "") + " · " + r.dueDateLabel +
-            (r.comment ? " · " + r.comment : "") +
+            "<div><strong>" + esc(r.title) + '</strong><div class="muted">' +
+            esc(r.site || "") + " · " + esc(r.dueDateLabel) +
+            (r.comment ? " · " + esc(r.comment) : "") +
             (r.paymentId ? " · уже в календаре оплат" : "") +
             "</div></div>" +
-            '<div class="amount">' + r.amountLabel + "</div>" +
-            '<div><span class="prio ' + r.priority + '">' + (prioMap[r.priority] || r.priority) + "</span></div>" +
-            '<div><span class="status ' + r.status + '">' + (statusMap[r.status] || r.status) + "</span></div>" +
+            '<div class="amount">' + esc(r.amountLabel) + "</div>" +
+            '<div><span class="prio ' + esc(r.priority) + '">' + esc(prioMap[r.priority] || r.priority) + "</span></div>" +
+            '<div><span class="status ' + esc(r.status) + '">' + esc(statusMap[r.status] || r.status) + "</span></div>" +
             "<div>" + (canCancel
               ? '<button class="btn sm ghost" type="button" data-cancel="' + r.id + '">Отменить</button>'
               : "") + "</div></div>"

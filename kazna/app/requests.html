@@ -44,6 +44,12 @@
       };
       var prioMap = { urgent: "срочно", high: "высокая", normal: "обычная", low: "низкая" };
 
+      function esc(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+
       async function act(id, patch) {
         var msg = document.getElementById("msg");
         msg.textContent = "Сохраняю…";
@@ -78,14 +84,14 @@
 
           return (
             '<div class="row req-fin">' +
-            "<div><strong>" + r.title + '</strong><div class="muted">' +
-            (r.creatorName || "управляющий") +
-            (r.site ? " · " + r.site : "") +
-            " · " + r.dueDateLabel +
-            (r.comment ? "<br>" + r.comment : "") +
+            "<div><strong>" + esc(r.title) + '</strong><div class="muted">' +
+            esc(r.creatorName || "управляющий") +
+            (r.site ? " · " + esc(r.site) : "") +
+            " · " + esc(r.dueDateLabel) +
+            (r.comment ? "<br>" + esc(r.comment) : "") +
             "</div></div>" +
-            '<div class="amount">' + r.amountLabel + "</div>" +
-            '<div><span class="status ' + r.status + '">' + (statusMap[r.status] || r.status) + "</span></div>" +
+            '<div class="amount">' + esc(r.amountLabel) + "</div>" +
+            '<div><span class="status ' + esc(r.status) + '">' + esc(statusMap[r.status] || r.status) + "</span></div>" +
             actions +
             "</div>"
           );

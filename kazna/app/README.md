@@ -1,6 +1,8 @@
 # Казна · рабочий контур
 
-FastAPI + SQLite + Excel-импорт + UI.
+FastAPI + SQLite/Postgres + iiko + Excel + UI.
+
+См. также **[SECURITY.md](./SECURITY.md)** — чеклист для боевых финансов.
 
 ## Локально
 
@@ -14,28 +16,27 @@ uvicorn server.main:app --reload --port 8765
 
 Открой http://127.0.0.1:8765/
 
+В демо-режиме (по умолчанию вне production):
 - финдир: `fin@kazna.local` / `kazna2026`
 - управляющий: `manager@kazna.local` / `kazna2026`
 
-На вкладке **Импорт** загрузи свой `.xlsx` с платежами.
+## Railway (прод)
 
-## Railway
+Root directory: `kazna/app`
 
-Root directory сервиса: `kazna/app`
+**Обязательные переменные:**
+- `KAZNA_SECRET` — ≥32 символов
+- `KAZNA_HTTPS=true`
+- `DATABASE_URL` — Postgres
+- `KAZNA_ENV=production` (рекомендуется)
 
-```bash
-railway login
-cd kazna/app
-railway init
-railway up
-railway domain
-```
+**Опционально:**
+- `IIKO_API_LOGIN` — лучше env, чем поле в UI
+- `KAZNA_HOSTS=your.domain`
+- `KAZNA_SESSION_HOURS=12`
+- `KAZNA_ALLOW_DEMO=1` — **только** для песочницы, не для боевых денег
 
-Переменные:
-- `KAZNA_SECRET` — длинная строка
-- `KAZNA_HTTPS=true` — после выдачи https-домена
+## Данные
 
-## Excel
-
-Платежки: колонки `Дата`, `Сумма`, желательно `Контрагент`, `Назначение`, `Счёт`, `Статус`.  
-Остатки: `Счёт/Организация` + `Остаток`.
+- Платежи: iiko sync + ручные + заявки
+- Остатки р/с и кассы: Excel / ручной ввод на «Деньги»

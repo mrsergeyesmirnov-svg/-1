@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import secrets
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -13,12 +12,28 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .database import UPLOADS, Base, SessionLocal, engine, get_db
 from .excel_import import inspect_payments_file, parse_payments_file
 from .iiko_client import IikoClient, IikoError
 from .iiko_sync import get_or_create_settings, settings_public, sync_iiko_invoices
 from .models import Account, Payment, RequestItem, User, UserAccount
+from .security import (
+    UPLOAD_MAX_BYTES,
+    LoginRateLimiter,
+    SecurityHeadersMiddleware,
+    allow_demo,
+    audit,
+    client_ip,
+    docs_enabled,
+    https_only_cookies,
+    is_production,
+    open_secret,
+    resolve_secret,
+    seal_secret,
+    session_max_age,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -30,13 +45,28 @@ ROLE_LABELS = {
 }
 ALLOWED_ROLES = set(ROLE_LABELS)
 
-app = FastAPI(title="Казна")
+APP_SECRET = resolve_secret()
+login_limiter = LoginRateLimiter()
+
+app = FastAPI(
+    title="Казна",
+    docs_url="/docs" if docs_enabled() else None,
+    redoc_url="/redoc" if docs_enabled() else None,
+    openapi_url="/openapi.json" if docs_enabled() else None,
+)
+
+_hosts = [h.strip() for h in (os.environ.get("KAZNA_HOSTS") or "").split(",") if h.strip()]
+if _hosts:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=_hosts)
+
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.environ.get("KAZNA_SECRET", secrets.token_hex(32)),
+    secret_key=APP_SECRET,
     session_cookie="kazna_session",
     same_site="lax",
-    https_only=os.environ.get("KAZNA_HTTPS", "").lower() in {"1", "true", "yes"},
+    https_only=https_only_cookies(),
+    max_age=session_max_age(),
 )
 
 
@@ -64,6 +94,8 @@ def _migrate_schema() -> None:
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _migrate_schema()
+    if not allow_demo():
+        return
     db = SessionLocal()
     try:
         if db.scalar(select(func.count()).select_from(User)) == 0:
@@ -87,6 +119,7 @@ def init_db() -> None:
                 ]
             )
             db.commit()
+            audit("demo_users_seeded")
     finally:
         db.close()
 
@@ -148,7 +181,7 @@ class RequestPatch(BaseModel):
 class PersonCreate(BaseModel):
     name: str = Field(min_length=2, max_length=255)
     email: str = Field(min_length=3, max_length=255)
-    password: str = Field(min_length=6, max_length=128)
+    password: str = Field(min_length=8, max_length=128)
     role: str = "manager"
     site: str | None = None
     account_ids: list[int] = Field(default_factory=list)
@@ -274,16 +307,46 @@ def payment_dict(p: Payment) -> dict:
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "service": "kazna"}
+    return {
+        "ok": True,
+        "service": "kazna",
+        "production": is_production(),
+        "httpsCookies": https_only_cookies(),
+    }
+
+
+@app.get("/api/public/bootstrap")
+def public_bootstrap():
+    """Safe public flags for the login page (no secrets)."""
+    return {
+        "demoMode": allow_demo(),
+        "production": is_production(),
+    }
 
 
 @app.post("/api/login")
 def login(payload: LoginIn, request: Request, db: Session = Depends(get_db)):
     email = str(payload.email).strip().lower()
+    ip = client_ip(request)
+    try:
+        login_limiter.check(ip, email)
+    except PermissionError as e:
+        audit("login_rate_limited", email=email, ip=ip)
+        raise HTTPException(status_code=429, detail=str(e)) from e
+
     user = db.scalar(select(User).where(User.email == email))
     if not user or not pwd.verify(payload.password, user.password_hash):
+        login_limiter.fail(ip, email)
+        audit("login_failed", email=email, ip=ip)
         raise HTTPException(status_code=400, detail="Неверный логин или пароль")
+    if not user.active:
+        audit("login_inactive", email=email, ip=ip)
+        raise HTTPException(status_code=403, detail="Учётная запись отключена")
+
+    login_limiter.success(ip, email)
+    request.session.clear()
     request.session["uid"] = user.id
+    audit("login_ok", email=email, ip=ip, role=user.role)
     return {
         "ok": True,
         "user": {
@@ -306,7 +369,7 @@ def logout(request: Request):
 @app.get("/api/me")
 def me(request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
-    if not user:
+    if not user or not user.active:
         raise HTTPException(status_code=401, detail="Unauthorized")
     aids = _account_ids_for_user(db, user.id)
     accounts = []
@@ -483,9 +546,10 @@ def list_payments(
     source: str | None = None,
     account: str | None = None,
     status: str | None = None,
-    user: User = Depends(require_user),
+    user: User = Depends(require_office),
     db: Session = Depends(get_db),
 ):
+    """Payments calendar — office only (managers use /api/requests)."""
     q = select(Payment).order_by(Payment.pay_date.is_(None), Payment.pay_date, Payment.id)
     if source:
         q = q.where(Payment.source == source)
@@ -665,8 +729,9 @@ async def import_excel(
     if not name.endswith((".xlsx", ".xlsm", ".csv")):
         raise HTTPException(400, "Нужен файл .xlsx или .csv")
     content = await file.read()
-    if len(content) > 15 * 1024 * 1024:
+    if len(content) > UPLOAD_MAX_BYTES:
         raise HTTPException(400, "Файл больше 15 МБ")
+    audit("import_excel", user=user.email, bytes=len(content), name=file.filename)
     return _import_payments(content, file.filename or "payments.xlsx", "excel", replace, db)
 
 
@@ -682,8 +747,9 @@ async def import_iiko(
     if not name.endswith((".xlsx", ".xlsm", ".csv")):
         raise HTTPException(400, "Нужен выгрузка iiko: .xlsx или .csv")
     content = await file.read()
-    if len(content) > 15 * 1024 * 1024:
+    if len(content) > UPLOAD_MAX_BYTES:
         raise HTTPException(400, "Файл больше 15 МБ")
+    audit("import_iiko_file", user=user.email, bytes=len(content), name=file.filename)
     return _import_payments(content, file.filename or "iiko.xlsx", "iiko", replace, db)
 
 
@@ -692,7 +758,12 @@ async def import_inspect(
     file: UploadFile = File(...),
     user: User = Depends(require_fin),
 ):
+    name = (file.filename or "").lower()
+    if not name.endswith((".xlsx", ".xlsm", ".csv")):
+        raise HTTPException(400, "Нужен файл .xlsx или .csv")
     content = await file.read()
+    if len(content) > UPLOAD_MAX_BYTES:
+        raise HTTPException(400, "Файл больше 15 МБ")
     try:
         info = inspect_payments_file(content, filename=file.filename or "")
     except Exception as e:
@@ -715,6 +786,16 @@ class IikoSyncIn(BaseModel):
     replace: bool = False
 
 
+def _iiko_login(row) -> str:
+    env_login = (os.environ.get("IIKO_API_LOGIN") or "").strip()
+    if env_login:
+        return env_login
+    try:
+        return open_secret(row.api_login or "", APP_SECRET)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
 @app.get("/api/import/iiko/config")
 def iiko_config_get(user: User = Depends(require_fin), db: Session = Depends(get_db)):
     return settings_public(get_or_create_settings(db))
@@ -728,7 +809,8 @@ def iiko_config_save(
 ):
     row = get_or_create_settings(db)
     if payload.api_login is not None and payload.api_login.strip():
-        row.api_login = payload.api_login.strip()
+        row.api_login = seal_secret(payload.api_login.strip(), APP_SECRET)
+        audit("iiko_login_saved", user=user.email)
     org = payload.organization_id or payload.org_id
     if org is not None:
         row.organization_id = org.strip() or None
@@ -747,9 +829,9 @@ def iiko_config_save(
 @app.post("/api/import/iiko/test")
 def iiko_test(user: User = Depends(require_fin), db: Session = Depends(get_db)):
     row = get_or_create_settings(db)
-    login = (row.api_login or os.environ.get("IIKO_API_LOGIN") or "").strip()
+    login = _iiko_login(row)
     if not login:
-        raise HTTPException(400, "Сначала сохраните apiLogin")
+        raise HTTPException(400, "Сначала сохраните apiLogin или задайте IIKO_API_LOGIN")
     try:
         client = IikoClient(login)
         client.auth()
@@ -770,9 +852,9 @@ def iiko_test(user: User = Depends(require_fin), db: Session = Depends(get_db)):
 @app.get("/api/import/iiko/organizations")
 def iiko_organizations(user: User = Depends(require_fin), db: Session = Depends(get_db)):
     row = get_or_create_settings(db)
-    login = (row.api_login or os.environ.get("IIKO_API_LOGIN") or "").strip()
+    login = _iiko_login(row)
     if not login:
-        raise HTTPException(400, "Сначала сохраните apiLogin")
+        raise HTTPException(400, "Сначала сохраните apiLogin или задайте IIKO_API_LOGIN")
     try:
         client = IikoClient(login)
         client.auth()
@@ -788,7 +870,7 @@ def iiko_sync(
     db: Session = Depends(get_db),
 ):
     row = get_or_create_settings(db)
-    login = (row.api_login or os.environ.get("IIKO_API_LOGIN") or "").strip()
+    login = _iiko_login(row)
     try:
         result = sync_iiko_invoices(
             db,
@@ -805,6 +887,7 @@ def iiko_sync(
         row.last_error = str(e)
         db.commit()
         raise HTTPException(400, f"Синк iiko не удался: {e}") from e
+    audit("iiko_sync", user=user.email, imported=result.get("imported"))
     return result
 
 
@@ -815,7 +898,12 @@ async def set_balances(
     db: Session = Depends(get_db),
 ):
     """Upsert balances by account name — does not wipe iiko/manual accounts."""
+    name = (file.filename or "").lower()
+    if not name.endswith((".xlsx", ".xlsm", ".csv")):
+        raise HTTPException(400, "Нужен файл .xlsx или .csv")
     content = await file.read()
+    if len(content) > UPLOAD_MAX_BYTES:
+        raise HTTPException(400, "Файл больше 15 МБ")
     try:
         rows = parse_balance_sheet(content)
     except HTTPException:
@@ -1067,8 +1155,8 @@ def patch_person(
     if payload.name is not None:
         person.name = payload.name.strip()
     if payload.password:
-        if len(payload.password) < 6:
-            raise HTTPException(400, "Пароль минимум 6 символов")
+        if len(payload.password) < 8:
+            raise HTTPException(400, "Пароль минимум 8 символов")
         person.password_hash = pwd.hash(payload.password)
     if payload.role is not None:
         if payload.role not in ALLOWED_ROLES:

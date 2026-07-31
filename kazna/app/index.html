@@ -18,19 +18,15 @@
       <form id="loginForm" autocomplete="on">
         <div class="field">
           <label for="email">Email</label>
-          <input id="email" name="email" type="email" required placeholder="fin@kazna.local" value="fin@kazna.local" />
+          <input id="email" name="email" type="email" required placeholder="you@company.ru" autocomplete="username" />
         </div>
         <div class="field">
           <label for="password">Пароль</label>
-          <input id="password" name="password" type="password" required placeholder="••••••••" value="kazna2026" />
+          <input id="password" name="password" type="password" required placeholder="••••••••" autocomplete="current-password" />
         </div>
         <button class="btn block" type="submit">Войти</button>
       </form>
-      <div class="demo">
-        Демо-аккаунты:<br />
-        Финдир — <code>fin@kazna.local</code> / <code>kazna2026</code><br />
-        Управляющий — <code>manager@kazna.local</code> / <code>kazna2026</code>
-      </div>
+      <div class="demo" id="demoBox" hidden></div>
     </div>
   </div>
   <script src="/js/api.js"></script>
@@ -42,6 +38,21 @@
       KaznaAPI.me().then(function (u) {
         location.replace(homeFor(u.role));
       }).catch(function () {});
+
+      fetch("/api/public/bootstrap", { credentials: "same-origin" })
+        .then(function (r) { return r.json(); })
+        .then(function (b) {
+          if (!b.demoMode) return;
+          var box = document.getElementById("demoBox");
+          box.hidden = false;
+          box.innerHTML =
+            "Демо-режим:<br />" +
+            "Финдир — <code>fin@kazna.local</code> / <code>kazna2026</code><br />" +
+            "Управляющий — <code>manager@kazna.local</code> / <code>kazna2026</code>";
+          document.getElementById("email").value = "fin@kazna.local";
+          document.getElementById("password").value = "kazna2026";
+        })
+        .catch(function () {});
 
       document.getElementById("loginForm").addEventListener("submit", async function (e) {
         e.preventDefault();
