@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Смена. — консалтинг для ресторанных команд</title>
-  <meta name="description" content="Методики работы с командой и цифровые инструменты обратной связи. Снижаем текучку, поднимаем оценки смен, меняем атмосферу в зале и на кухне." />
+  <title>Смена. — лечим рестораны: команда, атмосфера, цифры</title>
+  <meta name="description" content="Консалтинг для ресторанов: диагностика, трансформация команды, PulseTeam как память результата и менеджеры по счастью. Методика + IT в одном контуре." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -19,8 +19,11 @@
       --accent-soft: rgba(255, 90, 31, 0.12);
       --calm: #0d9488;
       --calm-soft: rgba(13, 148, 136, 0.12);
+      --violet: #6d28d9;
+      --violet-soft: rgba(109, 40, 217, 0.1);
       --font: Mulish, system-ui, sans-serif;
       --ease: cubic-bezier(0.22, 1, 0.36, 1);
+      --shadow: 0 4px 22px rgba(28, 25, 23, 0.06);
     }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
@@ -36,9 +39,8 @@
       -webkit-font-smoothing: antialiased;
     }
     a { color: inherit; }
-    .wrap { width: min(920px, calc(100% - 32px)); margin: 0 auto; }
+    .wrap { width: min(960px, calc(100% - 32px)); margin: 0 auto; }
 
-    /* —— Hero —— */
     .hero {
       min-height: 100svh;
       display: flex;
@@ -53,55 +55,58 @@
       position: absolute;
       inset: 0;
       background:
-        linear-gradient(180deg, transparent 35%, var(--bg) 92%),
-        radial-gradient(ellipse 80% 55% at 70% 15%, rgba(255,90,31,.18), transparent 60%),
-        radial-gradient(ellipse 60% 45% at 15% 70%, rgba(13,148,136,.12), transparent 55%);
+        linear-gradient(180deg, transparent 30%, var(--bg) 92%),
+        radial-gradient(ellipse 80% 55% at 70% 12%, rgba(255,90,31,.16), transparent 60%),
+        radial-gradient(ellipse 55% 45% at 12% 65%, rgba(13,148,136,.11), transparent 55%);
       pointer-events: none;
       animation: glow 8s var(--ease) infinite alternate;
     }
     @keyframes glow {
       from { opacity: .85; transform: scale(1); }
-      to { opacity: 1; transform: scale(1.04); }
+      to { opacity: 1; transform: scale(1.03); }
     }
     .nav {
       position: relative; z-index: 2;
       display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: auto; padding-top: 8px;
+      margin-bottom: auto; padding-top: 8px; gap: 12px; flex-wrap: wrap;
     }
-    .brand {
-      font-weight: 800; font-size: 1.35rem; letter-spacing: -0.04em;
-    }
+    .brand { font-weight: 800; font-size: 1.35rem; letter-spacing: -0.04em; }
     .brand span { color: var(--accent); }
+    .nav-links { display: flex; gap: 14px; flex-wrap: wrap; }
     .nav a {
-      font-size: .84rem; font-weight: 700; text-decoration: none;
-      color: var(--muted);
+      font-size: .84rem; font-weight: 700; text-decoration: none; color: var(--muted);
     }
     .nav a:hover { color: var(--accent); }
-    .hero-copy { position: relative; z-index: 2; max-width: 18em; padding-bottom: 8px; }
+    .hero-copy { position: relative; z-index: 2; padding-bottom: 8px; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: .72rem; font-weight: 800; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--calm);
+      background: var(--calm-soft); border: 1px solid rgba(13,148,136,.25);
+      padding: 6px 12px; border-radius: 999px; margin-bottom: 14px;
+    }
     .hero h1 {
       margin: 0 0 14px;
-      font-size: clamp(2.1rem, 7vw, 3.4rem);
-      line-height: 1.05;
+      font-size: clamp(2rem, 6.5vw, 3.35rem);
+      line-height: 1.06;
       font-weight: 800;
       letter-spacing: -0.045em;
-      opacity: 0;
-      transform: translateY(18px);
-      animation: rise .9s var(--ease) .15s forwards;
+      max-width: 14em;
+      opacity: 0; transform: translateY(18px);
+      animation: rise .9s var(--ease) .12s forwards;
     }
-    .hero p {
+    .hero .sub {
       margin: 0 0 22px;
       color: var(--muted);
-      font-size: clamp(1rem, 2.4vw, 1.12rem);
-      max-width: 28em;
-      opacity: 0;
-      transform: translateY(18px);
-      animation: rise .9s var(--ease) .35s forwards;
+      font-size: clamp(1rem, 2.4vw, 1.14rem);
+      max-width: 34em;
+      opacity: 0; transform: translateY(18px);
+      animation: rise .9s var(--ease) .28s forwards;
     }
     .cta-row {
       display: flex; flex-wrap: wrap; gap: 10px;
-      opacity: 0;
-      transform: translateY(18px);
-      animation: rise .9s var(--ease) .5s forwards;
+      opacity: 0; transform: translateY(18px);
+      animation: rise .9s var(--ease) .42s forwards;
     }
     .btn {
       display: inline-flex; align-items: center; justify-content: center;
@@ -113,11 +118,8 @@
     .btn.primary { background: var(--ink); color: #fff; }
     .btn.primary:hover { background: #000; }
     .btn.ghost { background: #fff; border-color: var(--line); color: var(--ink); }
-    @keyframes rise {
-      to { opacity: 1; transform: translateY(0); }
-    }
+    @keyframes rise { to { opacity: 1; transform: translateY(0); } }
 
-    /* —— Sections —— */
     section { padding: 64px 0; }
     section + section { border-top: 1px solid var(--line); }
     .eyebrow {
@@ -129,7 +131,7 @@
       font-size: clamp(1.45rem, 3.5vw, 2rem);
       font-weight: 800; letter-spacing: -0.03em; line-height: 1.15;
     }
-    .lead { margin: 0 0 28px; color: var(--muted); max-width: 36em; }
+    .lead { margin: 0 0 28px; color: var(--muted); max-width: 38em; }
 
     .reveal {
       opacity: 0; transform: translateY(22px);
@@ -137,23 +139,72 @@
     }
     .reveal.in { opacity: 1; transform: none; }
 
-    .steps { display: grid; gap: 18px; counter-reset: step; }
-    @media (min-width: 720px) { .steps { grid-template-columns: repeat(3, 1fr); gap: 22px; } }
-    .step { padding-top: 8px; }
-    .step::before {
-      counter-increment: step;
-      content: "0" counter(step);
-      display: block;
-      font-size: .78rem; font-weight: 800; letter-spacing: .06em;
-      color: var(--accent); margin-bottom: 8px;
+    .path {
+      display: grid; gap: 12px; counter-reset: path;
     }
-    .step h3 { margin: 0 0 6px; font-size: 1.05rem; font-weight: 800; }
-    .step p { margin: 0; color: var(--muted); font-size: .94rem; }
+    @media (min-width: 760px) { .path { grid-template-columns: repeat(5, 1fr); } }
+    .path-step {
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 16px; padding: 16px 14px; box-shadow: var(--shadow);
+      position: relative;
+    }
+    .path-step::before {
+      counter-increment: path;
+      content: counter(path);
+      display: flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; border-radius: 999px;
+      background: var(--accent-soft); color: var(--accent);
+      font-size: .78rem; font-weight: 800; margin-bottom: 10px;
+    }
+    .path-step h3 { margin: 0 0 6px; font-size: .92rem; font-weight: 800; line-height: 1.25; }
+    .path-step p { margin: 0; font-size: .82rem; color: var(--muted); line-height: 1.4; }
+    .path-step.highlight {
+      border-color: rgba(13,148,136,.35);
+      background: linear-gradient(180deg, #f8fffd 0%, #fff 100%);
+    }
 
-    .team { display: grid; gap: 28px; }
-    @media (min-width: 720px) { .team { grid-template-columns: 1fr 1fr; gap: 36px; } }
+    .blocks {
+      display: grid; gap: 12px;
+    }
+    @media (min-width: 640px) { .blocks { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 900px) { .blocks { grid-template-columns: repeat(4, 1fr); } }
+    .block {
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 16px; padding: 18px 16px; box-shadow: var(--shadow);
+    }
+    .block-icon { font-size: 1.4rem; margin-bottom: 8px; }
+    .block h3 { margin: 0 0 6px; font-size: 1rem; font-weight: 800; }
+    .block p { margin: 0; font-size: .86rem; color: var(--muted); }
+
+    .quote {
+      margin: 28px 0 0;
+      padding: 20px 22px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,90,31,.25);
+      background: linear-gradient(135deg, #fff7f3 0%, #fff 70%);
+      font-weight: 700; letter-spacing: -0.02em;
+      font-size: clamp(1.05rem, 2.5vw, 1.25rem);
+      max-width: 28em; line-height: 1.35;
+    }
+    .quote span { color: var(--accent); }
+
+    .split {
+      display: grid; gap: 20px;
+    }
+    @media (min-width: 720px) { .split { grid-template-columns: 1fr 1fr; gap: 24px; } }
+    .card {
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 18px; padding: 22px 20px; box-shadow: var(--shadow);
+    }
+    .card h3 { margin: 0 0 8px; font-size: 1.08rem; font-weight: 800; }
+    .card .who { margin: 0 0 12px; color: var(--accent); font-weight: 700; font-size: .88rem; }
+    .card ul { margin: 0; padding-left: 1.1em; color: var(--muted); font-size: .92rem; }
+    .card li { margin: 7px 0; }
+
+    .team { display: grid; gap: 24px; }
+    @media (min-width: 720px) { .team { grid-template-columns: 1fr 1fr; gap: 28px; } }
     .person h3 { margin: 0 0 4px; font-size: 1.2rem; font-weight: 800; letter-spacing: -0.02em; }
-    .role { margin: 0 0 12px; color: var(--accent); font-weight: 700; font-size: .9rem; }
+    .role { margin: 0 0 12px; color: var(--calm); font-weight: 700; font-size: .9rem; }
     .person p { margin: 0; color: var(--muted); font-size: .95rem; }
     .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
     .tag {
@@ -161,23 +212,29 @@
       padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: #fff;
     }
 
-    .split {
-      display: grid; gap: 28px;
+    .tiers {
+      display: grid; gap: 14px;
     }
-    @media (min-width: 720px) {
-      .split { grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+    @media (min-width: 720px) { .tiers { grid-template-columns: repeat(3, 1fr); } }
+    .tier {
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 16px; padding: 20px 18px; box-shadow: var(--shadow);
     }
-    .split h3 { margin: 0 0 10px; font-size: 1.05rem; font-weight: 800; }
-    .split ul { margin: 0; padding-left: 1.1em; color: var(--muted); }
-    .split li { margin: 6px 0; }
+    .tier.featured {
+      border-color: rgba(13,148,136,.4);
+      background: linear-gradient(180deg, #f8fffd 0%, #fff 100%);
+    }
+    .tier-label {
+      font-size: .72rem; font-weight: 800; letter-spacing: .06em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+    }
+    .tier h3 { margin: 0 0 8px; font-size: 1.05rem; font-weight: 800; }
+    .tier p { margin: 0; font-size: .88rem; color: var(--muted); }
 
-    .result {
-      padding: 28px 0 8px;
-    }
     .result-line {
       font-size: clamp(1.25rem, 3vw, 1.65rem);
       font-weight: 800; letter-spacing: -0.03em; line-height: 1.25;
-      max-width: 18em; margin: 0 0 18px;
+      max-width: 20em; margin: 0 0 18px;
     }
     .result-line span { color: var(--accent); }
 
@@ -194,42 +251,186 @@
   <header class="hero">
     <div class="wrap nav">
       <div class="brand">Смена<span>.</span></div>
-      <a href="https://t.me/yank0vski" target="_blank" rel="noopener">Написать</a>
+      <nav class="nav-links" aria-label="Разделы">
+        <a href="#path">Путь</a>
+        <a href="#product">Продукт</a>
+        <a href="#team">Команда</a>
+        <a href="https://t.me/yank0vski" target="_blank" rel="noopener">Контакт</a>
+      </nav>
     </div>
     <div class="wrap hero-copy">
-      <h1>Команда работает лучше, когда её слышат</h1>
-      <p>
-        Консалтинг для ресторанов: методики работы с людьми
-        и цифровые инструменты обратной связи в одном контуре.
+      <div class="pill">Пилот · методика + IT</div>
+      <h1>Заходим. Меняем. Держим результат.</h1>
+      <p class="sub">
+        Консалтинг для ресторанов, где <strong>люди и атмосфера</strong> — не слайды,
+        а измеримая работа. Методика Ботвича лечит команду.
+        PulseTeam и ИИ-аудит не заменяют человека — они помогают не потерять то, что уже исправили.
       </p>
       <div class="cta-row">
-        <a class="btn primary" href="https://t.me/yank0vski" target="_blank" rel="noopener">Обсудить пилот</a>
-        <a class="btn ghost" href="#how">Как это устроено</a>
+        <a class="btn primary" href="https://t.me/yank0vski" target="_blank" rel="noopener">Запросить диагностику</a>
+        <a class="btn ghost" href="#path">Как устроена связка</a>
       </div>
     </div>
   </header>
 
-  <section id="what">
+  <section id="problem">
     <div class="wrap reveal">
-      <p class="eyebrow">Чем занимаемся</p>
-      <h2>Не бот и не «мотивация». Система изменений в команде</h2>
+      <p class="eyebrow">Проблема</p>
+      <h2>Собственник тушит пожары, а не управляет рестораном</h2>
       <p class="lead">
-        Ресторану редко нужен ещё один сервис. Нужны меньше текучки, спокойнее смены,
-        выше оценки и меньше конфликтов между залом и кухней.
-        Мы соединяем живую работу с людьми и измеримый контур сигналов со смен.
+        Команда выгорает → сервис проседает → гость чувствует напряжение → выручка и чек страдают.
+        Отдельный бот или «мотивационный тренинг» это не лечит: без живой работы с людьми
+        цифры не меняются, а без цифр изменения не удерживаются.
       </p>
-      <div class="steps">
-        <div class="step">
+      <p class="quote">
+        Мы продаём не софт и не часы коуча. Мы возвращаем ресторан в состояние, где
+        <span>люди приходят по зову, а не в рабство денег</span> — и это видно гостю.
+      </p>
+    </div>
+  </section>
+
+  <section id="path">
+    <div class="wrap reveal">
+      <p class="eyebrow">Путь ресторана</p>
+      <h2>От знакомства до устойчивого результата</h2>
+      <p class="lead">
+        Один контур: сначала понимаем болезнь, потом лечим, потом следим, чтобы не откатилось.
+        PulseTeam подключается не «просто так», а как память и сигнализация после консалтинга.
+      </p>
+      <div class="path">
+        <article class="path-step">
+          <h3>Знакомство</h3>
+          <p>ИИ-аудит и чек-лист: быстро собираем картину по людям, процессам, гостю и финансам.</p>
+        </article>
+        <article class="path-step">
           <h3>Диагностика</h3>
-          <p>Смотрим, где ломается смена: люди, процессы, коммуникация, нагрузка.</p>
+          <p>Фиксируем baseline: где болит, что мешает смене, что видит собственник «на ощущениях».</p>
+        </article>
+        <article class="path-step highlight">
+          <h3>Лечение</h3>
+          <p>Консалтинг Ботвича и команды: меняем атмосферу, привычки, управление людьми.</p>
+        </article>
+        <article class="path-step highlight">
+          <h3>Pulse · наблюдение</h3>
+          <p>Аналитика смен, алерты, динамика. Не дашборд ради дашборда — контроль достигнутого уровня.</p>
+        </article>
+        <article class="path-step">
+          <h3>Менеджер по счастью</h3>
+          <p>Если показатели просели — куратор возвращает ресторан к норме, не начиная с нуля.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="product">
+    <div class="wrap reveal">
+      <p class="eyebrow">Что смотрим</p>
+      <h2>Четыре блока здоровья ресторана</h2>
+      <p class="lead">Диагностика и работа идут не «вообще про команду», а по понятным зонам ответственности — их потом видит собственник и куратор.</p>
+      <div class="blocks">
+        <article class="block">
+          <div class="block-icon" aria-hidden="true">👥</div>
+          <h3>Люди</h3>
+          <p>Текучка, конфликты, выгорание, доверие между залом и кухней, ритм смены.</p>
+        </article>
+        <article class="block">
+          <div class="block-icon" aria-hidden="true">💰</div>
+          <h3>Финансы</h3>
+          <p>Утечки, дисциплина, связь операционки с деньгами — без бухгалтерского занудства на входе.</p>
+        </article>
+        <article class="block">
+          <div class="block-icon" aria-hidden="true">✨</div>
+          <h3>Гость</h3>
+          <p>Сервис, отзывы, повторные визиты — то, что чувствуется даже без открытия P&amp;L.</p>
+        </article>
+        <article class="block">
+          <div class="block-icon" aria-hidden="true">⚙️</div>
+          <h3>Процессы</h3>
+          <p>Стандарты, handoff между сменами, где ломается исполнение после «мы всё обсудили».</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="model">
+    <div class="wrap reveal">
+      <p class="eyebrow">Продуктовая полка</p>
+      <h2>Разные этапы — разные задачи</h2>
+      <p class="lead">
+        Консалтинг — крупное изменение. Подписка — удержание. Менеджер по счастью — быстрое восстановление,
+        когда ресторан уже знает свой «нормальный» уровень после нашей работы.
+      </p>
+      <div class="tiers">
+        <article class="tier">
+          <div class="tier-label">Вход</div>
+          <h3>Диагностика</h3>
+          <p>Карта боли, приоритеты, понятное «что лечить первым» — основа для решения собственника.</p>
+        </article>
+        <article class="tier featured">
+          <div class="tier-label">Ядро</div>
+          <h3>Трансформация</h3>
+          <p>Проект с Ботвичем: сессии, методики, изменение атмосферы. Здесь основная ценность и результат.</p>
+        </article>
+        <article class="tier">
+          <div class="tier-label">После</div>
+          <h3>Pulse + куратор</h3>
+          <p>Lite — наблюдение и алерты. Pro — менеджер по счастью, когда нужно вернуть показатели наверх.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="pulse">
+    <div class="wrap reveal">
+      <p class="eyebrow">Почему Pulse здесь</p>
+      <h2>Бот без консультанта не лечит. Консультант без памяти — теряет результат</h2>
+      <div class="split">
+        <div class="card">
+          <h3>Без человека</h3>
+          <p class="who">Pulse отдельно</p>
+          <ul>
+            <li>ещё один канал опросов</li>
+            <li>управляющий не знает, что делать с сигналом</li>
+            <li>через месяц «забыли нажимать»</li>
+          </ul>
         </div>
-        <div class="step">
-          <h3>Внедрение</h3>
-          <p>Запускаем обратную связь и ритм работы с руководителями — без галочек «для галочки».</p>
+        <div class="card">
+          <h3>Со связкой Смена.</h3>
+          <p class="who">Методика + IT</p>
+          <ul>
+            <li>baseline после консалтинга — с чем сравниваем</li>
+            <li>алерт = повод для куратора, не шум</li>
+            <li>собственник видит атмосферу и цифры в одном контуре</li>
+          </ul>
         </div>
-        <div class="step">
-          <h3>Результат</h3>
-          <p>Через 60–90 дней видно динамику: оценки, темы проблем, что реально закрыли.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="roles">
+    <div class="wrap reveal">
+      <p class="eyebrow">Кто за что</p>
+      <h2>Два контура одной фирмы</h2>
+      <div class="split">
+        <div class="card">
+          <h3>Артём Ботвич</h3>
+          <p class="who">Люди · чувства · атмосфера · обучение · результат</p>
+          <ul>
+            <li>диагностика и трансформация команды</li>
+            <li>методики работы с руководителями и сменой</li>
+            <li>обучение будущих менеджеров по счастью</li>
+            <li>критерий «работа закончена — ресторан изменился»</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Сергей Смирнов</h3>
+          <p class="who">Упаковка · стратегия · IT · экономика · продвижение</p>
+          <ul>
+            <li>УТП, сайт, КП, unit-экономика продукта</li>
+            <li>PulseTeam, дашборды, KPI, ИИ-аудитор на входе</li>
+            <li>система консультантов и их мотивация</li>
+            <li>масштабирование связки на новые точки</li>
+          </ul>
         </div>
       </div>
     </div>
@@ -238,82 +439,61 @@
   <section id="team">
     <div class="wrap reveal">
       <p class="eyebrow">Команда</p>
-      <h2>Методика + инструмент</h2>
-      <p class="lead">Два контура одной работы: человек, который умеет менять команду, и продукт, который делает изменения измеримыми.</p>
+      <h2>Опыт в ресторанах Петербурга</h2>
       <div class="team">
         <article class="person">
           <h3>Артём Ботвич</h3>
           <p class="role">Коуч · директор по счастью</p>
           <p>
-            Работает с ресторанными командами в Петербурге — в том числе Mojo, Roppongi, Nomad, Gaijin.
-            Ведёт людей через конфликты, выгорание и культуру смены: не лозунгами, а практикой
-            ежедневного управления атмосферой и отношениями.
+            Работает с ресторанными командами — Mojo, Roppongi, Nomad, Gaijin и другие проекты.
+            Не «разовая мотивация», а практика ежедневного управления атмосферой, конфликтами и культурой смены.
           </p>
           <div class="tags">
             <span class="tag">коучинг</span>
-            <span class="tag">культура команды</span>
+            <span class="tag">HR-практики</span>
             <span class="tag">рестораны СПб</span>
           </div>
         </article>
         <article class="person">
           <h3>Сергей Смирнов</h3>
-          <p class="role">Основатель PulseTeam · цифровые инструменты</p>
+          <p class="role">Основатель PulseTeam · продукт и внедрение</p>
           <p>
-            Собирает сигналы со смен в Telegram: оценки, стоп-лист, горящие вопросы, сводки для управляющего.
-            Делает так, чтобы проблемы команды не растворялись в брифинге, а попадали в понятный контур действий.
+            Собирает операционные сигналы со смен, строит аналитику и автоматизацию вокруг реальной работы управляющего.
+            Превращает методику в масштабируемый продукт: от пилота до сети.
           </p>
           <div class="tags">
             <span class="tag">PulseTeam</span>
-            <span class="tag">аналитика смен</span>
-            <span class="tag">внедрение</span>
+            <span class="tag">ИИ-аудит</span>
+            <span class="tag">B2B SaaS</span>
           </div>
         </article>
       </div>
     </div>
   </section>
 
-  <section id="how">
+  <section id="academy">
     <div class="wrap reveal">
-      <p class="eyebrow">Как внедряем</p>
-      <h2>Его методики. Мои инструменты. Общий результат</h2>
+      <p class="eyebrow">Масштаб</p>
+      <h2>Менеджеры по счастью — не один Ботвич на всех</h2>
       <p class="lead">
-        Артём выстраивает работу с руководителями и командой.
-        PulseTeam фиксирует, что происходит на сменах каждый день.
-        Вместе это даёт не «ощущение», а траекторию изменений.
+        Мы выращиваем кураторов под методику: духовность и осознанность, коучинг, HR-менеджмент, аттестация.
+        Консультант отвечает за зону ресторана и мотивирован результатом — Pulse помогает видеть, когда пора вернуться на точку.
       </p>
-      <div class="split">
-        <div>
-          <h3>Методики Артёма</h3>
-          <ul>
-            <li>диагностика атмосферы и точек напряжения в коллективе</li>
-            <li>работа с руководителями: обратная связь, конфликты, ритм смены</li>
-            <li>практики, которые удерживают людей, а не «разовая мотивация»</li>
-            <li>сопровождение, пока новые привычки не станут нормой</li>
-          </ul>
-        </div>
-        <div>
-          <h3>Инструменты PulseTeam</h3>
-          <ul>
-            <li>короткий опрос после смены — зал и кухня</li>
-            <li>темы проблем и статусы «в работе / решено»</li>
-            <li>сводки и отчёты для управляющего</li>
-            <li>видимая динамика оценок и повторяющихся болей</li>
-          </ul>
-        </div>
-      </div>
     </div>
   </section>
 
   <section class="result">
     <div class="wrap reveal">
-      <p class="eyebrow">Зачем это собственнику</p>
+      <p class="eyebrow">Пилот</p>
       <p class="result-line">
-        За пилот показываем не слайды, а <span>как изменилась смена</span>:
-        оценки, темы, что закрыли, где ещё дыра.
+        Сейчас упаковываем связку и <span>тестируем на живой точке</span> — не слайды, а траектория изменений.
+      </p>
+      <p class="lead" style="margin-bottom: 20px;">
+        Первый шаг для ресторана — диагностика. Напишите, обсудим формат пилота и что можно измерить за первые недели.
       </p>
       <div class="cta-row">
         <a class="btn primary" href="https://t.me/yank0vski" target="_blank" rel="noopener">Написать в Telegram</a>
-        <a class="btn ghost" href="https://pulseteam.online/" target="_blank" rel="noopener">pulseteam.online</a>
+        <a class="btn ghost" href="https://pulseteam.online/" target="_blank" rel="noopener">О PulseTeam</a>
       </div>
     </div>
   </section>
@@ -340,7 +520,7 @@
             io.unobserve(e.target);
           }
         });
-      }, { threshold: 0.18 });
+      }, { threshold: 0.15 });
       nodes.forEach(function (n) { io.observe(n); });
     })();
   </script>
