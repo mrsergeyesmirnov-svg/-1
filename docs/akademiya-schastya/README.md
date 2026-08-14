@@ -4,6 +4,8 @@
 
 «Состояние смены» — продукт академии, не «кто мы». Pulse Team целиком входит в этот контур; старая витрина лежит в `docs/pulseteam-archive/`.
 
+Живой домен **pulseteam.online** крутится из репозитория [`mrsergeyesmirnov-svg/landing`](https://github.com/mrsergeyesmirnov-svg/landing). Cursor-боту туда пока нельзя пушить (403). Чтобы академия открылась по той же ссылке: GitHub → Settings → Applications → Cursor → Repository access → добавить **landing**, затем написать агенту «залей».
+
 ## Страницы
 
 | Файл | Назначение |
