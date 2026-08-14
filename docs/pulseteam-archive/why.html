@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Зачем Pulse Team — аналитика смен, не охота на виноватых</title>
+  <meta name="description" content="Зачем Pulse Team: аналитика смен зала и кухни, операционный день, личные факторы — удержание кадра без слежки." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://www.pulseteam.online/why.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #faf7f3;
+      --bg-warm: #fff5ee;
+      --surface: #ffffff;
+      --ink: #1c1917;
+      --muted: #57534e;
+      --line: #e7e2dc;
+      --accent: #ff5a1f;
+      --accent-hover: #e54d15;
+      --accent-soft: rgba(255, 90, 31, 0.12);
+      --calm: #0d9488;
+      --calm-soft: rgba(13, 148, 136, 0.1);
+      --radius-lg: 24px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+      --shadow: 0 4px 24px rgba(28, 25, 23, 0.06);
+      --max: 1120px;
+      --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Mulish", system-ui, sans-serif;
+      font-size: 17px;
+      line-height: 1.55;
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(250, 247, 243, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
+    }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 72px;
+      gap: 16px;
+    }
+    .logo {
+      font-weight: 800;
+      font-size: 1.125rem;
+      color: var(--ink);
+      text-decoration: none;
+    }
+    .logo span { color: var(--accent); }
+    .nav-links {
+      display: none;
+      gap: 20px;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+    .nav-links a { color: var(--muted); text-decoration: none; }
+    .nav-links a:hover { color: var(--accent); }
+    @media (min-width: 900px) { .nav-links { display: flex; } }
+    .header-cta {
+      font-weight: 700;
+      font-size: 0.9rem;
+      padding: 10px 20px;
+      background: var(--accent);
+      color: #fff !important;
+      border-radius: 999px;
+      text-decoration: none !important;
+    }
+    .header-cta:hover { background: var(--accent-hover); }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 14px 24px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none !important;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-ghost {
+      background: var(--surface);
+      color: var(--ink);
+      border: 2px solid var(--line);
+    }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+    section { padding: 64px 0; }
+    section.alt { background: var(--bg-warm); }
+    section.white { background: var(--surface); }
+    .page-hero {
+      padding: 56px 0 48px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .eyebrow {
+      font-size: 0.8125rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      margin: 0 0 12px;
+    }
+    h1 {
+      font-size: clamp(1.75rem, 4vw, 2.5rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin: 0 0 16px;
+      max-width: 18ch;
+    }
+    .hero-lead {
+      margin: 0;
+      font-size: 1.125rem;
+      color: var(--muted);
+      max-width: 42em;
+    }
+    .section-label {
+      font-size: 0.8125rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      margin: 0 0 12px;
+    }
+    h2 {
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin: 0 0 20px;
+    }
+    .system-memo {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      padding: 40px 32px;
+      box-shadow: var(--shadow);
+    }
+    @media (min-width: 700px) {
+      .system-memo { padding: 48px 56px; }
+    }
+    .system-memo p {
+      margin: 0 0 1.15em;
+      font-size: 1.0625rem;
+      line-height: 1.65;
+    }
+    .system-memo p:last-child { margin-bottom: 0; }
+    .memo-lead {
+      font-size: 1.2rem;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+    .memo-quote {
+      margin: 28px 0;
+      padding: 20px 24px;
+      border-left: 4px solid var(--calm);
+      background: var(--calm-soft);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      font-weight: 700;
+      font-size: 1.0625rem;
+      line-height: 1.45;
+    }
+    .analytics-layers {
+      display: grid;
+      gap: 16px;
+      margin-top: 32px;
+    }
+    @media (min-width: 768px) {
+      .analytics-layers { grid-template-columns: repeat(3, 1fr); }
+    }
+    .layer-card {
+      padding: 22px 24px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+      background: var(--bg);
+    }
+    .layer-card h3 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--accent);
+    }
+    .layer-card p {
+      margin: 0;
+      font-size: 0.9375rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .layer-card.featured {
+      border-color: var(--calm);
+      box-shadow: 0 0 0 1px var(--calm-soft);
+    }
+    .layer-card.featured h3 { color: var(--calm); }
+    .usp-block {
+      display: grid;
+      gap: 40px;
+      align-items: start;
+    }
+    @media (min-width: 900px) {
+      .usp-block { grid-template-columns: 1fr 1fr; gap: 56px; }
+    }
+    .usp-visual {
+      background: linear-gradient(145deg, var(--calm-soft) 0%, var(--accent-soft) 100%);
+      border-radius: var(--radius-lg);
+      padding: 32px 28px;
+      border: 1px solid var(--line);
+    }
+    .usp-visual ul {
+      list-style: none;
+      padding: 0;
+      margin: 16px 0 0;
+    }
+    .usp-visual li {
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(28, 25, 23, 0.08);
+      font-size: 0.9375rem;
+    }
+    .usp-visual li:last-child { border-bottom: none; }
+    .cta-inline {
+      margin-top: 48px;
+      padding: 32px;
+      background: var(--bg-warm);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--line);
+      text-align: center;
+    }
+    .cta-inline p {
+      margin: 0 0 20px;
+      color: var(--muted);
+      max-width: 36em;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    footer {
+      padding: 48px 0 32px;
+      border-top: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .footer-muted { color: var(--muted); font-size: 0.9375rem; margin: 8px 0 0; }
+    .legal {
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap header-inner">
+      <a class="logo" href="/">Pulse<span>Team</span></a>
+      <ul class="nav-links">
+        <li><a href="/">Главная</a></li>
+        <li><a href="demo.html">Демо</a></li>
+        <li><a href="/#pricing">Тарифы</a></li>
+        <li><a href="one-pager.html">One-pager</a></li>
+      </ul>
+      <a class="header-cta" href="https://t.me/yank0vski" target="_blank" rel="noopener">Пилот 14 дней</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="page-hero">
+      <div class="wrap">
+        <p class="eyebrow">Зачем Pulse Team</p>
+        <h1>Мы ищем причины проблем, а не виноватых</h1>
+        <p class="hero-lead">
+          Это не «ещё один опрос удовлетворённости» и не слежка за сотрудниками.
+          Пульс зала и кухни, операционный день и аналитика смен — чтобы удерживать кадр,
+          снимать напряжение с процессов и помогать людям расти, а не бесконечно их менять.
+        </p>
+      </div>
+    </section>
+
+    <section class="white">
+      <div class="wrap">
+        <p class="section-label">Большое мемо</p>
+        <h2>Зачем Pulse Team существует</h2>
+        <div class="system-memo">
+          <p class="memo-lead">
+            Выручка и чеки показывают результат. Они почти не показывают, <em>почему</em> смена была тяжёлой,
+            почему люди выгорают и уходят, и где команда могла бы стать сильнее уже в следующем месяце.
+          </p>
+          <p>
+            <strong>Pulse Team — это система аналитики смен,</strong> а не «ещё один опрос удовлетворённости».
+            Каждый вечер (или по вашему расписанию) линия оставляет короткий, анонимный след: оценка смены,
+            что повлияло на неё со стороны ресторана, и отдельный блок — <strong>личные факторы смены</strong>:
+            что мешало именно мне работать на своём уровне.
+          </p>
+          <p class="memo-quote">
+            Сотрудник учится смотреть не только на «всех виноваты», а на себя — мягко и без стыда.
+            Руководитель видит агрегаты: куда бить по процессу, а куда — по развитию людей.
+          </p>
+          <p>
+            Данные складываются в отчёты за смену, неделю и месяц — отдельно по залу и кухне, с PDF для собственника.
+            Появляются повторяющиеся темы, сочетания факторов, готовые выводы для планёрки, «Горящие вопросы» со статусами
+            и пост в чат смены — «взяли в работу», без имён и без охоты на ведьм.
+            Операционный день (план, стоп, чек-листы) держит смену в ритме — чтобы сигналы не терялись между утром и вечером.
+          </p>
+          <p>
+            Цель аналитики — не наказание. <strong>Удержать кадр, снять лишнее напряжение с процессов
+            и сделать каждого сотрудника осознаннее и дороже на рынке</strong> — за счёт точного обучения,
+            графика, поддержки и культуры обратной связи, а не за счёт бесконечной замены людей.
+          </p>
+          <div class="analytics-layers">
+            <div class="layer-card">
+              <h3>Смена снаружи</h3>
+              <p>Кухня, нехватка людей, организация, нагрузка, конфликты — то, что чинит менеджмент и владелец процессов.</p>
+            </div>
+            <div class="layer-card featured">
+              <h3>Личные факторы смены</h3>
+              <p>Знания, усталость, тайм-менеджмент, коммуникация, концентрация — то, что растит человека и даёт руководителю карту развития без травли.</p>
+            </div>
+            <div class="layer-card">
+              <h3>Кухня и операционка</h3>
+              <p>Стоп-лист и оценка смены шефа — отдельный поток. План дня, чек-листы открытия/закрытия — чтобы зал и кухня не жили в разных чатах.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt" id="personal">
+      <div class="wrap usp-block">
+        <div>
+          <p class="section-label">Наше отличие</p>
+          <h2>Личные факторы — осознанность вместо обвинений</h2>
+          <p style="color: var(--muted); margin: 0 0 16px; line-height: 1.55;">
+            После оценки и тем «что мешало на смене» бот задаёт простой вопрос: <strong>что мешало лично вам</strong>.
+            Человек отмечает, чего ему не хватило — знаний по процессам, сил, времени, ясной коммуникации, концентрации.
+          </p>
+          <p style="color: var(--muted); margin: 0 0 16px; line-height: 1.55;">
+            Это не психотерапия и не «разбор полётов» с именами. Это привычка после смены на секунду остановиться
+            и честно назвать свой вклад. Со временем люди реже сваливают всё на кухню и коллег, чаще видят,
+            что могут подтянуть сами — а руководитель видит <em>паттерны</em>: где команда системно устала,
+            где не хватает обучения, где сломана коммуникация между залом и кухней.
+          </p>
+          <p style="font-weight: 700; margin: 0; line-height: 1.45;">
+            Итог для бизнеса: вы бьёте не только в «найм ещё одного официанта», а в то, чтобы текущий кадр
+            не ушёл, стал скилловее и приносил больше — потому что вы знаете, <em>что именно</em> ему мешало расти.
+          </p>
+        </div>
+        <div class="usp-visual">
+          <p style="margin: 0; font-weight: 800; font-size: 1rem;">В опросе (анонимно)</p>
+          <ul>
+            <li>📚 Не хватает знаний по процессам</li>
+            <li>😴 Усталость / плохое состояние</li>
+            <li>⏱ Не успевал по времени</li>
+            <li>💬 Сложности в общении</li>
+            <li>🎯 Потеря концентрации</li>
+          </ul>
+          <p style="margin: 20px 0 0; font-size: 0.875rem; color: var(--muted); line-height: 1.45;">
+            В отчёте руководитель видит блок «Самочувствие и нагрузка» рядом с операционными темами — и связки в готовых выводах.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="white">
+      <div class="wrap">
+        <p class="section-label">Не слежка</p>
+        <h2>Что видит команда — и что видит руководитель</h2>
+        <p style="color: var(--muted); max-width: 42em; margin: 0 0 16px;">
+          В групповом чате смены — только напоминание и кнопка «в личку». Оценки, имена и тексты в группе не показываются.
+          Когда управляющий берёт тему в работу или закрывает её, бот может отправить короткий пост в чат:
+          <em>«Тема X — в работе / решена»</em> — без персональных данных.
+        </p>
+        <p style="color: var(--muted); max-width: 42em; margin: 0;">
+          Так замыкается цикл: линия понимает, что сигналы не уходят в пустоту. Это главный механизм удержания привычки отвечать — не страх, а обратная связь.
+        </p>
+        <div class="cta-inline">
+          <p>Telegram, 10 секунд на check-in, операционный день и отчёты зал/кухня — пилот 14 дней без обязательств.</p>
+          <div class="hero-actions" style="justify-content: center; margin-top: 0;">
+            <a class="btn btn-primary" href="demo.html">Посмотреть демо</a>
+            <a class="btn btn-ghost" href="https://t.me/yank0vski" target="_blank" rel="noopener">Запустить пилот</a>
+            <a class="btn btn-ghost" href="/">На главную</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <a class="logo" href="/">Pulse<span>Team</span></a>
+      <p class="footer-muted">Пульс команды, кухня и операционный день — из Telegram, для владельцев и управляющих.</p>
+      <p class="legal">
+        © 2026 Pulse Team · ИП Смирнов Сергей Евгеньевич ·
+        <a href="privacy.html">Политика ПДн</a> ·
+        <a href="oferta.html">Оферта</a> ·
+        <a href="https://t.me/yank0vski" target="_blank" rel="noopener">@yank0vski</a>
+      </p>
+    </div>
+  </footer>
+</body>
+</html>

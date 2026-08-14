@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Демо Pulse Team — как это работает в Telegram</title>
+  <meta name="description" content="Демо Pulse Team: check-in зала, кухня и стоп-лист шефа, операционный день, чек-листы, отчёты зал/кухня/PDF — выдуманная точка «Бистро на Невском»." />
+  <meta name="robots" content="index,follow" />
+  <link rel="canonical" href="https://www.pulseteam.online/demo.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-deep: #0c1118;
+      --bg-slide: linear-gradient(165deg, #0f1724 0%, #1a2332 45%, #0d1520 100%);
+      --glow: rgba(56, 189, 248, 0.15);
+      --accent: #ff5a1f;
+      --accent-2: #38bdf8;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --phone-bg: #17212b;
+      --chat-bg: #0e1621;
+      --bubble-in: #182533;
+      --bubble-bot: #182533;
+      --ink: #e8edf4;
+      --kbd: #2b5278;
+      --kbd-text: #6ab2f2;
+      --out-green: #2b5278;
+      --radius-phone: 40px;
+      --font: "Mulish", system-ui, -apple-system, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg-deep);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      background: rgba(12, 17, 24, 0.85);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .topbar a {
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    .topbar .logo span { color: var(--accent); }
+    .topbar-actions { display: flex; gap: 10px; align-items: center; }
+    .btn-sm {
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 0.8125rem;
+      padding: 9px 16px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+    }
+    .btn-ghost-sm {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .btn-ghost-sm:hover { color: var(--text); border-color: rgba(255,255,255,0.25); }
+    .btn-accent-sm {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-accent-sm:hover { filter: brightness(1.08); }
+
+    .slides {
+      scroll-snap-type: y mandatory;
+      overflow-y: auto;
+      height: 100vh;
+      padding-top: 56px;
+    }
+
+    .slide {
+      scroll-snap-align: start;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 20px 48px;
+      background: var(--bg-slide);
+      position: relative;
+      overflow: hidden;
+    }
+    .slide::before {
+      content: "";
+      position: absolute;
+      width: 70%;
+      max-width: 480px;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--glow) 0%, transparent 70%);
+      top: 5%;
+      right: -20%;
+      pointer-events: none;
+    }
+
+    .slide-copy {
+      text-align: center;
+      max-width: 520px;
+      margin-bottom: 28px;
+      position: relative;
+      z-index: 1;
+    }
+    .slide-tag {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent-2);
+      margin-bottom: 12px;
+    }
+    .slide h1 {
+      margin: 0 0 12px;
+      font-size: clamp(1.5rem, 4.5vw, 2.25rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+    }
+    .slide p {
+      margin: 0;
+      font-size: 1rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .phone {
+      width: min(100%, 320px);
+      background: var(--phone-bg);
+      border-radius: var(--radius-phone);
+      box-shadow:
+        0 0 0 2px rgba(255,255,255,0.06),
+        0 24px 80px rgba(0,0,0,0.55),
+        0 0 120px rgba(56, 189, 248, 0.08);
+      overflow: hidden;
+      position: relative;
+      z-index: 1;
+      animation: phoneIn 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    }
+    @keyframes phoneIn {
+      from { opacity: 0; transform: translateY(24px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .phone-notch {
+      height: 28px;
+      background: var(--phone-bg);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 6px;
+    }
+    .phone-notch span {
+      width: 72px;
+      height: 5px;
+      background: rgba(0,0,0,0.35);
+      border-radius: 99px;
+    }
+
+    .tg-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px 10px;
+      background: var(--phone-bg);
+      border-bottom: 1px solid rgba(0,0,0,0.2);
+    }
+    .tg-back { color: var(--kbd-text); font-size: 1.25rem; line-height: 1; }
+    .tg-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #ff8a4d);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.75rem;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .tg-title { flex: 1; min-width: 0; }
+    .tg-title strong {
+      display: block;
+      font-size: 0.9375rem;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tg-title small { font-size: 0.75rem; color: var(--muted); }
+
+    .tg-chat {
+      background: var(--chat-bg);
+      padding: 12px 10px 16px;
+      min-height: 380px;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+    .tg-date {
+      text-align: center;
+      font-size: 0.6875rem;
+      color: var(--muted);
+      margin: 4px 0 12px;
+    }
+
+    .msg {
+      max-width: 92%;
+      margin-bottom: 6px;
+      animation: msgIn 0.5s ease both;
+    }
+    .msg:nth-child(2) { animation-delay: 0.08s; }
+    .msg:nth-child(3) { animation-delay: 0.16s; }
+    .msg:nth-child(4) { animation-delay: 0.24s; }
+    .msg:nth-child(5) { animation-delay: 0.32s; }
+    .msg:nth-child(6) { animation-delay: 0.4s; }
+    @keyframes msgIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg-in { margin-right: auto; }
+    .msg-out { margin-left: auto; }
+
+    .bubble {
+      padding: 8px 11px;
+      border-radius: 12px 12px 12px 4px;
+      font-size: 0.8125rem;
+      line-height: 1.45;
+      color: var(--ink);
+    }
+    .msg-in .bubble {
+      background: var(--bubble-in);
+      border-radius: 4px 12px 12px 12px;
+    }
+    .msg-out .bubble {
+      background: var(--out-green);
+      border-radius: 12px 4px 12px 12px;
+    }
+    .bubble b { font-weight: 700; }
+    .bubble .time {
+      float: right;
+      margin-left: 8px;
+      font-size: 0.625rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .tg-kbd {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 4px;
+      max-width: 92%;
+    }
+    .tg-kbd.msg-in { margin-right: auto; }
+    .tg-kbd button {
+      font-family: inherit;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      padding: 9px 12px;
+      border: none;
+      border-radius: 8px;
+      background: var(--kbd);
+      color: var(--kbd-text);
+      cursor: default;
+      text-align: center;
+    }
+    .tg-kbd button.stars {
+      letter-spacing: 0.12em;
+      font-size: 0.875rem;
+    }
+
+    .report-block {
+      font-size: 0.75rem;
+      line-height: 1.5;
+      color: var(--ink);
+    }
+    .report-block .r-title { font-weight: 800; font-size: 0.8125rem; margin-bottom: 6px; }
+    .report-block .r-muted { color: var(--muted); font-size: 0.6875rem; }
+    .report-block .r-section {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .report-block .r-section > b {
+      display: block;
+      font-size: 0.75rem;
+      margin-bottom: 4px;
+    }
+    .report-block li {
+      list-style: none;
+      padding: 2px 0;
+    }
+    .report-block .insight {
+      margin-top: 8px;
+      padding: 8px;
+      background: rgba(255, 90, 31, 0.12);
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+    }
+    .report-block .insight b { display: block; margin-bottom: 4px; font-size: 0.75rem; }
+    .report-block .personal-highlight {
+      background: rgba(13, 148, 136, 0.15);
+      border-radius: 8px;
+      padding: 8px;
+      border-left: 3px solid #2dd4bf;
+    }
+
+    .problem-card {
+      background: rgba(0,0,0,0.2);
+      border-radius: 10px;
+      padding: 10px;
+      margin-top: 8px;
+      font-size: 0.75rem;
+    }
+    .problem-card .status {
+      display: inline-block;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(234, 179, 8, 0.2);
+      color: #fbbf24;
+      margin-bottom: 6px;
+    }
+
+    .dots {
+      position: fixed;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 90;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .dots a {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      text-indent: -999px;
+      overflow: hidden;
+    }
+    .dots a.active { background: var(--accent); transform: scale(1.25); }
+
+    .slide-final {
+      text-align: center;
+      max-width: 400px;
+    }
+    .slide-final h1 { margin-bottom: 16px; }
+    .slide-final .btn-lg {
+      display: inline-flex;
+      margin: 8px;
+      padding: 16px 28px;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 1rem;
+      border-radius: 999px;
+      text-decoration: none;
+      border: none;
+    }
+    .slide-final .primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 8px 32px rgba(255, 90, 31, 0.35);
+    }
+    .slide-final .secondary {
+      background: transparent;
+      color: var(--muted);
+      border: 2px solid rgba(255,255,255,0.15);
+    }
+    .demo-note {
+      margin-top: 20px;
+      font-size: 0.8125rem;
+      color: var(--muted);
+    }
+
+    .slide-analytics .tg-chat {
+      min-height: 420px;
+      max-height: 520px;
+    }
+    .report-block .insight .factors {
+      margin: 6px 0;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+    .report-block .insight .rec-label {
+      display: block;
+      margin-top: 6px;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      color: var(--accent-2);
+      font-style: normal;
+    }
+
+    @media (max-width: 640px) {
+      .dots { display: none; }
+      .tg-chat { min-height: 340px; max-height: 360px; }
+      .slide-analytics .tg-chat { max-height: 400px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="logo" href="index.html">← Pulse<span>Team</span></a>
+    <div class="topbar-actions">
+      <a class="btn-sm btn-ghost-sm" href="index.html#pricing">Тарифы</a>
+      <a class="btn-sm btn-accent-sm" href="https://t.me/yank0vski" target="_blank" rel="noopener">Запустить пилот</a>
+    </div>
+  </header>
+
+  <nav class="dots" aria-label="Слайды демо">
+    <a href="#s1" class="active">1</a>
+    <a href="#s2">2</a>
+    <a href="#s3">3</a>
+    <a href="#s4">4</a>
+    <a href="#s5">5</a>
+    <a href="#s6">6</a>
+    <a href="#s7">7</a>
+    <a href="#s8">8</a>
+    <a href="#s9">9</a>
+    <a href="#s10">10</a>
+  </nav>
+
+  <main class="slides" id="slides">
+    <section class="slide" id="s1">
+      <div class="slide-copy">
+        <span class="slide-tag">После смены · 10 секунд</span>
+        <h1>Оценка и что мешало на смене</h1>
+        <p>Дальше — самочувствие и нагрузка (следующий экран). В группе не видно, кто что нажал.</p>
+      </div>
+      <div class="phone">
+        <div class="phone-notch"><span></span></div>
+        <div class="tg-head">
+          <span class="tg-back">‹</span>
+          <div class="tg-avatar">PT</div>
+          <div class="tg-title">
+            <strong>Pulse Team</strong>
+            <small>бот</small>
+          </div>
+        </div>
+        <div class="tg-chat">
+          <div class="tg-date">Пятница, 23:40</div>
+          <div class="msg msg-in">
+            <div class="bubble">
+              <b>Как прошёл сегодняшний день?</b><br />
+              Оцените от 1 до 5 — только здесь, анонимно.
+              <span class="time">23:40</span>
+            </div>
+          </div>
+          <div class="tg-kbd msg-in">
+            <button type="button" class="stars">1 ⭐  2 ⭐  3 ⭐  4 ⭐  5 ⭐</button>
+          </div>
+          <div class="msg msg-in">
+            <div class="bubble">
+              Спасибо! Оценка <b>4</b> сохранена ⭐<br />
+              Что мешало на смене? Можно несколько кнопок или «Пропустить».
+              <span class="time">23:41</span>
+            </div>
+          </div>
+          <div class="tg-kbd msg-in">
+            <button type="button">🍽 Медленная кухня</button>
+            <button type="button">👥 Нехватка персонала</button>
+            <button type="button">😓 Сильная нагрузка</button>
+            <button type="button">🔥 Очередь на раздаче</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="s2">
+      <div class="slide-copy">
+        <span class="slide-tag">Отличие Pulse Team</span>
+        <h1>Самочувствие и нагрузка — не только «кто виноват»</h1>
+        <p>Анонимно. После смены человек отмечает, что мешало <em>лично ему</em> — усталость, знания, общение. Управляющий видит паттерны, не имена.</p>
+      </div>
+      <div class="phone">
+        <div class="phone-notch"><span></span></div>
+        <div class="tg-head">
+          <span class="tg-back">‹</span>
+          <div class="tg-avatar">PT</div>
+          <div class="tg-title">
+            <strong>Pulse Team</strong>
+            <small>бот</small>
+          </div>
+        </div>
+        <div class="tg-chat">
+          <div class="msg msg-in">
+            <div class="bubble">
+              <b>Что мешало лично вам?</b><br />
+              Можно несколько пунктов или «Пропустить».
+              <span class="time">23:42</span>
+            </div>
+          </div>
+          <div class="tg-kbd msg-in">
+            <button type="button">📚 Нехватка знаний по процессам</button>
+            <button type="button">😴 Усталость / плохое состояние</button>
+            <button type="button">⏱ Не успевал по времени</button>
+            <button type="button">💬 Сложности в общении</button>
+            <button type="button">🎯 Потеря концентрации</button>
+            <button type="button">Пропустить</button>
+          </div>
+          <div class="msg msg-out">
+            <div class="bubble">
+              выбрал: усталость + не успевал по времени
+              <span class="time">23:43</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="s3">
+      <div class="slide-copy">
+        <span class="slide-tag">Операционный день</span>
+        <h1>Чек-лист → план утром → закрытие вечером</h1>
+        <p>Менеджер отмечает пункты открытия, публикует план в группу. Вечером — чек-лист закрытия и итоги дня. Без галочек план и закрытие не уйдут.</p>
+      </div>
+      <div class="phone">
+        <div class="phone-notch"><span></span></div>
+        <div class="tg-head">
+          <span class="tg-back">‹</span>
+          <div class="tg-avatar">PT</div>
+          <div class="tg-title">
+            <strong>Pulse Team</strong>
+            <small>бот · менеджер</small>
+          </div>
+        </div>
+        <div class="tg-chat">
+          <div class="tg-date">Суббота, 10:45</div>
+          <div class="msg msg-in">
+            <div class="bubble report-block">
+              <div class="r-title">☀️ Открытие смены</div>
+              <span class="r-muted">Бистро на Невском · 03.06</span>
+              <div class="r-section">
+                <li>☑️ Зал и санузлы проверены</li>
+                <li>☑️ Касса и терминалы включены</li>
+                <li>☐ Стоп-лист согласован с кухней</li>
+              </div>
+              <span class="time">10:45</span>
+            </div>
+          </div>
+          <div class="tg-kbd msg-in">
+            <button type="button">☀️ План дня</button>
+            <button type="button">📣 Шефу и менеджерам</button>
+            <button type="button">📋 Чек-листы смены</button>
+          </div>
+          <div class="msg msg-in">
+            <div class="bubble">
+              📋 <b>План на субботу</b><br />
+              Усиление зала с 19:00 · банкетный стол №4 · стоп: тунец до 15:00
+              <span class="time">11:02</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="s4">
+      <div class="slide-copy">
+        <span class="slide-tag">Кухня · личка шефа</span>
+        <h1>Стоп-лист и оценка смены — без отдельного чата</h1>
+        <p>Шеф в личке бота: стоп уходит в группу смены, можно дописать позиции. Вечером — оценка смены кухни и кнопки «что мешало».</p>
+      </div>
+      <div class="phone">
+        <div class="phone-notch"><span></span></div>
+        <div class="tg-head">
+          <span class="tg-back">‹</span>
+          <div class="tg-avatar">PT</div>
+          <div class="tg-title">
+            <strong>Pulse Team</strong>
+            <small>бот · шеф</small>
+          </div>
+        </div>
+        <div class="tg-chat">
+          <div class="msg msg-in">
+            <div class="bubble">
+              🛑 <b>Стоп-лист на смену</b><br />
+              Напишите позиции или нажмите «Актуальный стоп».
+              <span class="time">11:40</span>
+            </div>
+          </div>
+          <div class="msg msg-out">
+            <div class="bubble">
+              тунец до 15:00 · ризотто с морепродуктами
+              <span class="time">11:41</span>
+            </div>
+          </div>
+          <div class="msg msg-in">
+            <div class="bubble">
+              Стоп опубликован в группу «Бистро · смена» ✅
+              <span class="time">11:41</span>
+            </div>
+          </div>
+          <div class="msg msg-in">
+            <div class="bubble">
+              <b>Как прошла смена на кухне?</b> Оценка 1–5 и что мешало.
+              <span class="time">23:50</span>
+            </div>
+          </div>
+          <div class="tg-kbd msg-in">
+            <button type="button">⏱ Долго забирали еду</button>
+            <button type="button">🍽 Долго несли посуду</button>
+            <button type="button">💬 Сложности в коммуникации</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="s5">
+      <div class="slide-copy">
+        <span class="slide-tag">Сводка · зал / кухня / PDF</span>
+        <h1>Отчёт для управляющего и собственника</h1>
+        <p>Фильтр по залу, кухне или всему ресторану. Дисциплина смен, готовые выводы — и одна кнопка «Выгрузить PDF».</p>
+      </div>
+      <div class="phone">
+        <div class="phone-notch"><span></span></div>
+        <div class="tg-head">
+          <span class="tg-back">‹</span>
+          <div class="tg-avatar">PT</div>
+          <div class="tg-title">
+            <strong>Pulse Team</strong>
+            <small>бот</small>
+          </div>
+        </div>
+        <div class="tg-chat">
+          <div class="msg msg-in">
+            <div class="bubble report-block">
+              <div class="r-title">📊 Сводка Pulse Team</div>
+              <b>Бистро на Невском</b><br />
+              <span class="r-muted">Неделя · 👨‍🍳 Кухня · 27.05 — 03.06</span>
+              <div class="r-section">
+                Средняя оценка кухни: <b>3,6</b> ⭐<br />
+                Оценок: <b>7</b> · дней без открытия: <b>0</b> · без закрытия: <b>1</b>
+              </div>
+              <div class="r-section">
+                <b>Что мешало на кухне</b>
+                <li>• Долго забирали еду — <b>5</b></li>
+                <li>• Сложности в коммуникации — <b>4</b></li>
+                <li>• Долго несли посуду — <b>3</b></li>
+              </div>
+              <div class="r-section personal-highlight">
+                <b>Стоп-лист за период</b>
+                <li>• тунец — <b>3</b> раза</li>
+                <li>• ризотто с морепродуктами — <b>2</b> раза</li>
+              </div>
+              <span class="time">09:15</span>
+            </div>
+          </div>
+          <div class="tg-kbd msg-in">
+            <button type="button">🍽 Зал</button>
+            <button type="button">👨‍🍳 Кухня</button>
+            <button type="button">🏠 Весь ресторан</button>
+            <button type="button">📄 Выгрузить PDF</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide slide-analytics" id="s6">
+      <div class="slide-copy">
+        <span class="slide-tag">Без ручного разбора</span>
+        <h1>Готовые выводы для планёрки</h1>
+        <p>Сводка без разбора чатов: что повторяется, что проверить, что обсудить с командой — без поиска виноватых.</p>
+      </div>
+      <div class="phone">
+        <div class="phone-notch"><span></span></div>
+        <div class="tg-head">
+          <span class="tg-back">‹</span>
+          <div class="tg-avatar">PT</div>
+          <div class="tg-title">
+            <strong>Pulse Team</strong>
+            <small>бот</small>
+          </div>
+        </div>
+        <div class="tg-chat">
+          <div class="msg msg-in">
+            <div class="bubble report-block">
+              <div class="r-section" style="border:0;padding:0;margin:0">
+                <b>🧠 Готовые выводы</b><br />
+                <span class="r-muted">неделя · Бистро на Невском</span>
+              </div>
+              <div class="insight">
+                <b>1. Перегрузка кухни в часы пиковой нагрузки</b>
+                <div class="factors"><i>Факторы:</i><br />
+                • Медленная кухня — <b>9</b><br />
+                • Нехватка персонала — <b>12</b><br />
+                • Сильная нагрузка — <b>7</b></div>
+                <span class="rec-label">Рекомендация:</span>
+                <span class="r-muted">Проверьте график кухни и укомплектованность смены; зафиксируйте время отдачи горячих блюд и очередь на раздаче.</span>
+              </div>
+              <div class="insight" style="margin-top:8px;border-color:#2dd4bf">
+                <b>2. Признаки усталости и напряжения в команде</b>
+                <div class="factors"><i>Факторы:</i><br />
+                • Усталость / плохое состояние — <b>11</b><br />
+                • Сильная нагрузка — <b>7</b></div>
+                <span class="rec-label">Рекомендация:</span>
+                <span class="r-muted">Проверьте переработки и плотность графика; обсудите ситуацию с ответственными за смену без персональных оценок.</span>
+              </div>
+              <div class="insight" style="margin-top:8px">
+                <b>3. Задержки связаны с организацией процессов</b>
+                <div class="factors"><i>Факторы:</i><br />
+                • Медленная кухня — <b>9</b><br />
+                • Сложности в общении — <b>5</b><br />
+                • Плохая организация — <b>4</b></div>
+                <span class="rec-label">Рекомендация:</span>
+                <span class="r-muted">Разберите передачу заказов зал ↔ кухня: приоритеты, зоны, кто подтверждает готовность блюд.</span>
+              </div>
+              <span class="time">09:15</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="s7">
+      <div class="slide-copy">
+        <span class="slide-tag">Управляющий</span>
+        <h1>Повторяющиеся темы — статус и комментарий</h1>
+        <p>Тема всплывает, когда несколько человек отметили одно и то же. Берёте в работу — команда видит реакцию.</p>
+      </div>
+      <div class="phone">
+        <div class="phone-notch"><span></span></div>
+        <div class="tg-head">
+          <span class="tg-back">‹</span>
+          <div class="tg-avatar">PT</div>
+          <div class="tg-title">
+            <strong>Pulse Team</strong>
+            <small>бот</small>
+          </div>
+        </div>
+        <div class="tg-chat">
+          <div class="msg msg-in">
+            <div class="bubble report-block">
+              <div class="r-title">🔥 Горящие вопросы</div>
+              <b>Бистро на Невском</b>
+              <div class="problem-card">
+                <span class="status">🟡 В работе</span><br />
+                <b>Нехватка персонала</b><br />
+                12 отметок за 7 дней<br />
+                <span class="r-muted">Комментарий: усилили пятницу +1 в зале, согласовали с кухней раздачу в 20:00.</span>
+              </div>
+              <div class="problem-card">
+                <span class="status" style="background:rgba(239,68,68,.2);color:#f87171">🔴 Новая</span><br />
+                <b>Медленная кухня</b><br />
+                9 отметок за 7 дней
+              </div>
+              <span class="time">11:20</span>
+            </div>
+          </div>
+          <div class="tg-kbd msg-in">
+            <button type="button">🟡 В работе</button>
+            <button type="button">🟢 Решена</button>
+            <button type="button">✍️ Комментарий для команды</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="s8">
+      <div class="slide-copy">
+        <span class="slide-tag">Команда видит реакцию</span>
+        <h1>Отклик не уходит в пустоту</h1>
+        <p>Анонимность сохраняется: в группе нет имён и оценок, но видно, что руководство отвечает.</p>
+      </div>
+      <div class="phone">
+        <div class="phone-notch"><span></span></div>
+        <div class="tg-head">
+          <span class="tg-back">‹</span>
+          <div class="tg-avatar">BN</div>
+          <div class="tg-title">
+            <strong>Бистро · смена</strong>
+            <small>группа</small>
+          </div>
+        </div>
+        <div class="tg-chat">
+          <div class="tg-date">Суббота</div>
+          <div class="msg msg-in">
+            <div class="bubble">
+              📢 <b>Обновление по вашим отзывам</b><br /><br />
+              <b>Нехватка персонала</b> → 🟡 В работе<br />
+              Усилили пятницу +1 в зале, согласовали раздачу с кухней в 20:00.
+              <span class="time">11:22</span>
+            </div>
+          </div>
+          <div class="msg msg-out">
+            <div class="bubble">
+              👍 спасибо, видим что не игнорят
+              <span class="time">11:24</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="s9">
+      <div class="slide-copy">
+        <span class="slide-tag">3 недели</span>
+        <h1>Когда чаще всплывают одни темы</h1>
+        <p>В сводке за период — в какие дни чаще повторяются кухня, нагрузка, нехватка людей. Компактно, по делу.</p>
+      </div>
+      <div class="phone">
+        <div class="phone-notch"><span></span></div>
+        <div class="tg-head">
+          <span class="tg-back">‹</span>
+          <div class="tg-avatar">PT</div>
+          <div class="tg-title">
+            <strong>Pulse Team</strong>
+            <small>бот</small>
+          </div>
+        </div>
+        <div class="tg-chat">
+          <div class="msg msg-in">
+            <div class="bubble report-block">
+              <div class="r-section" style="border:0;padding:0;margin:0">
+                <b>Темы по дням недели</b> <span class="r-muted">(3 недели)</span>
+              </div>
+              <div class="r-section">
+                <li>• Нехватка персонала — чаще в пятницу, также в субботу</li>
+                <li>• Медленная кухня — чаще в пятницу</li>
+                <li>• Сильная нагрузка — чаще в субботу</li>
+              </div>
+              <span class="time">09:16</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="s10">
+      <div class="slide-final">
+        <span class="slide-tag">Демо · выдуманные данные</span>
+        <h1>Готовы посмотреть на своей точке?</h1>
+        <p style="color:var(--muted);margin-bottom:24px">14 дней пилота бесплатно — зал, кухня, операционный день и отчёты на реальных сменах.</p>
+        <a class="btn-lg primary" href="https://t.me/yank0vski" target="_blank" rel="noopener">Запустить пилот</a>
+        <a class="btn-lg secondary" href="index.html">На главную</a>
+        <p class="demo-note">Выдуманные данные · <a href="privacy.html" style="color:var(--muted)">Политика конфиденциальности</a> · @smena_feedback_bot</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var slides = document.getElementById("slides");
+      var dots = document.querySelectorAll(".dots a");
+      var sections = document.querySelectorAll(".slide");
+
+      function setActive(id) {
+        dots.forEach(function (d) {
+          d.classList.toggle("active", d.getAttribute("href") === "#" + id);
+        });
+      }
+
+      if ("IntersectionObserver" in window) {
+        var obs = new IntersectionObserver(
+          function (entries) {
+            entries.forEach(function (e) {
+              if (e.isIntersecting && e.intersectionRatio > 0.45) {
+                setActive(e.target.id);
+              }
+            });
+          },
+          { root: slides, threshold: [0.45, 0.6] }
+        );
+        sections.forEach(function (s) { obs.observe(s); });
+      }
+
+      dots.forEach(function (d) {
+        d.addEventListener("click", function (ev) {
+          ev.preventDefault();
+          var el = document.querySelector(d.getAttribute("href"));
+          if (el) el.scrollIntoView({ behavior: "smooth" });
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
