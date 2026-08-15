@@ -15,6 +15,7 @@
     <div class="wrap header-inner">
       <a class="logo" href="index.html">Состояние<span>смены</span></a>
       <ul class="nav-links">
+        <li><a href="crm.html">CRM</a></li>
         <li><a href="index.html#path">Путь</a></li>
         <li><a href="oferta.html">Реквизиты</a></li>
       </ul>
@@ -129,11 +130,15 @@
           <button class="btn btn-ghost" type="button" id="btnCopy">Копировать КП</button>
         </div>
         <p class="muted-sm" style="margin-top:12px;" id="copyMsg"></p>
+        <p class="muted-sm" id="crmHint" style="margin-top:8px;">Счёт/акт сохранится в CRM-стикер клиента по имени.</p>
+        <p class="muted-sm" id="crmLinkLine" style="margin-top:4px;"></p>
       </div>
     </div>
   </main>
 
   <div id="printRoot" hidden></div>
+
+  <script src="crm-store.js"></script>
 
   <footer class="site-footer no-print">
     <div class="wrap">
@@ -198,7 +203,36 @@
         document.getElementById("gate").hidden = true;
         document.getElementById("app").hidden = false;
         document.getElementById("logoutBtn").hidden = false;
+        var qClient = new URLSearchParams(location.search).get("client");
+        if (qClient && !document.getElementById("client").value) {
+          document.getElementById("client").value = qClient;
+          var existing = window.SSCrm && SSCrm.findByName(qClient);
+          if (existing) {
+            if (existing.city) document.getElementById("city").value = existing.city;
+            if (existing.contact) document.getElementById("contact").value = existing.contact;
+            SSCrm.setActiveClient(existing.id);
+          }
+        }
         calc();
+        refreshCrmHint();
+      }
+
+      function refreshCrmHint() {
+        if (!window.SSCrm) return;
+        var name = document.getElementById("client").value.trim();
+        var line = document.getElementById("crmLinkLine");
+        if (!name) {
+          line.innerHTML = "";
+          return;
+        }
+        var c = SSCrm.findByName(name);
+        if (c) {
+          line.innerHTML = 'CRM: <a href="crm.html?c=' + encodeURIComponent(c.id) + '">' +
+            (c.name || "клиент") + "</a> · " + SSCrm.statusLabel(c.status) +
+            " · документов: " + ((c.docs && c.docs.length) || 0);
+        } else {
+          line.textContent = "CRM: нового клиента создадим при печати счёта/акта.";
+        }
       }
 
       document.getElementById("gateForm").onsubmit = async function (e) {
@@ -294,8 +328,8 @@
       }
 
       ["size", "rate", "prepay", "pulse", "client", "city", "contact", "docDate", "note"].forEach(function (id) {
-        document.getElementById(id).addEventListener("input", calc);
-        document.getElementById(id).addEventListener("change", calc);
+        document.getElementById(id).addEventListener("input", function () { calc(); refreshCrmHint(); });
+        document.getElementById(id).addEventListener("change", function () { calc(); refreshCrmHint(); });
       });
       document.querySelectorAll("[data-k], input[name=block]").forEach(function (el) {
         el.addEventListener("change", calc);
@@ -369,6 +403,33 @@
           root.innerHTML = "";
           document.body.classList.remove("printing");
         }, 500);
+
+        if (window.SSCrm) {
+          var saved = SSCrm.attachDoc(SSCrm.getActiveClientId(), {
+            kind: kind,
+            number: num,
+            date: formatDate(s.date),
+            sum: s.midPrice,
+            title: title,
+            html: html,
+            clientName: s.client,
+            city: s.city,
+            contact: s.contact,
+            snapshot: {
+              size: s.size,
+              k: s.k,
+              blocks: s.blocks,
+              priceMin: s.priceMin,
+              priceMax: s.priceMax
+            }
+          });
+          if (saved) {
+            SSCrm.setActiveClient(saved.id);
+            document.getElementById("copyMsg").textContent =
+              (kind === "invoice" ? "Счёт" : "Акт") + " сохранён в CRM → «" + saved.name + "».";
+            refreshCrmHint();
+          }
+        }
       }
 
       document.getElementById("btnInvoice").onclick = function () { printDoc("invoice"); };
