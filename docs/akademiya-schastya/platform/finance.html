@@ -2,45 +2,749 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Финансы — платформа консультантов</title>
   <meta name="robots" content="noindex,nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="site.css" />
   <link rel="stylesheet" href="crm.css" />
   <link rel="stylesheet" href="platform.css" />
+  <link rel="stylesheet" href="finance.css" />
 </head>
 <body class="crm-page">
   <header>
     <div class="wrap header-inner">
-      <a class="logo" href="index.html">Академия<span>счастья</span><small>финансы</small></a>
+      <a class="logo" href="../index.html">Академия<span>счастья</span><small>финансы</small></a>
       <ul class="nav-links">
         <li><a href="index.html">Платформа</a></li>
         <li><a href="crm.html">CRM</a></li>
+        <li><a href="audit.html">Калькулятор</a></li>
       </ul>
+      <button class="header-cta" type="button" id="logoutBtn" hidden>Выйти</button>
     </div>
   </header>
-  <main>
+
+  <div class="gate" id="gate">
+    <div class="gate-card">
+      <h1>Финансы</h1>
+      <p>Учёт Академии: доходы, расходы, сметы, календарь, документы, распределяемая прибыль.</p>
+      <p class="err" id="gateErr"></p>
+      <form id="gateForm">
+        <div class="field">
+          <label for="pwd">Пароль команды</label>
+          <input id="pwd" type="password" autocomplete="current-password" required />
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%">Войти</button>
+      </form>
+    </div>
+  </div>
+
+  <main id="app" hidden>
     <div class="crm-shell">
       <div class="crm-top">
-        <h1>Финансы</h1>
-        <a class="btn btn-ghost btn-sm" href="index.html">← Назад</a>
+        <div>
+          <p class="hero-kicker" style="margin:0 0 6px">учёт</p>
+          <h1>Финансы</h1>
+        </div>
+        <a class="btn btn-ghost btn-sm" href="index.html">← Платформа</a>
       </div>
-      <div class="soon-box">
-        <h2>Скоро: учёт денег академии</h2>
-        <p class="sticker-meta" style="margin:0">
-          Три столбика, как в бизнес-разборе: проекты · подписки · туры.
-          Выручка, расходы, налоги проекта, доля 50/50 — без смешения с личным Pulse.
-        </p>
-        <ul>
-          <li>Поступления из CRM (счета / акты)</li>
-          <li>Подписки «Состояние смены» по точкам</li>
-          <li>Касса туров: вал, площадка, гонорары</li>
-          <li>Ежемесячный отчёт для обоих партнёров</li>
-        </ul>
-        <p class="platform-foot-note">Пока ведите таблицу; этот модуль подключим следующим слоем.</p>
+
+      <div class="fin-month-bar">
+        <label class="fin-muted" for="monthFilter">Период</label>
+        <input type="month" id="monthFilter" />
+        <button type="button" class="crm-chip" id="btnAllMonths">Все время</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnImportCrm">Подтянуть из CRM</button>
       </div>
+
+      <div class="fin-kpis" id="kpis"></div>
+
+      <div class="fin-tabs" id="tabs">
+        <button type="button" class="fin-tab on" data-tab="ops">Операции</button>
+        <button type="button" class="fin-tab" data-tab="estimates">Сметы / бюджет</button>
+        <button type="button" class="fin-tab" data-tab="calendar">Календарь</button>
+        <button type="button" class="fin-tab" data-tab="docs">Документы PDF</button>
+        <button type="button" class="fin-tab" data-tab="profit">Прибыль</button>
+        <button type="button" class="fin-tab" data-tab="comments">Комментарии</button>
+      </div>
+
+      <!-- OPERATIONS -->
+      <section data-pane="ops">
+        <div class="fin-panel">
+          <h3>Добавить доход</h3>
+          <div class="fin-form-grid cols-3">
+            <div class="field"><label>Дата</label><input type="date" id="inDate" /></div>
+            <div class="field"><label>Сумма ₽</label><input type="number" id="inAmount" min="0" step="1" /></div>
+            <div class="field"><label>Категория</label><select id="inCat"></select></div>
+          </div>
+          <div class="fin-form-grid cols-2" style="margin-top:10px">
+            <div class="field"><label>Клиент / источник</label><input id="inClient" placeholder="Ресторан / тур" /></div>
+            <div class="field"><label>Название</label><input id="inTitle" placeholder="Счёт, подписка…" /></div>
+          </div>
+          <div class="field" style="margin-top:10px"><label>Комментарий</label><input id="inNote" /></div>
+          <div class="fin-actions"><button class="btn btn-primary btn-sm" type="button" id="btnAddIn">Записать доход</button></div>
+        </div>
+        <div class="fin-panel">
+          <h3>Добавить расход</h3>
+          <div class="fin-form-grid cols-3">
+            <div class="field"><label>Дата</label><input type="date" id="exDate" /></div>
+            <div class="field"><label>Сумма ₽</label><input type="number" id="exAmount" min="0" step="1" /></div>
+            <div class="field"><label>Категория</label><select id="exCat"></select></div>
+          </div>
+          <div class="field" style="margin-top:10px"><label>Название</label><input id="exTitle" placeholder="Площадка, подряд, налог…" /></div>
+          <div class="field"><label>Комментарий</label><input id="exNote" /></div>
+          <div class="fin-actions"><button class="btn btn-primary btn-sm" type="button" id="btnAddEx">Записать расход</button></div>
+        </div>
+        <div class="fin-panel">
+          <h3>Движения</h3>
+          <div id="opsList"></div>
+        </div>
+      </section>
+
+      <!-- ESTIMATES -->
+      <section data-pane="estimates" class="hidden">
+        <div class="fin-panel">
+          <h3>Новая смета / бюджет периода</h3>
+          <div class="fin-form-grid cols-3">
+            <div class="field"><label>Название</label><input id="esTitle" placeholder="Март · туры / проекты" /></div>
+            <div class="field"><label>Период</label><input type="month" id="esPeriod" /></div>
+            <div class="field"><label> </label><span class="fin-muted">план на месяц</span></div>
+          </div>
+          <div class="fin-form-grid cols-2" style="margin-top:10px">
+            <div class="field"><label>План доходов ₽</label><input type="number" id="esInc" min="0" /></div>
+            <div class="field"><label>План расходов ₽</label><input type="number" id="esExp" min="0" /></div>
+          </div>
+          <div class="field" style="margin-top:10px"><label>Комментарий к смете</label><textarea id="esNote" rows="2"></textarea></div>
+          <div class="fin-actions"><button class="btn btn-primary btn-sm" type="button" id="btnAddEs">Сохранить смету</button></div>
+        </div>
+        <div class="fin-panel">
+          <h3>Сметы и факт</h3>
+          <div id="esList"></div>
+        </div>
+      </section>
+
+      <!-- CALENDAR -->
+      <section data-pane="calendar" class="hidden">
+        <div class="fin-panel">
+          <h3>Событие / план платежа</h3>
+          <div class="fin-form-grid cols-3">
+            <div class="field"><label>Дата</label><input type="date" id="evDate" /></div>
+            <div class="field"><label>Сумма ₽ (опц.)</label><input type="number" id="evAmount" min="0" /></div>
+            <div class="field">
+              <label>Тип</label>
+              <select id="evKind">
+                <option value="plan">План</option>
+                <option value="payment">Ожидаемая оплата</option>
+                <option value="due">Срок расхода</option>
+                <option value="tour">Тур</option>
+                <option value="other">Другое</option>
+              </select>
+            </div>
+          </div>
+          <div class="field" style="margin-top:10px"><label>Название</label><input id="evTitle" placeholder="Оплата счёта / депозит площадки" /></div>
+          <div class="field"><label>Комментарий</label><input id="evNote" /></div>
+          <div class="fin-actions"><button class="btn btn-primary btn-sm" type="button" id="btnAddEv">В календарь</button></div>
+        </div>
+        <div class="fin-panel">
+          <div class="fin-actions" style="margin:0 0 12px;align-items:center;justify-content:space-between">
+            <button type="button" class="btn btn-ghost btn-sm" id="calPrev">←</button>
+            <h3 id="calTitle" style="margin:0">Календарь</h3>
+            <button type="button" class="btn btn-ghost btn-sm" id="calNext">→</button>
+          </div>
+          <div class="fin-cal" id="calGrid"></div>
+          <div id="evList" style="margin-top:16px"></div>
+        </div>
+      </section>
+
+      <!-- DOCS -->
+      <section data-pane="docs" class="hidden">
+        <div class="fin-panel">
+          <h3>Загрузить счёт / акт (PDF или фото)</h3>
+          <div class="fin-form-grid cols-3">
+            <div class="field">
+              <label>Тип</label>
+              <select id="docKind">
+                <option value="invoice">Счёт</option>
+                <option value="act">Акт</option>
+                <option value="other">Другое</option>
+              </select>
+            </div>
+            <div class="field"><label>Дата</label><input type="date" id="docDate" /></div>
+            <div class="field"><label>Сумма ₽</label><input type="number" id="docAmount" min="0" /></div>
+          </div>
+          <div class="fin-form-grid cols-2" style="margin-top:10px">
+            <div class="field"><label>Клиент</label><input id="docClient" /></div>
+            <div class="field"><label>Файл</label><input type="file" id="docFile" accept=".pdf,image/*,.html" /></div>
+          </div>
+          <div class="field" style="margin-top:10px"><label>Комментарий</label><input id="docNote" /></div>
+          <label class="check-item" style="margin-top:10px;display:flex">
+            <input type="checkbox" id="docAsIncome" checked />
+            Создать доход на эту сумму
+          </label>
+          <p class="fin-muted" style="margin-top:8px">Лимит файла ~1.5 МБ (браузерное хранилище). Лучше PDF.</p>
+          <div class="fin-actions"><button class="btn btn-primary btn-sm" type="button" id="btnAddDoc">Сохранить документ</button></div>
+        </div>
+        <div class="fin-panel">
+          <h3>Документы</h3>
+          <div id="docList"></div>
+        </div>
+      </section>
+
+      <!-- PROFIT -->
+      <section data-pane="profit" class="hidden">
+        <div class="fin-panel">
+          <h3>Распределяемая прибыль (факт)</h3>
+          <p class="fin-muted" style="margin:0 0 12px">
+            Выручка − все расходы периода (включая налоги) = прибыль к распределению.
+            Доли партнёров здесь не считаем — только факт.
+          </p>
+          <div id="profitBox"></div>
+        </div>
+        <div class="fin-panel">
+          <h3>Баланс кассы</h3>
+          <div class="fin-form-grid cols-2">
+            <div class="field">
+              <label>Стартовый остаток ₽</label>
+              <input type="number" id="openBal" step="1" />
+            </div>
+            <div class="field">
+              <label> </label>
+              <button class="btn btn-ghost btn-sm" type="button" id="btnSaveBal" style="margin-top:22px">Сохранить остаток</button>
+            </div>
+          </div>
+          <div id="balBox" style="margin-top:12px"></div>
+          <div class="fin-actions" style="margin-top:14px">
+            <button class="btn btn-ghost btn-sm" type="button" id="btnExport">Скачать JSON-бэкап</button>
+            <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0">
+              Загрузить JSON
+              <input type="file" id="importJson" accept="application/json,.json" hidden />
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMMENTS -->
+      <section data-pane="comments" class="hidden">
+        <div class="fin-panel">
+          <h3>Комментарий к финансам</h3>
+          <div class="field"><textarea id="cmText" rows="3" placeholder="Почему просели расходы, кто должен, что решить…"></textarea></div>
+          <div class="fin-actions"><button class="btn btn-primary btn-sm" type="button" id="btnAddCm">Добавить</button></div>
+        </div>
+        <div class="fin-panel">
+          <h3>Лента</h3>
+          <div id="cmList"></div>
+        </div>
+      </section>
+
+      <p class="platform-foot-note" id="toast"></p>
     </div>
   </main>
+
+  <script src="crm-store.js"></script>
+  <script src="finance-store.js"></script>
+  <script>
+    (function () {
+      var EXPECT = null;
+      var month = "all";
+      var calCursor = new Date();
+
+      function money(n) {
+        return Math.round(Number(n) || 0).toLocaleString("ru-RU") + " ₽";
+      }
+      function today() { return new Date().toISOString().slice(0, 10); }
+      function thisMonth() { return today().slice(0, 7); }
+      function toast(t) {
+        var el = document.getElementById("toast");
+        el.textContent = t || "";
+        if (t) setTimeout(function () { if (el.textContent === t) el.textContent = ""; }, 4000);
+      }
+      function escapeHtml(s) {
+        return String(s || "")
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+      async function sha256(text) {
+        var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+        return Array.from(new Uint8Array(buf)).map(function (b) {
+          return b.toString(16).padStart(2, "0");
+        }).join("");
+      }
+
+      function fillSelects() {
+        var inCat = document.getElementById("inCat");
+        var exCat = document.getElementById("exCat");
+        inCat.innerHTML = SSFin.INCOME_CATS.map(function (c) {
+          return '<option value="' + c.id + '">' + c.label + "</option>";
+        }).join("");
+        exCat.innerHTML = SSFin.EXPENSE_CATS.map(function (c) {
+          return '<option value="' + c.id + '">' + c.label + "</option>";
+        }).join("");
+        document.getElementById("inDate").value = today();
+        document.getElementById("exDate").value = today();
+        document.getElementById("evDate").value = today();
+        document.getElementById("docDate").value = today();
+        document.getElementById("esPeriod").value = thisMonth();
+        document.getElementById("monthFilter").value = thisMonth();
+        month = thisMonth();
+      }
+
+      function showApp() {
+        document.getElementById("gate").hidden = true;
+        document.getElementById("app").hidden = false;
+        document.getElementById("logoutBtn").hidden = false;
+        fillSelects();
+        renderAll();
+      }
+
+      async function initAuth() {
+        EXPECT = await sha256("smena2026");
+        if (sessionStorage.getItem("ss_audit_ok") === "1") showApp();
+      }
+
+      document.getElementById("gateForm").onsubmit = async function (e) {
+        e.preventDefault();
+        var err = document.getElementById("gateErr");
+        err.classList.remove("on");
+        if ((await sha256(document.getElementById("pwd").value)) !== EXPECT) {
+          err.textContent = "Неверный пароль";
+          err.classList.add("on");
+          return;
+        }
+        sessionStorage.setItem("ss_audit_ok", "1");
+        showApp();
+      };
+      document.getElementById("logoutBtn").onclick = function () {
+        sessionStorage.removeItem("ss_audit_ok");
+        location.reload();
+      };
+
+      document.getElementById("tabs").onclick = function (e) {
+        var btn = e.target.closest("[data-tab]");
+        if (!btn) return;
+        document.querySelectorAll(".fin-tab").forEach(function (t) { t.classList.toggle("on", t === btn); });
+        document.querySelectorAll("[data-pane]").forEach(function (p) {
+          p.classList.toggle("hidden", p.getAttribute("data-pane") !== btn.getAttribute("data-tab"));
+        });
+      };
+
+      document.getElementById("monthFilter").onchange = function () {
+        month = this.value || "all";
+        renderAll();
+      };
+      document.getElementById("btnAllMonths").onclick = function () {
+        month = "all";
+        document.getElementById("monthFilter").value = "";
+        renderAll();
+      };
+      document.getElementById("btnImportCrm").onclick = function () {
+        var r = SSFin.importFromCrm();
+        toast(r.added ? ("Импортировано из CRM: " + r.added) : "Новых документов в CRM нет");
+        renderAll();
+      };
+
+      function renderKpis() {
+        var s = SSFin.summary(month);
+        document.getElementById("kpis").innerHTML =
+          kpi("Доходы", money(s.income), "", "pos") +
+          kpi("Расходы", money(s.expense), "в т.ч. налоги " + money(s.tax), "neg") +
+          kpi("Прибыль", money(s.profit), "распределяемая за период", s.profit >= 0 ? "pos" : "neg") +
+          kpi("Баланс", money(s.balance), "кассовый остаток", s.balance >= 0 ? "pos" : "neg");
+      }
+      function kpi(lbl, val, sub, cls) {
+        return '<div class="fin-kpi"><p class="lbl">' + lbl + '</p><p class="val ' + (cls || "") + '">' +
+          val + '</p><p class="sub">' + (sub || "") + "</p></div>";
+      }
+
+      function inFilter(iso) {
+        if (!month || month === "all") return true;
+        return String(iso || "").slice(0, 7) === month;
+      }
+
+      function renderOps() {
+        var data = SSFin.load();
+        var rows = [];
+        data.incomes.forEach(function (i) {
+          if (!inFilter(i.date)) return;
+          rows.push({ t: "in", date: i.date, sort: i.date + "-1-" + i.id, item: i });
+        });
+        data.expenses.forEach(function (e) {
+          if (!inFilter(e.date)) return;
+          rows.push({ t: "out", date: e.date, sort: e.date + "-0-" + e.id, item: e });
+        });
+        rows.sort(function (a, b) { return a.sort < b.sort ? 1 : -1; });
+        if (!rows.length) {
+          document.getElementById("opsList").innerHTML = '<p class="fin-muted">Пока нет операций за период</p>';
+          return;
+        }
+        document.getElementById("opsList").innerHTML = rows.map(function (r) {
+          var i = r.item;
+          var cat = r.t === "in"
+            ? SSFin.catLabel(SSFin.INCOME_CATS, i.category)
+            : SSFin.catLabel(SSFin.EXPENSE_CATS, i.category);
+          var title = escapeHtml(i.title || (r.t === "in" ? "Доход" : "Расход"));
+          var who = escapeHtml(i.client || "");
+          return (
+            '<div class="fin-row ops">' +
+            '<div class="fin-muted">' + escapeHtml(i.date) + "</div>" +
+            "<div><strong>" + title + "</strong><div class='fin-muted'>" + cat +
+            (who ? " · " + who : "") +
+            (i.note ? " · " + escapeHtml(i.note) : "") +
+            "</div></div>" +
+            '<div class="fin-amt ' + (r.t === "in" ? "in" : "out") + '">' +
+            (r.t === "in" ? "+" : "−") + money(i.amount) + "</div>" +
+            '<button class="fin-del" type="button" data-del="' + r.t + ":" + i.id + '">×</button>' +
+            "</div>"
+          );
+        }).join("");
+      }
+
+      function renderEstimates() {
+        var data = SSFin.load();
+        var list = data.estimates;
+        if (month && month !== "all") {
+          list = list.filter(function (e) { return e.period === month; });
+        }
+        if (!list.length) {
+          document.getElementById("esList").innerHTML = '<p class="fin-muted">Смет пока нет</p>';
+          return;
+        }
+        document.getElementById("esList").innerHTML = list.map(function (e) {
+          var planP = Number(e.budgetIncome || 0) - Number(e.budgetExpense || 0);
+          var periodFact = SSFin.summary(e.period);
+          var pctInc = e.budgetIncome ? Math.min(100, Math.round(periodFact.income / e.budgetIncome * 100)) : 0;
+          var pctExp = e.budgetExpense ? Math.min(100, Math.round(periodFact.expense / e.budgetExpense * 100)) : 0;
+          return (
+            '<div class="fin-row">' +
+            "<div><strong>" + escapeHtml(e.title) + "</strong>" +
+            '<div class="fin-muted">' + escapeHtml(e.period) +
+            (e.note ? " · " + escapeHtml(e.note) : "") + "</div>" +
+            "<div class='fin-muted' style='margin-top:8px'>Доходы: план " + money(e.budgetIncome) +
+            " · факт " + money(periodFact.income) + "</div>" +
+            '<div class="fin-bar green"><span style="width:' + pctInc + '%"></span></div>' +
+            "<div class='fin-muted' style='margin-top:8px'>Расходы: план " + money(e.budgetExpense) +
+            " · факт " + money(periodFact.expense) + "</div>" +
+            '<div class="fin-bar"><span style="width:' + pctExp + '%"></span></div>' +
+            "<div class='fin-muted' style='margin-top:8px'>План прибыли " + money(planP) +
+            " · факт " + money(periodFact.profit) + "</div>" +
+            "</div>" +
+            '<button class="fin-del" type="button" data-del="estimate:' + e.id + '">×</button>' +
+            "</div>"
+          );
+        }).join("");
+      }
+
+      function renderCalendar() {
+        var y = calCursor.getFullYear();
+        var m = calCursor.getMonth();
+        document.getElementById("calTitle").textContent =
+          "Календарь · " + calCursor.toLocaleString("ru-RU", { month: "long", year: "numeric" });
+        var first = new Date(y, m, 1);
+        var startPad = (first.getDay() + 6) % 7;
+        var daysInMonth = new Date(y, m + 1, 0).getDate();
+        var data = SSFin.load();
+        var byDay = {};
+        data.events.forEach(function (ev) {
+          if (!ev.date || ev.date.slice(0, 7) !== (y + "-" + String(m + 1).padStart(2, "0"))) return;
+          var d = Number(ev.date.slice(8, 10));
+          (byDay[d] = byDay[d] || []).push(ev);
+        });
+        var html = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map(function (h) {
+          return '<div class="hd">' + h + "</div>";
+        }).join("");
+        for (var i = 0; i < startPad; i++) html += '<div class="fin-day empty"></div>';
+        for (var d = 1; d <= daysInMonth; d++) {
+          var evs = byDay[d] || [];
+          html += '<div class="fin-day"><div class="n">' + d + "</div>" +
+            evs.slice(0, 3).map(function (e) {
+              return '<div class="ev" title="' + escapeHtml(e.title) + '">' + escapeHtml(e.title) + "</div>";
+            }).join("") + "</div>";
+        }
+        document.getElementById("calGrid").innerHTML = html;
+
+        var evList = data.events.filter(function (e) {
+          return inFilter(e.date);
+        }).sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+        document.getElementById("evList").innerHTML = evList.length
+          ? evList.map(function (e) {
+              return (
+                '<div class="fin-row ops">' +
+                '<div class="fin-muted">' + escapeHtml(e.date) + "</div>" +
+                "<div><strong>" + escapeHtml(e.title) + "</strong>" +
+                '<div class="fin-muted">' + escapeHtml(e.kind) +
+                (e.note ? " · " + escapeHtml(e.note) : "") + "</div></div>" +
+                '<div class="fin-amt">' + (e.amount ? money(e.amount) : "—") + "</div>" +
+                '<button class="fin-del" type="button" data-del="event:' + e.id + '">×</button>' +
+                "</div>"
+              );
+            }).join("")
+          : '<p class="fin-muted">Событий за период нет</p>';
+      }
+
+      function renderDocs() {
+        var data = SSFin.load();
+        var list = data.docs.filter(function (d) { return inFilter(d.date); });
+        if (!list.length) {
+          document.getElementById("docList").innerHTML = '<p class="fin-muted">Документов пока нет</p>';
+          return;
+        }
+        document.getElementById("docList").innerHTML = list.map(function (d) {
+          var kind = d.kind === "invoice" ? "Счёт" : d.kind === "act" ? "Акт" : "Файл";
+          return (
+            '<div class="fin-doc">' +
+            "<div><strong>" + escapeHtml(d.name) + "</strong>" +
+            '<div class="fin-muted">' + kind + " · " + escapeHtml(d.date) +
+            (d.client ? " · " + escapeHtml(d.client) : "") +
+            (d.amount ? " · " + money(d.amount) : "") +
+            (d.note ? " · " + escapeHtml(d.note) : "") +
+            "</div></div>" +
+            '<div class="fin-actions">' +
+            (d.dataUrl ? '<a class="btn btn-ghost btn-sm" download="' + escapeHtml(d.name) +
+              '" href="' + d.dataUrl + '">Скачать</a>' : "") +
+            '<button class="fin-del" type="button" data-del="doc:' + d.id + '">×</button>' +
+            "</div></div>"
+          );
+        }).join("");
+      }
+
+      function renderProfit() {
+        var s = SSFin.summary(month);
+        document.getElementById("openBal").value = s.openingBalance;
+        document.getElementById("profitBox").innerHTML =
+          '<div class="fin-row"><div>Выручка</div><div class="fin-amt in">' + money(s.income) + "</div></div>" +
+          '<div class="fin-row"><div>Расходы без налогов</div><div class="fin-amt out">' + money(s.expenseNoTax) + "</div></div>" +
+          '<div class="fin-row"><div>Налоги и взносы</div><div class="fin-amt out">' + money(s.tax) + "</div></div>" +
+          '<div class="fin-row"><div><strong>Распределяемая прибыль</strong>' +
+          '<div class="fin-muted">выручка − расходы − налоги</div></div>' +
+          '<div class="fin-amt ' + (s.profit >= 0 ? "in" : "out") + '"><strong>' + money(s.profit) +
+          "</strong></div></div>" +
+          (s.budgetIncome || s.budgetExpense
+            ? '<div class="fin-row"><div>Бюджет прибыли (из смет)</div><div class="fin-amt">' +
+              money(s.budgetProfit) + "</div></div>" +
+              '<div class="fin-row"><div>Отклонение факт − план</div><div class="fin-amt ' +
+              (s.profit - s.budgetProfit >= 0 ? "in" : "out") + '">' +
+              money(s.profit - s.budgetProfit) + "</div></div>"
+            : '<p class="fin-muted">Сметы за период не заданы — бюджет появится во вкладке «Сметы».</p>');
+
+        document.getElementById("balBox").innerHTML =
+          '<div class="fin-row"><div>Стартовый остаток</div><div class="fin-amt">' + money(s.openingBalance) + "</div></div>" +
+          '<div class="fin-row"><div>Все доходы (накопительно)</div><div class="fin-amt in">' +
+          money(SSFin.summary("all").income) + "</div></div>" +
+          '<div class="fin-row"><div>Все расходы (накопительно)</div><div class="fin-amt out">' +
+          money(SSFin.summary("all").expense) + "</div></div>" +
+          '<div class="fin-row"><div><strong>Текущий баланс</strong></div>' +
+          '<div class="fin-amt ' + (s.balance >= 0 ? "in" : "out") + '"><strong>' + money(s.balance) +
+          "</strong></div></div>";
+      }
+
+      function renderComments() {
+        var data = SSFin.load();
+        if (!data.comments.length) {
+          document.getElementById("cmList").innerHTML = '<p class="fin-muted">Комментариев нет</p>';
+          return;
+        }
+        document.getElementById("cmList").innerHTML = data.comments.map(function (c) {
+          var when = new Date(c.at).toLocaleString("ru-RU", {
+            day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit"
+          });
+          return (
+            '<div class="crm-comment"><time>' + when + "</time>" + escapeHtml(c.text) +
+            ' <button class="fin-del" type="button" data-del="comment:' + c.id +
+            '" style="float:right">×</button></div>'
+          );
+        }).join("");
+      }
+
+      function renderAll() {
+        renderKpis();
+        renderOps();
+        renderEstimates();
+        renderCalendar();
+        renderDocs();
+        renderProfit();
+        renderComments();
+      }
+
+      document.getElementById("btnAddIn").onclick = function () {
+        var amount = Number(document.getElementById("inAmount").value || 0);
+        if (!amount) return toast("Укажите сумму дохода");
+        SSFin.addIncome({
+          date: document.getElementById("inDate").value,
+          amount: amount,
+          category: document.getElementById("inCat").value,
+          client: document.getElementById("inClient").value.trim(),
+          title: document.getElementById("inTitle").value.trim(),
+          note: document.getElementById("inNote").value.trim()
+        });
+        document.getElementById("inAmount").value = "";
+        document.getElementById("inTitle").value = "";
+        document.getElementById("inNote").value = "";
+        renderAll();
+        toast("Доход записан");
+      };
+
+      document.getElementById("btnAddEx").onclick = function () {
+        var amount = Number(document.getElementById("exAmount").value || 0);
+        if (!amount) return toast("Укажите сумму расхода");
+        SSFin.addExpense({
+          date: document.getElementById("exDate").value,
+          amount: amount,
+          category: document.getElementById("exCat").value,
+          title: document.getElementById("exTitle").value.trim(),
+          note: document.getElementById("exNote").value.trim()
+        });
+        document.getElementById("exAmount").value = "";
+        document.getElementById("exTitle").value = "";
+        document.getElementById("exNote").value = "";
+        renderAll();
+        toast("Расход записан");
+      };
+
+      document.getElementById("btnAddEs").onclick = function () {
+        SSFin.addEstimate({
+          title: document.getElementById("esTitle").value.trim() || "Смета",
+          period: document.getElementById("esPeriod").value || thisMonth(),
+          budgetIncome: Number(document.getElementById("esInc").value || 0),
+          budgetExpense: Number(document.getElementById("esExp").value || 0),
+          note: document.getElementById("esNote").value.trim()
+        });
+        document.getElementById("esTitle").value = "";
+        document.getElementById("esNote").value = "";
+        renderAll();
+        toast("Смета сохранена");
+      };
+
+      document.getElementById("btnAddEv").onclick = function () {
+        var title = document.getElementById("evTitle").value.trim();
+        if (!title) return toast("Нужно название события");
+        SSFin.addEvent({
+          date: document.getElementById("evDate").value,
+          title: title,
+          kind: document.getElementById("evKind").value,
+          amount: Number(document.getElementById("evAmount").value || 0),
+          note: document.getElementById("evNote").value.trim()
+        });
+        document.getElementById("evTitle").value = "";
+        document.getElementById("evNote").value = "";
+        document.getElementById("evAmount").value = "";
+        if (document.getElementById("evDate").value) {
+          var p = document.getElementById("evDate").value.split("-");
+          calCursor = new Date(Number(p[0]), Number(p[1]) - 1, 1);
+        }
+        renderAll();
+        toast("Событие в календаре");
+      };
+
+      document.getElementById("btnAddCm").onclick = function () {
+        var t = document.getElementById("cmText").value.trim();
+        if (!t) return;
+        SSFin.addComment(t);
+        document.getElementById("cmText").value = "";
+        renderAll();
+      };
+
+      document.getElementById("btnSaveBal").onclick = function () {
+        SSFin.setOpeningBalance(Number(document.getElementById("openBal").value || 0));
+        renderAll();
+        toast("Стартовый остаток сохранён");
+      };
+
+      document.getElementById("calPrev").onclick = function () {
+        calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() - 1, 1);
+        renderCalendar();
+      };
+      document.getElementById("calNext").onclick = function () {
+        calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 1);
+        renderCalendar();
+      };
+
+      document.getElementById("btnExport").onclick = function () {
+        var blob = new Blob([JSON.stringify(SSFin.load(), null, 2)], { type: "application/json" });
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "academy-finance-" + today() + ".json";
+        a.click();
+        URL.revokeObjectURL(a.href);
+        toast("Бэкап скачан");
+      };
+      document.getElementById("importJson").onchange = function () {
+        var file = this.files[0];
+        this.value = "";
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+          try {
+            var data = JSON.parse(reader.result);
+            if (!data || typeof data !== "object") throw new Error("bad");
+            if (!confirm("Заменить текущие финансы данными из файла?")) return;
+            SSFin.save({
+              incomes: data.incomes || [],
+              expenses: data.expenses || [],
+              estimates: data.estimates || [],
+              events: data.events || [],
+              comments: data.comments || [],
+              docs: data.docs || [],
+              openingBalance: Number(data.openingBalance || 0),
+              updatedAt: Date.now()
+            });
+            renderAll();
+            toast("Данные загружены");
+          } catch (err) {
+            toast("Не удалось прочитать JSON");
+          }
+        };
+        reader.readAsText(file);
+      };
+
+      document.getElementById("btnAddDoc").onclick = function () {
+        var file = document.getElementById("docFile").files[0];
+        if (!file) return toast("Выберите файл");
+        if (file.size > 1.5 * 1024 * 1024) return toast("Файл больше 1.5 МБ — сожмите PDF");
+        var reader = new FileReader();
+        reader.onload = function () {
+          var amount = Number(document.getElementById("docAmount").value || 0);
+          var doc = SSFin.addDoc({
+            name: file.name,
+            kind: document.getElementById("docKind").value,
+            date: document.getElementById("docDate").value,
+            client: document.getElementById("docClient").value.trim(),
+            amount: amount,
+            mime: file.type || "application/pdf",
+            dataUrl: reader.result,
+            size: file.size,
+            note: document.getElementById("docNote").value.trim()
+          });
+          if (document.getElementById("docAsIncome").checked && amount > 0) {
+            SSFin.addIncome({
+              date: document.getElementById("docDate").value,
+              amount: amount,
+              category: "project",
+              client: document.getElementById("docClient").value.trim(),
+              title: (document.getElementById("docKind").value === "act" ? "Акт · " : "Счёт · ") + file.name,
+              note: "Из документа",
+              docId: doc.id
+            });
+          }
+          document.getElementById("docFile").value = "";
+          document.getElementById("docAmount").value = "";
+          document.getElementById("docNote").value = "";
+          renderAll();
+          toast("Документ сохранён");
+        };
+        reader.readAsDataURL(file);
+      };
+
+      document.getElementById("app").addEventListener("click", function (e) {
+        var btn = e.target.closest("[data-del]");
+        if (!btn) return;
+        var parts = btn.getAttribute("data-del").split(":");
+        var kind = parts[0] === "in" ? "income" : parts[0] === "out" ? "expense" : parts[0];
+        SSFin.removeItem(kind, parts[1]);
+        renderAll();
+      });
+
+      initAuth();
+    })();
+  </script>
 </body>
 </html>

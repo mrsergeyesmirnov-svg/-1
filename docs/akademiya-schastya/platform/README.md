@@ -13,7 +13,7 @@
 | `platform/index.html` | Хаб |
 | `platform/crm.html` | CRM-стикеры клиентов |
 | `platform/audit.html` | Калькулятор → счета/акты в CRM |
-| `platform/finance.html` | Заготовка финансов |
+| `platform/finance.html` | Учёт: доходы/расходы, сметы, календарь, PDF, прибыль (факт), баланс |
 | `platform/tours-plan.html` | Заготовка планирования туров |
 
 ## Выкладка на pulseteam.online
