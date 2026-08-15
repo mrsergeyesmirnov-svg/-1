@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Платформа для консультантов — Академия счастья</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="site.css" />
+  <link rel="stylesheet" href="crm.css" />
+  <link rel="stylesheet" href="platform.css" />
+</head>
+<body class="crm-page">
+  <header>
+    <div class="wrap header-inner">
+      <a class="logo" href="../index.html">Академия<span>счастья</span><small>платформа</small></a>
+      <ul class="nav-links">
+        <li><a href="crm.html">CRM</a></li>
+        <li><a href="audit.html">Калькулятор</a></li>
+        <li><a href="../index.html">На сайт</a></li>
+      </ul>
+      <button class="header-cta" type="button" id="logoutBtn" hidden>Выйти</button>
+    </div>
+  </header>
+
+  <div class="gate" id="gate">
+    <div class="gate-card">
+      <h1>Платформа для консультантов</h1>
+      <p>Рабочий контур Академии: клиенты, расчёты, финансы, туры. Не публичная витрина.</p>
+      <p class="err" id="gateErr"></p>
+      <form id="gateForm">
+        <div class="field">
+          <label for="pwd">Пароль команды</label>
+          <input id="pwd" type="password" autocomplete="current-password" required />
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%">Войти</button>
+      </form>
+    </div>
+  </div>
+
+  <main id="app" hidden>
+    <div class="crm-shell">
+      <div class="crm-top">
+        <div>
+          <p class="hero-kicker" style="margin:0 0 6px">внутренний контур</p>
+          <h1>Платформа</h1>
+        </div>
+        <a class="btn btn-ghost btn-sm" href="../index.html">← Академия</a>
+      </div>
+      <p class="platform-lead">
+        Основная CRM и операционка консультантов: клиенты и статусы воронки,
+        счета и акты из калькулятора, учёт денег, план туров.
+      </p>
+      <div class="sticker-list platform-grid">
+        <a class="sticker platform-card" href="crm.html">
+          <div class="sticker-title">Клиенты · CRM</div>
+          <p class="sticker-sub">Стикеры, статусы воронки, комментарии</p>
+          <p class="sticker-meta">Счета и акты сами приклеиваются из калькулятора. Это ядро платформы.</p>
+          <div class="sticker-foot"><span class="status-pill change">живо</span><span class="door-go">Открыть →</span></div>
+        </a>
+        <a class="sticker platform-card" href="audit.html">
+          <div class="sticker-title">Калькулятор · ИИ-аудитор</div>
+          <p class="sticker-sub">Часы × сложность → цена, счёт, акт</p>
+          <p class="sticker-meta">Печать документа сразу пишет его в карточку клиента.</p>
+          <div class="sticker-foot"><span class="status-pill change">живо</span><span class="door-go">Считать →</span></div>
+        </a>
+        <a class="sticker platform-card" href="finance.html">
+          <div class="sticker-title">Финансы</div>
+          <p class="sticker-sub">Выручка проектов, подписки, туры</p>
+          <p class="sticker-meta">Учёт денег академии: три столбика P&amp;L и касса. Каркас на старте.</p>
+          <div class="sticker-foot"><span class="status-pill">скоро</span><span class="door-go">Заготовка →</span></div>
+        </a>
+        <a class="sticker platform-card" href="tours-plan.html">
+          <div class="sticker-title">Планирование туров</div>
+          <p class="sticker-sub">Потоки, даты, ведущие, набор</p>
+          <p class="sticker-meta">Календарь выездов и мастер-классов для команды, не публичная афиша.</p>
+          <div class="sticker-foot"><span class="status-pill">скоро</span><span class="door-go">Заготовка →</span></div>
+        </a>
+      </div>
+      <p class="platform-foot-note">
+        Пароль тот же, что у аудита. Данные CRM пока в браузере устройства (localStorage).
+      </p>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      var EXPECT = null;
+      async function sha256(text) {
+        var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+        return Array.from(new Uint8Array(buf)).map(function (b) {
+          return b.toString(16).padStart(2, "0");
+        }).join("");
+      }
+      function showApp() {
+        document.getElementById("gate").hidden = true;
+        document.getElementById("app").hidden = false;
+        document.getElementById("logoutBtn").hidden = false;
+      }
+      async function init() {
+        EXPECT = await sha256("smena2026");
+        if (sessionStorage.getItem("ss_audit_ok") === "1") showApp();
+      }
+      document.getElementById("gateForm").onsubmit = async function (e) {
+        e.preventDefault();
+        var err = document.getElementById("gateErr");
+        err.classList.remove("on");
+        if ((await sha256(document.getElementById("pwd").value)) !== EXPECT) {
+          err.textContent = "Неверный пароль";
+          err.classList.add("on");
+          return;
+        }
+        sessionStorage.setItem("ss_audit_ok", "1");
+        showApp();
+      };
+      document.getElementById("logoutBtn").onclick = function () {
+        sessionStorage.removeItem("ss_audit_ok");
+        location.reload();
+      };
+      init();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>CRM · ИИ-аудитор — Состояние смены</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="site.css" />
+  <link rel="stylesheet" href="crm.css" />
+</head>
+<body class="crm-page">
+  <header class="no-print">
+    <div class="wrap header-inner">
+      <a class="logo" href="../index.html">Академия<span>счастья</span></a>
+      <ul class="nav-links">
+        <li><a href="index.html">Платформа</a></li>
+        <li><a href="crm.html" class="is-on">CRM</a></li>
+        <li><a href="audit.html">Калькулятор</a></li>
+      </ul>
+      <button class="header-cta" type="button" id="logoutBtn" hidden>Выйти</button>
+    </div>
+  </header>
+
+  <div class="gate no-print" id="gate">
+    <div class="gate-card">
+      <h1>Платформа консультантов</h1>
+      <p>Вход в рабочий контур Академии. CRM, расчёты, финансы и туры — для команды.</p>
+      <p class="err" id="gateErr"></p>
+      <form id="gateForm">
+        <div class="field">
+          <label for="pwd">Пароль</label>
+          <input id="pwd" type="password" autocomplete="current-password" required />
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%">Войти</button>
+      </form>
+    </div>
+  </div>
+
+  <main id="app" hidden>
+    <div class="crm-shell">
+      <div class="crm-top">
+        <h1>Клиенты</h1>
+        <a class="btn btn-ghost btn-sm" href="audit.html">Калькулятор</a>
+      </div>
+      <div class="crm-filters" id="filters"></div>
+      <div class="sticker-list" id="list"></div>
+    </div>
+    <button class="crm-fab" type="button" id="fab" title="Новый клиент">+</button>
+  </main>
+
+  <div class="crm-drawer-bg" id="drawerBg"></div>
+  <aside class="crm-drawer" id="drawer" aria-hidden="true">
+    <div class="crm-drawer-head">
+      <h2 id="dTitle">Клиент</h2>
+      <button class="btn btn-ghost btn-sm" type="button" id="dClose">Закрыть</button>
+    </div>
+    <div class="crm-drawer-body" id="dBody"></div>
+  </aside>
+
+  <script src="crm-store.js"></script>
+  <script>
+    (function () {
+      var EXPECT = null;
+      var filter = "all";
+      var openId = null;
+
+      async function sha256(text) {
+        var data = new TextEncoder().encode(text);
+        var buf = await crypto.subtle.digest("SHA-256", data);
+        return Array.from(new Uint8Array(buf)).map(function (b) {
+          return b.toString(16).padStart(2, "0");
+        }).join("");
+      }
+
+      function money(n) {
+        return Math.round(n || 0).toLocaleString("ru-RU") + " ₽";
+      }
+      function fmtWhen(ts) {
+        if (!ts) return "";
+        var d = new Date(ts);
+        return d.toLocaleString("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+      }
+      function statusClass(id) {
+        if (id === "sub") return "sub";
+        if (id === "change" || id === "diagnose" || id === "control") return "change";
+        if (id === "lost" || id === "pause") return "lost";
+        return "";
+      }
+
+      function showApp() {
+        document.getElementById("gate").hidden = true;
+        document.getElementById("app").hidden = false;
+        document.getElementById("logoutBtn").hidden = false;
+        renderFilters();
+        renderList();
+        var q = new URLSearchParams(location.search).get("c");
+        if (q && SSCrm.getClient(q)) openDrawer(q);
+      }
+
+      async function initAuth() {
+        EXPECT = await sha256("smena2026");
+        if (sessionStorage.getItem("ss_audit_ok") === "1") showApp();
+      }
+
+      document.getElementById("gateForm").onsubmit = async function (e) {
+        e.preventDefault();
+        var err = document.getElementById("gateErr");
+        err.classList.remove("on");
+        var h = await sha256(document.getElementById("pwd").value);
+        if (h !== EXPECT) {
+          err.textContent = "Неверный пароль";
+          err.classList.add("on");
+          return;
+        }
+        sessionStorage.setItem("ss_audit_ok", "1");
+        showApp();
+      };
+      document.getElementById("logoutBtn").onclick = function () {
+        sessionStorage.removeItem("ss_audit_ok");
+        location.reload();
+      };
+
+      function renderFilters() {
+        var box = document.getElementById("filters");
+        var html = '<button type="button" class="crm-chip' + (filter === "all" ? " on" : "") + '" data-f="all">Все</button>';
+        SSCrm.STATUSES.forEach(function (s) {
+          html += '<button type="button" class="crm-chip' + (filter === s.id ? " on" : "") + '" data-f="' + s.id + '">' + s.label + "</button>";
+        });
+        box.innerHTML = html;
+        box.querySelectorAll("[data-f]").forEach(function (btn) {
+          btn.onclick = function () {
+            filter = btn.getAttribute("data-f");
+            renderFilters();
+            renderList();
+          };
+        });
+      }
+
+      function renderList() {
+        var list = document.getElementById("list");
+        var clients = SSCrm.listClients().filter(function (c) {
+          return filter === "all" || c.status === filter;
+        });
+        if (!clients.length) {
+          list.innerHTML =
+            '<div class="crm-empty">Пока пусто.<br/>Нажмите + или сделайте счёт в калькуляторе — клиент появится сам.</div>';
+          return;
+        }
+        list.innerHTML = clients.map(function (c) {
+          var docs = (c.docs || []).slice(0, 3);
+          var files = docs.map(function (d) {
+            var label = (d.kind === "invoice" ? "Счёт" : "Акт") + " " + (d.number || "");
+            return (
+              '<div class="sticker-file"><span class="kind">' +
+              (d.kind === "invoice" ? "Сч" : "Ак") +
+              "</span>" + label + (d.sum ? " · " + money(d.sum) : "") + "</div>"
+            );
+          }).join("");
+          var note = (c.notes || (c.comments && c.comments[0] && c.comments[0].text) || "").slice(0, 160);
+          var badge = (c.docs || []).length + (c.comments || []).length;
+          return (
+            '<button type="button" class="sticker" data-id="' + c.id + '">' +
+            '<div class="sticker-title">' + escapeHtml(c.name || "Без названия") +
+            (badge ? '<span class="sticker-badge">' + badge + "</span>" : "") +
+            "</div>" +
+            '<p class="sticker-sub">' + escapeHtml([c.city, c.contact].filter(Boolean).join(" · ") || "—") + "</p>" +
+            (note ? '<p class="sticker-meta">' + escapeHtml(note) + "</p>" : "") +
+            (files ? '<div class="sticker-files">' + files + "</div>" : "") +
+            '<div class="sticker-foot"><span class="status-pill ' + statusClass(c.status) + '">' +
+            escapeHtml(SSCrm.statusLabel(c.status)) +
+            "</span><span class='muted-sm'>" + fmtWhen(c.updatedAt) + "</span></div>" +
+            "</button>"
+          );
+        }).join("");
+        list.querySelectorAll(".sticker").forEach(function (el) {
+          el.onclick = function () { openDrawer(el.getAttribute("data-id")); };
+        });
+      }
+
+      function escapeHtml(s) {
+        return String(s || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function openDrawer(id) {
+        openId = id;
+        SSCrm.setActiveClient(id);
+        var c = SSCrm.getClient(id);
+        if (!c) return;
+        document.getElementById("dTitle").textContent = c.name || "Клиент";
+        var statusOpts = SSCrm.STATUSES.map(function (s) {
+          return '<option value="' + s.id + '"' + (c.status === s.id ? " selected" : "") + ">" + s.label + "</option>";
+        }).join("");
+        var comments = (c.comments || []).map(function (cm) {
+          return (
+            '<div class="crm-comment"><time>' + fmtWhen(cm.at) + "</time>" +
+            escapeHtml(cm.text) + "</div>"
+          );
+        }).join("") || '<p class="muted-sm">Комментариев пока нет</p>';
+        var docs = (c.docs || []).map(function (d) {
+          return (
+            '<div class="sticker-file" style="justify-content:space-between">' +
+            "<div style='display:flex;gap:10px;align-items:center'>" +
+            '<span class="kind">' + (d.kind === "invoice" ? "Сч" : "Ак") + "</span>" +
+            "<div><div>" + escapeHtml((d.kind === "invoice" ? "Счёт" : "Акт") + " " + (d.number || "")) +
+            "</div><div class='muted-sm'>" + escapeHtml(d.date || "") +
+            (d.sum ? " · " + money(d.sum) : "") + "</div></div></div>" +
+            (d.html
+              ? '<button type="button" class="btn btn-ghost btn-sm" data-print="' + d.id + '">Печать</button>'
+              : "") +
+            "</div>"
+          );
+        }).join("") || '<p class="muted-sm">Счетов и актов ещё нет — сделайте в калькуляторе</p>';
+
+        document.getElementById("dBody").innerHTML =
+          '<div class="crm-section">' +
+          '<h3>Карточка</h3>' +
+          '<div class="field"><label>Название</label><input id="fName" value="' + escapeAttr(c.name) + '" /></div>' +
+          '<div class="field-row cols-2">' +
+          '<div class="field"><label>Город</label><input id="fCity" value="' + escapeAttr(c.city) + '" /></div>' +
+          '<div class="field"><label>Контакт</label><input id="fContact" value="' + escapeAttr(c.contact) + '" /></div>' +
+          "</div>" +
+          '<div class="field"><label>Telegram / телефон</label><input id="fTg" value="' + escapeAttr(c.telegram) + '" /></div>' +
+          '<div class="field"><label>Статус воронки</label><select id="fStatus">' + statusOpts + "</select></div>" +
+          '<div class="field"><label>Заметка на стикере</label><textarea id="fNotes" rows="3">' + escapeHtml(c.notes) + "</textarea></div>" +
+          '<div class="crm-actions">' +
+          '<button class="btn btn-primary btn-sm" type="button" id="btnSave">Сохранить</button>' +
+          '<a class="btn btn-ghost btn-sm" href="audit.html?client=' + encodeURIComponent(c.name || "") + '">Открыть в калькуляторе</a>' +
+          "</div></div>" +
+          '<div class="crm-section"><h3>Комментарии</h3>' + comments +
+          '<div class="field" style="margin-top:10px"><label>Новый комментарий</label>' +
+          '<textarea id="fComment" rows="2" placeholder="Что на созвоне / следующий шаг…"></textarea></div>' +
+          '<button class="btn btn-ghost btn-sm" type="button" id="btnComment">Добавить</button></div>' +
+          '<div class="crm-section"><h3>Счета и акты</h3>' + docs +
+          '<p class="muted-sm" style="margin-top:10px">При печати счёта/акта в калькуляторе документ сам попадает сюда, если имя клиента совпадает.</p></div>' +
+          '<div class="crm-section"><h3>Опасная зона</h3>' +
+          '<button class="btn btn-ghost btn-sm" type="button" id="btnDel" style="color:#be123c">Удалить клиента</button></div>';
+
+        document.getElementById("drawerBg").classList.add("on");
+        document.getElementById("drawer").classList.add("on");
+        document.getElementById("drawer").setAttribute("aria-hidden", "false");
+
+        document.getElementById("btnSave").onclick = function () {
+          SSCrm.upsertClient({
+            id: c.id,
+            name: document.getElementById("fName").value.trim(),
+            city: document.getElementById("fCity").value.trim(),
+            contact: document.getElementById("fContact").value.trim(),
+            telegram: document.getElementById("fTg").value.trim(),
+            status: document.getElementById("fStatus").value,
+            notes: document.getElementById("fNotes").value.trim()
+          });
+          openDrawer(c.id);
+          renderList();
+        };
+        document.getElementById("btnComment").onclick = function () {
+          var t = document.getElementById("fComment").value.trim();
+          if (!t) return;
+          SSCrm.addComment(c.id, t);
+          openDrawer(c.id);
+          renderList();
+        };
+        document.getElementById("btnDel").onclick = function () {
+          if (!confirm("Удалить клиента и все его документы?")) return;
+          SSCrm.removeClient(c.id);
+          closeDrawer();
+          renderList();
+        };
+        document.querySelectorAll("[data-print]").forEach(function (btn) {
+          btn.onclick = function (e) {
+            e.stopPropagation();
+            var docId = btn.getAttribute("data-print");
+            var fresh = SSCrm.getClient(c.id);
+            var doc = (fresh.docs || []).filter(function (d) { return d.id === docId; })[0];
+            if (!doc || !doc.html) return;
+            var w = window.open("", "_blank");
+            if (!w) return;
+            w.document.write(
+              "<!DOCTYPE html><html><head><title>" + (doc.number || "doc") +
+              "</title><link rel='stylesheet' href='site.css' /></head><body>" +
+              doc.html + "<script>setTimeout(function(){print()},200)<\\/script></body></html>"
+            );
+            w.document.close();
+          };
+        });
+      }
+
+      function escapeAttr(s) {
+        return escapeHtml(s).replace(/'/g, "&#39;");
+      }
+
+      function closeDrawer() {
+        openId = null;
+        document.getElementById("drawerBg").classList.remove("on");
+        document.getElementById("drawer").classList.remove("on");
+        document.getElementById("drawer").setAttribute("aria-hidden", "true");
+      }
+
+      document.getElementById("dClose").onclick = closeDrawer;
+      document.getElementById("drawerBg").onclick = closeDrawer;
+      document.getElementById("fab").onclick = function () {
+        var name = prompt("Название ресторана / клиента");
+        if (!name) return;
+        var c = SSCrm.upsertClient({ name: name.trim(), status: "lead" });
+        renderList();
+        openDrawer(c.id);
+      };
+
+      initAuth();
+    })();
+  </script>
+</body>
+</html>

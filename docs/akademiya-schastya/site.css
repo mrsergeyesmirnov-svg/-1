@@ -220,6 +220,13 @@ footer {
   justify-content: space-between;
 }
 footer a { font-weight: 700; }
+.footer-quiet {
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  color: #a8a29e !important;
+  text-decoration: none !important;
+}
+.footer-quiet:hover { color: #78716c !important; text-decoration: underline !important; }
 
 .page-hero { padding: 48px 0 12px; }
 .page-hero h1 { font-size: clamp(2rem, 5vw, 3rem); }

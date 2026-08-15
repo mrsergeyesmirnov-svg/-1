@@ -29,14 +29,18 @@ git clone --depth 1 -b cursor/akademiya-schastya-a3f9 \
 | `docs/sostoyanie-smeny/partnership-agreement-draft.md` | Черновик ПТ, решения только единогласно |
 | `docs/sostoyanie-smeny/partnership-memo.md` | НДС 174.1, УСН, кто мы |
 
-## Как это должно стоять на `landing`
+## Платформа консультантов (новое)
 
-- `/` — Академия счастья  
-- `/tury/` или `tours.html` — афиши  
-- `/baza/` или `knowledge.html` — «скоро появится»  
-- `/sostoyanie/` — **сайт продукта из `docs/sostoyanie-smeny/`**, не копия старого Pulse  
-- архив Pulse — в `/docs/pulseteam-archive/` или `/pulse-archive/`  
-- не трогать: `CNAME` (`www.pulseteam.online`), `.nojekyll`, `yandex_3ba19479d2e6410e.html`
+Папка `docs/akademiya-schastya/platform/` → на live положить как **`/platform/`**.
+
+В футере публичных страниц (index, tury, baza, sostoyanie) добавить тихую ссылку:
+
+`Платформа для консультантов` → `/platform/`  
+(мелкий серый текст, не в основном меню)
+
+Пароль входа: `smena2026`.
+
+Это будущая основная CRM/операционка: клиенты, калькулятор, финансы, план туров.
 
 ## Смысл (не перепутать имена)
 
