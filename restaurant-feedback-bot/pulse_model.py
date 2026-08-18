@@ -208,6 +208,15 @@ def migrate_in_place(data: dict[str, Any]) -> bool:
         for cid in lacks_org:
             chats[cid]["organization_id"] = oid
         changed = True
+    if "iiko_staff" not in data or not isinstance(data.get("iiko_staff"), list):
+        data["iiko_staff"] = []
+        changed = True
+    if "iiko_permits" not in data or not isinstance(data.get("iiko_permits"), dict):
+        data["iiko_permits"] = {}
+        changed = True
+    if "iiko_out_tokens" not in data or not isinstance(data.get("iiko_out_tokens"), dict):
+        data["iiko_out_tokens"] = {}
+        changed = True
     return changed
 
 

@@ -46,6 +46,7 @@ import staff_assign
 import training_materials
 import onboarding_reels
 import reminders_ui
+import iiko_bridge
 
 # На Railway без Volume файлы в контейнере теряются при redeploy.
 # Смонтируйте Volume и задайте PULSE_DATA_DIR=/data (или другой путь) — туда пойдут bot_data.json и feedback_log.jsonl.
@@ -349,6 +350,14 @@ async def log_feedback_event(entry: dict) -> None:
         print("[log_feedback_event]", repr(e))
         return
     uid = entry.get("user_id")
+    if rest_chat is not None and uid is not None and entry.get("event") in ("rating", "chef_shift"):
+        try:
+            data = await load_data()
+            rec = iiko_bridge.grant_permit(data, telegram_id=int(uid))
+            if rec:
+                await save_data(data)
+        except Exception as e:
+            print("[iiko-permit]", repr(e))
     if rest_chat is not None and uid is not None:
         try:
             data = await load_data()
@@ -2032,6 +2041,27 @@ async def cmd_start(message: Message) -> None:
 
     if len(args) > 1:
         arg = args[1].strip()
+        if arg.startswith("out_"):
+            data = await load_data()
+            rec = iiko_bridge.consume_out_token(data, arg[4:])
+            if not rec:
+                await message.answer("Ссылка устарела. Попросите QR ещё раз на кассе.")
+                return
+            await save_data(data)
+            if int(rec.get("telegram_id") or 0) and int(rec["telegram_id"]) != uid:
+                await message.answer("Эта ссылка выдана другому сотруднику.")
+                return
+            linked = int(rec["chat_id"])
+            user_linked_chat[uid] = linked
+            await message.answer(
+                "Короткая отметка смены. После ответа можно закрыть смену в iiko.",
+                reply_markup=pulse_model.support_only_reply_markup(),
+            )
+            await message.answer(
+                private_rating_prompt(data, linked),
+                reply_markup=rating_keyboard,
+            )
+            return
         linked = decode_start_chat(arg)
         if linked is not None:
             user_linked_chat[uid] = linked
@@ -2260,6 +2290,88 @@ async def cmd_admin(message: Message) -> None:
     text = "\n".join(lines) if len(lines) > 2 else "Пока нет подключённых групп."
     for chunk in _split_admin_messages(text):
         await message.answer(chunk, parse_mode="HTML")
+    await message.answer(
+        "iiko шаг 1: <code>/iiko_link telegram_id employee_id chat_id</code> · "
+        "<code>/iiko_list</code> · <code>/iiko_unlink telegram_id</code>",
+        parse_mode="HTML",
+    )
+
+
+@dp.message(Command("iiko_link"))
+async def cmd_iiko_link(message: Message) -> None:
+    if message.chat.type != "private" or not is_global_admin(message.from_user.id):
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 4:
+        await message.answer(
+            "Привязка сотрудника к iiko:\n"
+            "<code>/iiko_link &lt;telegram_id&gt; &lt;iiko_employee_id&gt; &lt;chat_id&gt; [floor|kitchen]</code>\n"
+            "id человека — <code>/myid</code>, chat_id точки — <code>/admin</code>.",
+            parse_mode="HTML",
+        )
+        return
+    try:
+        tid = int(parts[1])
+        chat_id = int(parts[3])
+    except ValueError:
+        await message.answer("telegram_id и chat_id — целые числа.")
+        return
+    emp = parts[2].strip()
+    role = parts[4].strip().lower() if len(parts) > 4 else "floor"
+    data = await load_data()
+    try:
+        row = iiko_bridge.upsert_staff(
+            data, telegram_id=tid, iiko_employee_id=emp, chat_id=chat_id, role=role
+        )
+    except ValueError as e:
+        await message.answer(str(e))
+        return
+    await save_data(data)
+    await message.answer(
+        f"Связка: TG <code>{tid}</code> ↔ iiko <code>{escape(emp)}</code> · точка <code>{chat_id}</code> · {escape(row['role'])}",
+        parse_mode="HTML",
+    )
+
+
+@dp.message(Command("iiko_list"))
+async def cmd_iiko_list(message: Message) -> None:
+    if message.chat.type != "private" or not is_global_admin(message.from_user.id):
+        return
+    data = await load_data()
+    iiko_bridge.ensure_tables(data)
+    rows = data.get("iiko_staff") or []
+    if not rows:
+        await message.answer("Пока нет связок iiko. <code>/iiko_link</code>", parse_mode="HTML")
+        return
+    lines = ["<b>iiko ↔ Telegram</b>"]
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        lines.append(
+            f"TG <code>{r.get('telegram_id')}</code> · "
+            f"iiko <code>{escape(str(r.get('iiko_employee_id')))}</code> · "
+            f"чат <code>{r.get('chat_id')}</code> · {escape(str(r.get('role')))}"
+        )
+    await message.answer("\n".join(lines), parse_mode="HTML")
+
+
+@dp.message(Command("iiko_unlink"))
+async def cmd_iiko_unlink(message: Message) -> None:
+    if message.chat.type != "private" or not is_global_admin(message.from_user.id):
+        return
+    parts = (message.text or "").split()
+    if len(parts) < 2:
+        await message.answer("<code>/iiko_unlink &lt;telegram_id&gt;</code>", parse_mode="HTML")
+        return
+    try:
+        tid = int(parts[1])
+    except ValueError:
+        await message.answer("telegram_id — число.")
+        return
+    data = await load_data()
+    n = iiko_bridge.unlink_staff(data, telegram_id=tid)
+    await save_data(data)
+    await message.answer(f"Снято связок: {n}")
 
 
 @dp.message(Command("orgs"))
@@ -7214,6 +7326,18 @@ async def main() -> None:
     asyncio.create_task(scheduler_loop())
     me = await bot.get_me()
     print("Бот:", me.username, "| ADMIN_IDS:", sorted(ADMIN_IDS))
+    iiko_key = os.getenv("IIKO_API_KEY", "").strip()
+    if iiko_key:
+        asyncio.create_task(
+            iiko_bridge.start_http_server(
+                load_data,
+                save_data,
+                api_key=iiko_key,
+                bot_username=me.username or "",
+            )
+        )
+    else:
+        print("[iiko-http] IIKO_API_KEY не задан — HTTP для кассы выключен")
     try:
         await dp.start_polling(bot)
     finally:
