@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Manifest xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <FileName>PulseShiftSurveyPlugin.dll</FileName>
+  <TypeName>Pulse.IikoShiftSurvey.PulseShiftSurveyPlugin</TypeName>
+  <ApiVersion>V8</ApiVersion>
+  <!-- Подставить ModuleId, который выдаст iiko при регистрации плагина. Не копировать чужой. -->
+  <LicenseModuleId>21000000</LicenseModuleId>
+</Manifest>

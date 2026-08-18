@@ -402,6 +402,24 @@ def decode_start_chat(token: str) -> int | None:
         return None
 
 
+def encode_start_more(chat_id: int) -> str:
+    """Дожим после плохих оценок с кассы: в личке сразу текст, без повторных звёзд."""
+    b = base64.urlsafe_b64encode(str(chat_id).encode()).decode().rstrip("=")
+    return f"m{b}"
+
+
+def decode_start_more(token: str) -> int | None:
+    if not token.startswith("m") or len(token) < 2:
+        return None
+    tail = token[1:]
+    pad = (4 - len(tail) % 4) % 4
+    try:
+        raw = base64.urlsafe_b64decode(tail + "=" * pad).decode()
+        return int(raw)
+    except Exception:
+        return None
+
+
 # user_id -> id группы, для которой сейчас проходит опрос в личке
 user_linked_chat: dict[int, int] = {}
 # slug из /start <slug> (для старых ссылок без привязки к чату)
@@ -926,6 +944,23 @@ def shift_link_markup(chat_id: int, bot_username: str) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(
                     text=REMINDER_BTN_TEXT,
                     url=build_private_shift_url(chat_id, bot_username),
+                )
+            ]
+        ]
+    )
+
+
+def build_private_more_url(chat_id: int, bot_username: str) -> str:
+    return f"https://t.me/{bot_username}?start={encode_start_more(chat_id)}"
+
+
+def more_link_markup(chat_id: int, bot_username: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=REMINDER_BTN_TEXT,
+                    url=build_private_more_url(chat_id, bot_username),
                 )
             ]
         ]
@@ -2033,6 +2068,22 @@ async def cmd_start(message: Message) -> None:
 
     if len(args) > 1:
         arg = args[1].strip()
+        more_chat = decode_start_more(arg)
+        if more_chat is not None:
+            user_linked_chat[uid] = more_chat
+            user_private_slug.pop(uid, None)
+            waiting_for_comment.add(uid)
+            await message.answer(
+                "Напишите, что случилось на смене — одним сообщением. "
+                "В чат ресторана это не попадёт.",
+                reply_markup=pulse_model.support_only_reply_markup(),
+            )
+            await message.answer(
+                "Свободный комментарий или «Пропустить».",
+                reply_markup=final_comment_keyboard,
+            )
+            return
+
         linked = decode_start_chat(arg)
         if linked is not None:
             user_linked_chat[uid] = linked
@@ -7317,7 +7368,14 @@ async def main() -> None:
             if not nudge:
                 return
             try:
-                await bot.send_message(int(nudge["chat_id"]), nudge["text"])
+                me = await bot.get_me()
+                link_chat = int(nudge.get("link_chat_id") or nudge["chat_id"])
+                await bot.send_message(
+                    int(nudge["chat_id"]),
+                    nudge["text"],
+                    reply_markup=more_link_markup(link_chat, me.username),
+                    disable_web_page_preview=True,
+                )
             except Exception as e:
                 print("[iiko-nudge]", repr(e))
 

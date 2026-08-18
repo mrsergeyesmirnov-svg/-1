@@ -77,7 +77,8 @@ def test_nudge_after_three_bad():
             assert nudge is not None
             assert nudge["chat_id"] == -51
             assert "без имён" in nudge["text"]
-            assert "касс" in nudge["text"]
+            assert "личке" in nudge["text"]
+            assert nudge["link_chat_id"] == -51
     assert b.take_nudge(data, chat_id=-50, department="kitchen", day="2026-08-18") is None
 
 

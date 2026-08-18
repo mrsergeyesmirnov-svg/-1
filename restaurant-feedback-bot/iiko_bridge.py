@@ -295,10 +295,16 @@ def take_nudge(
             target = int(point.get("hall_chat_id") or chat_id)
     where = "кухне" if department == DEPT_KITCHEN else "залу"
     text = (
-        f"Поймали, что на {where} что-то идёт не так — без имён и без «кто нажал».\n"
-        "Напишите сюда подробнее, что случилось. Так не нужно стоять у кассы и набирать длинный текст."
+        f"Поймали, что на {where} что-то идёт не так — без имён.\n"
+        "Расскажите подробнее в личке с ботом."
     )
-    return {"chat_id": target, "department": department, "bad": bad, "text": text}
+    return {
+        "chat_id": target,
+        "link_chat_id": target,
+        "department": department,
+        "bad": bad,
+        "text": text,
+    }
 
 
 def survey_event(rec: dict[str, Any]) -> dict[str, Any]:
