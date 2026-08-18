@@ -350,14 +350,6 @@ async def log_feedback_event(entry: dict) -> None:
         print("[log_feedback_event]", repr(e))
         return
     uid = entry.get("user_id")
-    if rest_chat is not None and uid is not None and entry.get("event") in ("rating", "chef_shift"):
-        try:
-            data = await load_data()
-            rec = iiko_bridge.grant_permit(data, telegram_id=int(uid))
-            if rec:
-                await save_data(data)
-        except Exception as e:
-            print("[iiko-permit]", repr(e))
     if rest_chat is not None and uid is not None:
         try:
             data = await load_data()
@@ -2041,27 +2033,6 @@ async def cmd_start(message: Message) -> None:
 
     if len(args) > 1:
         arg = args[1].strip()
-        if arg.startswith("out_"):
-            data = await load_data()
-            rec = iiko_bridge.consume_out_token(data, arg[4:])
-            if not rec:
-                await message.answer("Ссылка устарела. Попросите QR ещё раз на кассе.")
-                return
-            await save_data(data)
-            if int(rec.get("telegram_id") or 0) and int(rec["telegram_id"]) != uid:
-                await message.answer("Эта ссылка выдана другому сотруднику.")
-                return
-            linked = int(rec["chat_id"])
-            user_linked_chat[uid] = linked
-            await message.answer(
-                "Короткая отметка смены. После ответа можно закрыть смену в iiko.",
-                reply_markup=pulse_model.support_only_reply_markup(),
-            )
-            await message.answer(
-                private_rating_prompt(data, linked),
-                reply_markup=rating_keyboard,
-            )
-            return
         linked = decode_start_chat(arg)
         if linked is not None:
             user_linked_chat[uid] = linked
@@ -2291,46 +2262,76 @@ async def cmd_admin(message: Message) -> None:
     for chunk in _split_admin_messages(text):
         await message.answer(chunk, parse_mode="HTML")
     await message.answer(
-        "iiko шаг 1: <code>/iiko_link telegram_id employee_id chat_id</code> · "
-        "<code>/iiko_list</code> · <code>/iiko_unlink telegram_id</code>",
+        "iiko: <code>/iiko_point org_guid chat_id</code> · "
+        "ответ на CSV <code>/iiko_import</code> · <code>/iiko_list</code>",
         parse_mode="HTML",
     )
 
 
-@dp.message(Command("iiko_link"))
-async def cmd_iiko_link(message: Message) -> None:
+@dp.message(Command("iiko_point"))
+async def cmd_iiko_point(message: Message) -> None:
     if message.chat.type != "private" or not is_global_admin(message.from_user.id):
         return
     parts = (message.text or "").split()
-    if len(parts) < 4:
+    if len(parts) < 3:
         await message.answer(
-            "Привязка сотрудника к iiko:\n"
-            "<code>/iiko_link &lt;telegram_id&gt; &lt;iiko_employee_id&gt; &lt;chat_id&gt; [floor|kitchen]</code>\n"
-            "id человека — <code>/myid</code>, chat_id точки — <code>/admin</code>.",
+            "Одна точка iiko → чат Pulse (сотрудников по одному не собираем):\n"
+            "<code>/iiko_point &lt;organizationId из iiko&gt; &lt;chat_id зала&gt; [chat_id кухни]</code>\n"
+            "chat_id — из /admin.",
             parse_mode="HTML",
         )
         return
+    org = parts[1].strip()
     try:
-        tid = int(parts[1])
-        chat_id = int(parts[3])
+        hall = int(parts[2])
+        kitchen = int(parts[3]) if len(parts) > 3 else hall
     except ValueError:
-        await message.answer("telegram_id и chat_id — целые числа.")
+        await message.answer("chat_id — целое число (часто отрицательное).")
         return
-    emp = parts[2].strip()
-    role = parts[4].strip().lower() if len(parts) > 4 else "floor"
     data = await load_data()
-    try:
-        row = iiko_bridge.upsert_staff(
-            data, telegram_id=tid, iiko_employee_id=emp, chat_id=chat_id, role=role
-        )
-    except ValueError as e:
-        await message.answer(str(e))
-        return
+    iiko_bridge.bind_point(
+        data, iiko_org_id=org, chat_id=hall, hall_chat_id=hall, kitchen_chat_id=kitchen
+    )
     await save_data(data)
     await message.answer(
-        f"Связка: TG <code>{tid}</code> ↔ iiko <code>{escape(emp)}</code> · точка <code>{chat_id}</code> · {escape(row['role'])}",
+        f"Точка iiko <code>{escape(org)}</code> → зал <code>{hall}</code>, кухня <code>{kitchen}</code>",
         parse_mode="HTML",
     )
+
+
+@dp.message(Command("iiko_import"))
+async def cmd_iiko_import(message: Message) -> None:
+    if message.chat.type != "private" or not is_global_admin(message.from_user.id):
+        return
+    raw = ""
+    reply = message.reply_to_message
+    if reply and reply.document:
+        try:
+            f = await bot.get_file(reply.document.file_id)
+            buf = await bot.download_file(f.file_path)
+            raw = buf.read().decode("utf-8-sig", errors="replace")
+        except Exception as e:
+            await message.answer(f"Не прочитал файл: {e}")
+            return
+    elif reply and (reply.text or reply.caption):
+        raw = (reply.text or reply.caption or "").strip()
+    else:
+        parts = (message.text or "").split(maxsplit=1)
+        raw = parts[1].strip() if len(parts) > 1 else ""
+    if not raw:
+        await message.answer(
+            "Людей по одному не собираем. Закрытие смены и так знает PIN на кассе.\n\n"
+            "Если нужна выгрузка (зал/кухня для чатов) — iikoOffice → Персонал → "
+            "Сотрудники → Excel. Файл или копипаст столбцов "
+            "<code>id;фио;должность</code> (id / uuid / код).\n"
+            "Ответьте на таблицу командой <code>/iiko_import</code>. Telegram-id не нужны.",
+            parse_mode="HTML",
+        )
+        return
+    data = await load_data()
+    n = iiko_bridge.import_employees_csv(data, raw)
+    await save_data(data)
+    await message.answer(f"Загружено/обновлено строк: <b>{n}</b>", parse_mode="HTML")
 
 
 @dp.message(Command("iiko_list"))
@@ -2339,39 +2340,21 @@ async def cmd_iiko_list(message: Message) -> None:
         return
     data = await load_data()
     iiko_bridge.ensure_tables(data)
-    rows = data.get("iiko_staff") or []
-    if not rows:
-        await message.answer("Пока нет связок iiko. <code>/iiko_link</code>", parse_mode="HTML")
+    points = data.get("iiko_points") or {}
+    staff = data.get("iiko_staff") or []
+    if not points and not staff:
+        await message.answer("Пусто. Сначала <code>/iiko_point</code>, при желании CSV.", parse_mode="HTML")
         return
-    lines = ["<b>iiko ↔ Telegram</b>"]
-    for r in rows:
-        if not isinstance(r, dict):
+    lines = ["<b>iiko точки</b>"]
+    for oid, rec in points.items():
+        if not isinstance(rec, dict):
             continue
         lines.append(
-            f"TG <code>{r.get('telegram_id')}</code> · "
-            f"iiko <code>{escape(str(r.get('iiko_employee_id')))}</code> · "
-            f"чат <code>{r.get('chat_id')}</code> · {escape(str(r.get('role')))}"
+            f"<code>{escape(str(oid))}</code> → чат <code>{rec.get('chat_id')}</code> "
+            f"(кухня <code>{rec.get('kitchen_chat_id')}</code>)"
         )
+    lines.append(f"\nСотрудников в справочнике (опционально): {len(staff)}")
     await message.answer("\n".join(lines), parse_mode="HTML")
-
-
-@dp.message(Command("iiko_unlink"))
-async def cmd_iiko_unlink(message: Message) -> None:
-    if message.chat.type != "private" or not is_global_admin(message.from_user.id):
-        return
-    parts = (message.text or "").split()
-    if len(parts) < 2:
-        await message.answer("<code>/iiko_unlink &lt;telegram_id&gt;</code>", parse_mode="HTML")
-        return
-    try:
-        tid = int(parts[1])
-    except ValueError:
-        await message.answer("telegram_id — число.")
-        return
-    data = await load_data()
-    n = iiko_bridge.unlink_staff(data, telegram_id=tid)
-    await save_data(data)
-    await message.answer(f"Снято связок: {n}")
 
 
 @dp.message(Command("orgs"))
@@ -7328,12 +7311,22 @@ async def main() -> None:
     print("Бот:", me.username, "| ADMIN_IDS:", sorted(ADMIN_IDS))
     iiko_key = os.getenv("IIKO_API_KEY", "").strip()
     if iiko_key:
+
+        async def _on_iiko_survey(entry, nudge):
+            await log_feedback_event(entry)
+            if not nudge:
+                return
+            try:
+                await bot.send_message(int(nudge["chat_id"]), nudge["text"])
+            except Exception as e:
+                print("[iiko-nudge]", repr(e))
+
         asyncio.create_task(
             iiko_bridge.start_http_server(
                 load_data,
                 save_data,
                 api_key=iiko_key,
-                bot_username=me.username or "",
+                on_survey=_on_iiko_survey,
             )
         )
     else:
