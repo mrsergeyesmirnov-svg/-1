@@ -1260,73 +1260,53 @@ async def _maybe_manager_alerts_after_event(chat_id: int, event_type: str) -> No
         print(f"[manager-alerts-trigger-fail] {chat_id}: {e}")
 
 
-async def _handle_ai_advice(message: Message, uid: int) -> None:
-    """Кнопка/команда «AI-советник» — совет по последним 72 ч для точки менеджера."""
+async def _run_weekly_ai_advice_for_chat(
+    data: dict, cid: str, info: dict
+) -> None:
+    """Воскресенье 20:00 (по tz точки) — AI-советник смотрит неделю и пишет управляющему."""
     if ai_advisor._client_or_none() is None:
-        await message.answer(
-            "AI-советник не подключён.\n\n"
-            "Добавьте переменную <code>OPENAI_API_KEY=sk-...</code> в окружение бота "
-            "(Railway → Variables или .env), перезапустите бота.",
-            parse_mode="HTML",
-        )
         return
-    data = await load_data()
-    scope = report_pulse.chat_scope_for_user(
-        data, uid, is_global_admin=is_global_admin(uid)
-    )
-    if not scope:
-        await message.answer("Нет подключённых точек.")
+    if info.get("removed_at") or info.get("active") is False:
         return
-    chat_id, title = scope[0]
-    tz_name = (chat_record(data, int(chat_id)) or {}).get("timezone", DEFAULT_TZ)
+    oid = info.get("organization_id")
+    if oid and pulse_model.is_org_billing_blocked(data, oid):
+        return
+    chat_id = int(cid)
+    tz_name = info.get("timezone", DEFAULT_TZ)
     from datetime import timedelta
     from zoneinfo import ZoneInfo
     tz = ZoneInfo(tz_name)
     now = datetime.now(tz)
-    window = timedelta(hours=72)
+    window = timedelta(days=7)
     cur_events = await report_pulse.load_events(
-        [int(chat_id)], now - window, now, jsonl_path=FEEDBACK_LOG_PATH
+        [chat_id], now - window, now, jsonl_path=FEEDBACK_LOG_PATH
     )
     prev_events = await report_pulse.load_events(
-        [int(chat_id)], now - window * 2, now - window, jsonl_path=FEEDBACK_LOG_PATH
+        [chat_id], now - window * 2, now - window, jsonl_path=FEEDBACK_LOG_PATH
     )
     if not cur_events:
-        await message.answer(
-            "За последние 72 часа нет данных по вашей точке. "
-            "Как только сотрудники начнут оставлять отметки — AI-советник заработает."
-        )
         return
-    await message.answer("⏳ Готовлю совет…")
+    title = str(info.get("title") or cid)
     try:
         advice = await ai_advisor.build_advice_from_events(
             cur_events,
             prev_events,
             restaurant_title=title,
             data=data,
-            chat_id=int(chat_id),
+            chat_id=chat_id,
         )
     except Exception as e:
-        print(f"[ai-advice-cmd] {e}")
-        advice = None
+        print(f"[ai-weekly] build_advice failed chat={cid}: {e}")
+        return
     if not advice:
-        await message.answer(
-            "Пороговых сигналов нет — всё в норме по последним данным. "
-            "Попробуйте через несколько смен или когда появятся новые отметки."
-        )
         return
-    await message.answer(
-        ai_advisor.format_advice_html(advice), parse_mode="HTML"
-    )
-
-
-@dp.message(Command("ai_advice"))
-async def cmd_ai_advice(message: Message) -> None:
-    if message.chat.type != "private":
-        return
-    uid = message.from_user.id
-    if not (await manager_ui_for_user(uid) or is_global_admin(uid)):
-        return
-    await _handle_ai_advice(message, uid)
+    html = ai_advisor.format_advice_html(advice)
+    managers = _chat_managers_only(data, chat_id)
+    for mid in managers:
+        try:
+            await bot.send_message(mid, html, parse_mode="HTML")
+        except Exception as e:
+            print(f"[ai-weekly] mid={mid} chat={cid}: {e}")
 
 
 async def _show_problems_for_manager(
@@ -3646,6 +3626,19 @@ async def scheduler_loop() -> None:
                             print(f"[weekly-problems] chat={cid}")
                         except Exception as e:
                             print(f"[weekly-problems-fail] {cid}: {e}")
+
+                # Воскресенье 20:00 — AI-советник: итог недели в личку менеджеру
+                if now_local.weekday() == 6 and hm == "20:00":
+                    week_key = now_local.strftime("%G-W%V")
+                    ai_week_key = f"{cid}|ai_weekly|{week_key}"
+                    if not sent_map.get(ai_week_key):
+                        try:
+                            await _run_weekly_ai_advice_for_chat(data, cid, info)
+                            sent_map[ai_week_key] = True
+                            changed = True
+                            print(f"[ai-weekly] chat={cid}")
+                        except Exception as e:
+                            print(f"[ai-weekly-fail] {cid}: {e}")
 
             # Понедельник 10:05 — управляющим сети: точки без реакции на проблемы
             try:
@@ -6011,12 +6004,10 @@ async def manager_menu_handler(message: Message) -> None:
         return
 
     if t == pulse_model.BTN_FOLDER_ANALYTICS:
-        show_ai = bool(ai_advisor._client_or_none())
         await message.answer(
-            "<b>Аналитика</b>\nОтчёты и «Горящие вопросы» по точке."
-            + ("\n🤖 <i>AI-советник подключён</i>" if show_ai else ""),
+            "<b>Аналитика</b>\nОтчёты и «Горящие вопросы» по точке.",
             parse_mode="HTML",
-            reply_markup=pulse_model.manager_menu_analytics_markup(show_ai=show_ai),
+            reply_markup=pulse_model.manager_menu_analytics_markup(),
         )
         return
     if t == pulse_model.BTN_FOLDER_SHIFT:
@@ -6163,8 +6154,6 @@ async def manager_menu_handler(message: Message) -> None:
             await _show_reminders_panel(message, uid, chat_id)
     elif t == pulse_model.BTN_SIGNALS:
         await cmd_problems(message)
-    elif t == pulse_model.BTN_AI_ADVICE:
-        await _handle_ai_advice(message, uid)
     elif t == pulse_model.BTN_DAY_PLAN:
         data = await load_data()
         scope = await _ops_scope(data, uid)
