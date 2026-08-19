@@ -47,6 +47,7 @@ import training_materials
 import onboarding_reels
 import reminders_ui
 import iiko_bridge
+import ai_advisor
 
 # На Railway без Volume файлы в контейнере теряются при redeploy.
 # Смонтируйте Volume и задайте PULSE_DATA_DIR=/data (или другой путь) — туда пойдут bot_data.json и feedback_log.jsonl.
@@ -1217,6 +1218,23 @@ async def _run_manager_alerts_for_chat(
                 f"[manager-alerts] chat={cid}: sent kind={alert.kind} "
                 f"code={alert.code} to {len(managers)} mgr"
             )
+            # AI-совет после алерта — отдельным сообщением, не блокирует доставку
+            if ai_advisor._client_or_none() is not None:
+                try:
+                    advice = await ai_advisor.build_advice(
+                        alert, restaurant_title=title
+                    )
+                    if advice:
+                        advice_html = ai_advisor.format_advice_html(advice)
+                        for mid in managers:
+                            try:
+                                await bot.send_message(
+                                    mid, advice_html, parse_mode="HTML"
+                                )
+                            except Exception as e:
+                                print(f"[ai-advisor] mid={mid}: {e}")
+                except Exception as e:
+                    print(f"[ai-advisor] build failed: {e}")
     return sent
 
 
@@ -1240,6 +1258,75 @@ async def _maybe_manager_alerts_after_event(chat_id: int, event_type: str) -> No
             )
     except Exception as e:
         print(f"[manager-alerts-trigger-fail] {chat_id}: {e}")
+
+
+async def _handle_ai_advice(message: Message, uid: int) -> None:
+    """Кнопка/команда «AI-советник» — совет по последним 72 ч для точки менеджера."""
+    if ai_advisor._client_or_none() is None:
+        await message.answer(
+            "AI-советник не подключён.\n\n"
+            "Добавьте переменную <code>OPENAI_API_KEY=sk-...</code> в окружение бота "
+            "(Railway → Variables или .env), перезапустите бота.",
+            parse_mode="HTML",
+        )
+        return
+    data = await load_data()
+    scope = report_pulse.chat_scope_for_user(
+        data, uid, is_global_admin=is_global_admin(uid)
+    )
+    if not scope:
+        await message.answer("Нет подключённых точек.")
+        return
+    chat_id, title = scope[0]
+    tz_name = (chat_record(data, int(chat_id)) or {}).get("timezone", DEFAULT_TZ)
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo(tz_name)
+    now = datetime.now(tz)
+    window = timedelta(hours=72)
+    cur_events = await report_pulse.load_events(
+        [int(chat_id)], now - window, now, jsonl_path=FEEDBACK_LOG_PATH
+    )
+    prev_events = await report_pulse.load_events(
+        [int(chat_id)], now - window * 2, now - window, jsonl_path=FEEDBACK_LOG_PATH
+    )
+    if not cur_events:
+        await message.answer(
+            "За последние 72 часа нет данных по вашей точке. "
+            "Как только сотрудники начнут оставлять отметки — AI-советник заработает."
+        )
+        return
+    await message.answer("⏳ Готовлю совет…")
+    try:
+        advice = await ai_advisor.build_advice_from_events(
+            cur_events,
+            prev_events,
+            restaurant_title=title,
+            data=data,
+            chat_id=int(chat_id),
+        )
+    except Exception as e:
+        print(f"[ai-advice-cmd] {e}")
+        advice = None
+    if not advice:
+        await message.answer(
+            "Пороговых сигналов нет — всё в норме по последним данным. "
+            "Попробуйте через несколько смен или когда появятся новые отметки."
+        )
+        return
+    await message.answer(
+        ai_advisor.format_advice_html(advice), parse_mode="HTML"
+    )
+
+
+@dp.message(Command("ai_advice"))
+async def cmd_ai_advice(message: Message) -> None:
+    if message.chat.type != "private":
+        return
+    uid = message.from_user.id
+    if not (await manager_ui_for_user(uid) or is_global_admin(uid)):
+        return
+    await _handle_ai_advice(message, uid)
 
 
 async def _show_problems_for_manager(
@@ -5924,10 +6011,12 @@ async def manager_menu_handler(message: Message) -> None:
         return
 
     if t == pulse_model.BTN_FOLDER_ANALYTICS:
+        show_ai = bool(ai_advisor._client_or_none())
         await message.answer(
-            "<b>Аналитика</b>\nОтчёты и «Горящие вопросы» по точке.",
+            "<b>Аналитика</b>\nОтчёты и «Горящие вопросы» по точке."
+            + ("\n🤖 <i>AI-советник подключён</i>" if show_ai else ""),
             parse_mode="HTML",
-            reply_markup=pulse_model.manager_menu_analytics_markup(),
+            reply_markup=pulse_model.manager_menu_analytics_markup(show_ai=show_ai),
         )
         return
     if t == pulse_model.BTN_FOLDER_SHIFT:
@@ -6074,6 +6163,8 @@ async def manager_menu_handler(message: Message) -> None:
             await _show_reminders_panel(message, uid, chat_id)
     elif t == pulse_model.BTN_SIGNALS:
         await cmd_problems(message)
+    elif t == pulse_model.BTN_AI_ADVICE:
+        await _handle_ai_advice(message, uid)
     elif t == pulse_model.BTN_DAY_PLAN:
         data = await load_data()
         scope = await _ops_scope(data, uid)
