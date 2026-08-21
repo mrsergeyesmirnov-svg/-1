@@ -432,6 +432,8 @@ waiting_for_comment: set[int] = set()
 user_pending_problem: dict[int, str] = {}
 # последняя тема смены — привязка комментария к кнопке для алертов менеджеру
 user_last_problem_code: dict[int, str] = {}
+# последняя эмоция опроса (charged/normal/meh/heavy) — для второго вопроса
+user_last_mood: dict[int, str] = {}
 # выбранная точка для отчёта (chat_id или "all")
 user_report_pick: dict[int, str] = {}
 # зал / кухня / весь ресторан
@@ -835,6 +837,7 @@ def finish_private_flow(user_id: int) -> None:
     user_private_slug.pop(user_id, None)
     user_pending_problem.pop(user_id, None)
     user_last_problem_code.pop(user_id, None)
+    user_last_mood.pop(user_id, None)
     waiting_for_comment.discard(user_id)
 
 
@@ -1139,31 +1142,30 @@ async def _run_manager_alerts_for_chat(
                 f"[manager-alerts] chat={cid}: sent kind={alert.kind} "
                 f"code={alert.code} to {len(managers)} mgr"
             )
-            # AI-наставник: читает комментарии окна + алерт
-            if ai_advisor._client_or_none() is not None:
-                try:
-                    advice = await ai_advisor.build_advice(
-                        alert,
-                        restaurant_title=title,
-                        events=cur_events,
-                    )
-                    if advice:
-                        advice_html = ai_advisor.format_advice_html(advice)
-                        for mid in managers:
-                            try:
-                                await bot.send_message(
-                                    mid, advice_html, parse_mode="HTML",
-                                    disable_web_page_preview=True,
-                                )
-                            except Exception as e:
-                                print(f"[ai-advisor] mid={mid}: {e}")
-                except Exception as e:
-                    print(f"[ai-advisor] build failed: {e}")
+            # AI-наставник: анализ реальных комментариев через OpenAI
+            try:
+                advice = await ai_advisor.build_advice(
+                    alert,
+                    restaurant_title=title,
+                    events=cur_events,
+                )
+                if advice:
+                    advice_html = ai_advisor.format_advice_html(advice)
+                    for mid in managers:
+                        try:
+                            await bot.send_message(
+                                mid, advice_html, parse_mode="HTML",
+                                disable_web_page_preview=True,
+                            )
+                        except Exception as e:
+                            print(f"[ai-advisor] mid={mid}: {e}")
+            except Exception as e:
+                print(f"[ai-advisor] build failed: {e}")
     return sent
 
 
 async def _maybe_manager_alerts_after_event(chat_id: int, event_type: str) -> None:
-    """Сразу после сигнала линии — порог алертов + разбор комментариев AI."""
+    """Сразу после сигнала линии — порог алертов + тренды по кнопкам/текстам."""
     if event_type not in manager_alerts.TRIGGER_EVENTS:
         return
     try:
@@ -1173,8 +1175,8 @@ async def _maybe_manager_alerts_after_event(chat_id: int, event_type: str) -> No
             print(f"[manager-alerts-trigger] chat={chat_id}: no chat record")
             return
         n = await _run_manager_alerts_for_chat(data, str(chat_id), info)
-        # После комментария — отдельно ищем повторы в текстах (даже если кнопки молчат)
-        if event_type == report_pulse.EVENT_COMMENT:
+        # Комментарий или кнопка «что мешало» — повторы по всем темам
+        if event_type in (report_pulse.EVENT_COMMENT, report_pulse.EVENT_PROBLEM):
             n += await _run_comment_trend_mentor(data, str(chat_id), info)
         if n:
             await save_data(data)
@@ -1191,10 +1193,10 @@ async def _run_comment_trend_mentor(
     data: dict, cid: str, info: dict, *, force: bool = False
 ) -> int:
     """
-    AI читает свободные комментарии. Если видит повтор — горящая тема + наставник в личку.
+    Кнопки + тексты (≥3) → горящий вопрос.
+    Совет наставника — только OpenAI по реальным комментариям (без шаблонов).
+    Если менеджеры не привязаны — шлём ADMIN_IDS.
     """
-    if ai_advisor._client_or_none() is None:
-        return 0
     if info.get("removed_at") or info.get("active") is False:
         return 0
     oid = info.get("organization_id")
@@ -1213,27 +1215,20 @@ async def _run_comment_trend_mentor(
     prev_events = await report_pulse.load_events(
         [chat_id], now - window * 2, now - window, jsonl_path=FEEDBACK_LOG_PATH
     )
-    comments = ai_advisor.extract_comments(cur_events)
-    if len(comments) < ai_advisor.TREND_MIN_COMMENTS:
+    if not cur_events:
         return 0
 
     title = str(info.get("title") or cid)
     try:
-        alert, advice = await ai_advisor.mentor_pack_for_events(
-            cur_events,
-            prev_events,
-            restaurant_title=title,
-            data=data,
-            chat_id=chat_id,
-        )
+        trends = await ai_advisor.detect_comment_trends(cur_events)
     except Exception as e:
-        print(f"[ai-comment-trend] {cid}: {e}")
+        print(f"[ai-comment-trend] detect {cid}: {e}")
         return 0
-    if not alert or alert.kind != "comment_trend" or not advice:
+    if not trends:
         return 0
+    alert = ai_advisor.trend_to_alert(trends[0])
 
     sent_map = data.setdefault("last_auto_sent", {})
-    # Антидубль по заголовку тенденции (сутки)
     trend_key = manager_alerts.alert_dedupe_key(
         chat_id, "comment_trend", (alert.title or "")[:40]
     )
@@ -1243,7 +1238,6 @@ async def _run_comment_trend_mentor(
         print(f"[ai-comment-trend] cooldown {trend_key}")
         return 0
 
-    # Попасть в «Горящие вопросы»
     try:
         pkey = f"ai_{(alert.problem_key or 'trend')}"[:48]
         await problems_pulse._upsert_local(
@@ -1259,12 +1253,13 @@ async def _run_comment_trend_mentor(
     except Exception as e:
         print(f"[ai-comment-trend-upsert] {cid}: {e}")
 
-    managers = _chat_managers_only(data, chat_id)
+    managers = _chat_managers_only(data, chat_id) or set(ADMIN_IDS)
     if not managers:
+        print(f"[ai-comment-trend] no managers and no ADMIN_IDS chat={cid}")
         return 0
+
     html_alert = manager_alerts.format_alert_message(alert, restaurant_title=title)
     kb = manager_alerts.alert_keyboard(chat_id, None)
-    advice_html = ai_advisor.format_advice_html(advice)
     sent = 0
     for mid in managers:
         manager_problem_chat[mid] = chat_id
@@ -1272,26 +1267,60 @@ async def _run_comment_trend_mentor(
             await bot.send_message(
                 mid, html_alert, parse_mode="HTML", reply_markup=kb
             )
-            await bot.send_message(
-                mid,
-                advice_html,
-                parse_mode="HTML",
-                disable_web_page_preview=True,
-            )
-            sent += 2
+            sent += 1
         except Exception as e:
             print(f"[ai-comment-trend] mid={mid}: {e}")
+
+    # Совет — только анализ OpenAI по комментариям, без шаблонов
+    advice = None
+    try:
+        advice = await ai_advisor.build_advice(
+            alert, restaurant_title=title, events=cur_events
+        )
+    except Exception as e:
+        print(f"[ai-comment-trend] build_advice {cid}: {e}")
+    if advice:
+        advice_html = ai_advisor.format_advice_html(advice)
+        for mid in managers:
+            try:
+                await bot.send_message(
+                    mid,
+                    advice_html,
+                    parse_mode="HTML",
+                    disable_web_page_preview=True,
+                )
+                sent += 1
+            except Exception as e:
+                print(f"[ai-comment-trend] advice mid={mid}: {e}")
+    elif ai_advisor._client_or_none() is None:
+        note = (
+            "🤖 Наставник не написал совет: в Railway нет <code>OPENAI_API_KEY</code>.\n"
+            "Тренд уже в «Горящих вопросах». Добавьте ключ и Redeploy — "
+            "тогда AI будет разбирать комментарии персонала."
+        )
+        for mid in set(ADMIN_IDS) | managers:
+            try:
+                await bot.send_message(mid, note, parse_mode="HTML")
+                sent += 1
+            except Exception as e:
+                print(f"[ai-comment-trend] no-key note mid={mid}: {e}")
+            break  # один раз достаточно
+
     if sent:
         manager_alerts.mark_alert_sent(sent_map, trend_key, now=now)
-        print(f"[ai-comment-trend] chat={cid} sent to managers")
+        print(
+            f"[ai-comment-trend] chat={cid} sent={sent} "
+            f"advice={'yes' if advice else 'no'}"
+        )
     return sent
 
 
 async def _run_weekly_ai_advice_for_chat(
     data: dict, cid: str, info: dict
 ) -> None:
-    """Воскресенье 20:00 — наставник читает неделю (комментарии + корреляции)."""
+    """Воскресенье 20:00 — OpenAI читает неделю по комментариям (не шаблон)."""
     if ai_advisor._client_or_none() is None:
+        print(f"[ai-weekly] skip chat={cid}: no OPENAI_API_KEY")
         return
     if info.get("removed_at") or info.get("active") is False:
         return
@@ -1314,6 +1343,7 @@ async def _run_weekly_ai_advice_for_chat(
     if not cur_events:
         return
     title = str(info.get("title") or cid)
+    alert = None
     try:
         alert, advice = await ai_advisor.mentor_pack_for_events(
             cur_events,
@@ -1352,7 +1382,7 @@ async def _run_weekly_ai_advice_for_chat(
         except Exception as e:
             print(f"[ai-weekly-upsert] {cid}: {e}")
     html = ai_advisor.format_advice_html(advice)
-    managers = _chat_managers_only(data, chat_id)
+    managers = _chat_managers_only(data, chat_id) or set(ADMIN_IDS)
     for mid in managers:
         try:
             await bot.send_message(
@@ -3411,13 +3441,18 @@ async def answer_private_flow_end(message: Message, user_id: int, text: str) -> 
 
 
 def _problem_keyboard_for_user(data: dict, user_id: int) -> InlineKeyboardMarkup:
-    return shift_survey.blocker_keyboard()
+    positive = user_last_mood.get(user_id) == "charged"
+    return shift_survey.blocker_keyboard(positive=positive)
 
 
-async def prompt_blocker(message: Message) -> None:
+async def prompt_blocker(message: Message, *, user_id: int | None = None) -> None:
+    uid = user_id if user_id is not None else (
+        message.from_user.id if message.from_user else 0
+    )
+    positive = user_last_mood.get(uid) == "charged"
     await message.answer(
-        shift_survey.blocker_prompt(),
-        reply_markup=shift_survey.blocker_keyboard(),
+        shift_survey.blocker_prompt(positive=positive),
+        reply_markup=shift_survey.blocker_keyboard(positive=positive),
     )
 
 
@@ -3761,7 +3796,8 @@ async def mood_handler(callback: CallbackQuery) -> None:
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.message.answer(f"Записали: <b>{escape(label)}</b>", parse_mode="HTML")
     await callback.answer()
-    await prompt_blocker(callback.message)
+    user_last_mood[user_id] = code
+    await prompt_blocker(callback.message, user_id=user_id)
 
 
 @dp.callback_query(F.data.startswith("rating_"), lambda c: c.message.chat.type == "private")
@@ -3794,16 +3830,20 @@ async def blocker_handler(callback: CallbackQuery) -> None:
         return
 
     label = shift_survey.BLOCKER_LABELS[action]
+    positive = user_last_mood.get(user_id) == "charged"
     if action != "ok":
+        # Заряженная смена: фактор силы, не «проблема» для горящих сигналов
+        event_name = "boost" if positive else "problem"
         await log_feedback_event(
             {
-                "event": "problem",
+                "event": event_name,
                 "user_id": user_id,
                 "restaurant_chat_id": rest_chat,
                 "restaurant_label": restaurant,
                 "organization_id": org_id,
                 "problem": action,
                 "department": chef_survey.DEPARTMENT_FLOOR,
+                "mood": user_last_mood.get(user_id),
             }
         )
         user_last_problem_code[user_id] = action

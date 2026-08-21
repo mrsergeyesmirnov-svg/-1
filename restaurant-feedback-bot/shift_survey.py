@@ -1,5 +1,5 @@
 """
-Опрос смены: эмоция → что мешало → комментарий (текст или голос).
+Опрос смены: эмоция → фактор → комментарий (текст или голос).
 
 Эмоции пишутся в лог как rating 1–5 для отчётов и алертов.
 """
@@ -22,7 +22,7 @@ MOOD_LABELS: dict[str, str] = {
     "heavy": "🥶 Тяжёлая",
 }
 
-# Одно окно «Что мешало работать?»
+# Одно окно факторов смены
 BLOCKER_BUTTONS: list[tuple[str, str]] = [
     ("team", "👥 Команда"),
     ("kitchen", "👨‍🍳 Кухня"),
@@ -51,13 +51,18 @@ def mood_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def blocker_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
+def blocker_keyboard(*, positive: bool = False) -> InlineKeyboardMarkup:
+    """
+    positive=True (смена заряжена): без кнопки «Нигде — всё прошло хорошо».
+    """
+    rows = []
+    for code, label in BLOCKER_BUTTONS:
+        if positive and code == "ok":
+            continue
+        rows.append(
             [InlineKeyboardButton(text=label, callback_data=f"blocker_{code}")]
-            for code, label in BLOCKER_BUTTONS
-        ]
-    )
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def comment_keyboard() -> InlineKeyboardMarkup:
@@ -76,7 +81,9 @@ def mood_prompt() -> str:
     return "Как прошла смена?"
 
 
-def blocker_prompt() -> str:
+def blocker_prompt(*, positive: bool = False) -> str:
+    if positive:
+        return "Что сделало смену такой?"
     return "Что мешало работать?"
 
 
