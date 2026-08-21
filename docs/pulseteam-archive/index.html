@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pulse Team — система аналитики и оптимизации работы смен в ресторанах</title>
+  <meta name="description" content="Короткий опрос после смены в Telegram, аналитика по залу и кухне, план дня и отчёты для управляющего. Помогаем находить причины проблем — до увольнений и просадки сервиса." />
+  <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1" />
+  <link rel="canonical" href="https://www.pulseteam.online/" />
+
+  <meta property="og:locale" content="ru_RU" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Pulse Team" />
+  <meta property="og:title" content="Pulse Team — аналитика смен в ресторанах" />
+  <meta property="og:description" content="Сигналы с каждой смены, сводки для управляющего, план дня и кухня — в привычном Telegram." />
+  <meta property="og:url" content="https://www.pulseteam.online/" />
+  <meta property="og:image" content="https://www.pulseteam.online/og-image.jpg" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Pulse Team — аналитика смен в ресторанах" />
+  <meta name="twitter:description" content="Сигналы с каждой смены, сводки для управляющего, план дня и кухня — в Telegram, без отдельного приложения." />
+  <meta name="twitter:image" content="https://www.pulseteam.online/og-image.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Pulse Team",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "inLanguage": "ru",
+    "url": "https://www.pulseteam.online/",
+    "description": "Система аналитики смен ресторана: обратная связь команды, отчёты для управляющего, план дня и кухня.",
+    "provider": {
+      "@type": "Organization",
+      "name": "Pulse Team",
+      "url": "https://www.pulseteam.online/"
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "RUB",
+      "description": "Бесплатный пилот"
+    }
+  }
+  </script>
+  <style>
+    :root {
+      --bg: #faf7f3;
+      --bg-warm: #fff5ee;
+      --surface: #ffffff;
+      --ink: #1c1917;
+      --muted: #57534e;
+      --line: #e7e2dc;
+      --accent: #ff5a1f;
+      --accent-hover: #e54d15;
+      --accent-soft: rgba(255, 90, 31, 0.12);
+      --calm: #0d9488;
+      --calm-soft: rgba(13, 148, 136, 0.1);
+      --radius-lg: 24px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+      --shadow: 0 4px 24px rgba(28, 25, 23, 0.06);
+      --shadow-hover: 0 8px 32px rgba(28, 25, 23, 0.1);
+      --max: 1120px;
+      --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Mulish", system-ui, -apple-system, sans-serif;
+      font-size: 17px;
+      line-height: 1.55;
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(250, 247, 243, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
+    }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 72px;
+      gap: 16px;
+    }
+    .logo {
+      font-weight: 800;
+      font-size: 1.125rem;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+    .logo span { color: var(--accent); }
+    .nav-links {
+      display: none;
+      gap: 20px;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+    .nav-links a { color: var(--muted); text-decoration: none; }
+    .nav-links a:hover { color: var(--accent); text-decoration: none; }
+    @media (min-width: 900px) { .nav-links { display: flex; } }
+    .header-cta {
+      display: none;
+      font-weight: 700;
+      font-size: 0.9rem;
+      padding: 10px 20px;
+      background: var(--accent);
+      color: #fff !important;
+      border-radius: 999px;
+      text-decoration: none !important;
+      transition: background 0.2s var(--ease), transform 0.2s var(--ease);
+      white-space: nowrap;
+    }
+    .header-cta:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    @media (min-width: 640px) { .header-cta { display: inline-flex; } }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 16px 28px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s var(--ease), color 0.2s var(--ease), box-shadow 0.2s var(--ease), transform 0.2s var(--ease);
+      text-decoration: none !important;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(255, 90, 31, 0.35);
+    }
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(255, 90, 31, 0.4);
+    }
+    .btn-ghost {
+      background: var(--surface);
+      color: var(--ink);
+      border: 2px solid var(--line);
+    }
+    .btn-ghost:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: #fff;
+    }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+
+    .hero {
+      padding: 48px 0 80px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      top: -20%;
+      right: -10%;
+      width: 55%;
+      max-width: 520px;
+      aspect-ratio: 1;
+      background: radial-gradient(circle, var(--accent-soft) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-grid {
+      display: grid;
+      gap: 48px;
+      align-items: center;
+      position: relative;
+      z-index: 1;
+    }
+    @media (min-width: 900px) {
+      .hero-grid { grid-template-columns: 1fr 1fr; gap: 64px; }
+      .hero { padding: 72px 0 100px; }
+    }
+    .eyebrow {
+      display: inline-block;
+      font-size: 0.8125rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--calm);
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin: 0 0 20px;
+    }
+    .hero-lead {
+      font-size: 1.125rem;
+      color: var(--muted);
+      max-width: 34em;
+      margin: 0;
+    }
+    .hero-quote {
+      margin-top: 28px;
+      padding: 20px 24px;
+      background: var(--surface);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      box-shadow: var(--shadow);
+    }
+    .hero-quote p {
+      margin: 0;
+      font-size: 1.0625rem;
+      font-weight: 700;
+      font-style: italic;
+      color: var(--ink);
+      line-height: 1.4;
+    }
+    .hero-card {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--line);
+    }
+    .hero-card h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .hero-card p {
+      margin: 0;
+      font-size: 0.9375rem;
+      color: var(--muted);
+    }
+    .mini-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+    }
+    .mini-stat strong {
+      display: block;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .mini-stat span {
+      display: block;
+      margin-top: 4px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    section { padding: 72px 0; }
+    section.alt { background: var(--bg-warm); }
+    section.white { background: var(--surface); }
+    section.compact { padding: 56px 0; }
+    .section-label {
+      font-size: 0.8125rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      margin: 0 0 12px;
+    }
+    h2 {
+      font-size: clamp(1.75rem, 3.5vw, 2.25rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin: 0 0 20px;
+    }
+    .section-intro {
+      color: var(--muted);
+      font-size: 1.0625rem;
+      max-width: 40em;
+      margin: 0 0 40px;
+    }
+
+    .chain {
+      display: grid;
+      gap: 20px;
+      margin-top: 36px;
+    }
+    @media (min-width: 900px) {
+      .chain { grid-template-columns: repeat(5, 1fr); gap: 16px; }
+    }
+    .chain-item {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 20px 18px;
+    }
+    section.alt .chain-item { background: var(--bg); }
+    .chain-num {
+      display: inline-flex;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 0.875rem;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+    .chain-item p {
+      margin: 0;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      line-height: 1.45;
+      color: var(--ink);
+    }
+
+    .product-split {
+      display: grid;
+      gap: 48px;
+      align-items: start;
+    }
+    @media (min-width: 900px) {
+      .product-split { grid-template-columns: 1fr 1fr; gap: 56px; }
+    }
+    .flow-label {
+      font-size: 0.8125rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin: 0 0 16px;
+    }
+    .tg-mock {
+      background: linear-gradient(180deg, #17212b 0%, #0e1621 100%);
+      border-radius: 22px;
+      padding: 18px 16px 20px;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: var(--shadow-hover);
+      max-width: 340px;
+    }
+    .tg-top {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.45);
+      margin-bottom: 14px;
+      text-align: center;
+    }
+    .tg-bubble {
+      background: #182533;
+      border-radius: 14px 14px 14px 4px;
+      padding: 12px 14px;
+      color: #e8edf2;
+      font-size: 0.875rem;
+      line-height: 1.45;
+      margin-bottom: 10px;
+    }
+    .tg-bubble strong { color: #fff; }
+    .tg-btn {
+      display: block;
+      text-align: center;
+      background: rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 0.8125rem;
+      font-weight: 700;
+      color: #6ab2f2;
+      margin-top: 8px;
+    }
+    .tg-stars { color: #fbbf24; letter-spacing: 2px; font-size: 0.9rem; margin: 8px 0; }
+    .tg-chip {
+      display: inline-block;
+      background: rgba(255,255,255,0.06);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.75rem;
+      margin: 4px 4px 0 0;
+      color: rgba(255,255,255,0.85);
+    }
+
+    .insight-cards { display: grid; gap: 12px; }
+    .insight-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--accent);
+      border-radius: var(--radius-sm);
+      padding: 16px 18px;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      line-height: 1.45;
+    }
+    section.alt .insight-card { background: var(--bg); }
+    .insight-card.warn { border-left-color: #f59e0b; }
+    .insight-card.ok { border-left-color: var(--calm); }
+    .insight-card span {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 6px;
+    }
+
+    .pas-grid {
+      display: grid;
+      gap: 16px;
+      margin-top: 32px;
+    }
+    @media (min-width: 768px) {
+      .pas-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    .pas-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 24px 20px;
+    }
+    section.alt .pas-card { background: var(--bg); }
+    .pas-card h3 {
+      margin: 0 0 8px;
+      font-size: 0.8125rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+    }
+    .pas-card p {
+      margin: 0;
+      font-size: 0.9375rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .short-block { max-width: 42em; }
+    .short-block p {
+      margin: 0 0 1em;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .short-block p:last-child { margin-bottom: 0; }
+
+    .usp-block {
+      display: grid;
+      gap: 40px;
+      align-items: start;
+    }
+    @media (min-width: 900px) {
+      .usp-block { grid-template-columns: 1fr 1fr; gap: 56px; }
+    }
+    .usp-visual {
+      background: linear-gradient(145deg, var(--calm-soft) 0%, var(--accent-soft) 100%);
+      border-radius: var(--radius-lg);
+      padding: 32px 28px;
+      border: 1px solid var(--line);
+    }
+    .usp-visual ul {
+      margin: 16px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    .usp-visual li {
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(28, 25, 23, 0.08);
+      font-weight: 600;
+      font-size: 0.9375rem;
+    }
+    .usp-visual li:last-child { border-bottom: none; }
+
+    .econ-grid {
+      display: grid;
+      gap: 16px;
+    }
+    @media (min-width: 768px) {
+      .econ-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    .econ-stat {
+      background: var(--bg-warm);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 18px 16px;
+    }
+    section.alt .econ-stat { background: var(--surface); }
+    .econ-stat strong {
+      display: block;
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+      line-height: 1.2;
+    }
+    .econ-stat span {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .econ-footnote {
+      margin: 20px 0 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+      max-width: 40em;
+    }
+
+    .pricing-cards {
+      display: grid;
+      gap: 24px;
+      margin-top: 40px;
+    }
+    @media (min-width: 700px) {
+      .pricing-cards { grid-template-columns: repeat(2, 1fr); }
+    }
+    .price-card {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+    section.alt .price-card { background: var(--bg); }
+    .price-card.featured {
+      border-color: var(--accent);
+      box-shadow: 0 8px 40px rgba(255, 90, 31, 0.15);
+    }
+    .price-card h3 { margin: 0 0 8px; font-size: 1.25rem; }
+    .price-tag {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      margin: 16px 0 8px;
+    }
+    .price-card ul {
+      list-style: none;
+      padding: 0;
+      margin: 20px 0 0;
+      color: var(--muted);
+      font-size: 0.9375rem;
+    }
+    .price-card li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .price-card li:last-child { border-bottom: none; }
+
+    .cta-block {
+      text-align: center;
+      padding: 80px 24px;
+      background: linear-gradient(135deg, var(--accent) 0%, #ff8a4d 100%);
+      border-radius: var(--radius-lg);
+      color: #fff;
+      margin: 0 24px;
+      max-width: calc(var(--max) + 48px);
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .cta-block h2 { color: #fff; margin-bottom: 16px; }
+    .cta-block p {
+      margin: 0 auto 28px;
+      max-width: 32em;
+      opacity: 0.95;
+      font-size: 1.0625rem;
+    }
+    .cta-block .btn-primary {
+      background: #fff;
+      color: var(--accent);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+    }
+    .cta-block .btn-primary:hover {
+      background: #faf7f3;
+      color: var(--accent-hover);
+    }
+
+    .faq { max-width: 720px; margin: 0 auto; }
+    .faq-item { border-bottom: 1px solid var(--line); }
+    .faq-q {
+      width: 100%;
+      text-align: left;
+      font-family: inherit;
+      font-size: 1.0625rem;
+      font-weight: 700;
+      padding: 20px 0;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--ink);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    .faq-q::after {
+      content: "+";
+      font-size: 1.5rem;
+      font-weight: 400;
+      color: var(--accent);
+      transition: transform 0.25s var(--ease);
+    }
+    .faq-item.open .faq-q::after { transform: rotate(45deg); }
+    .faq-a {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s var(--ease);
+    }
+    .faq-a-inner {
+      padding: 0 0 20px;
+      color: var(--muted);
+      font-size: 0.9375rem;
+    }
+
+    footer {
+      padding: 48px 0 32px;
+      border-top: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .footer-grid {
+      display: grid;
+      gap: 32px;
+    }
+    @media (min-width: 600px) {
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+    }
+    footer .logo { margin-bottom: 8px; display: inline-block; }
+    .footer-muted { color: var(--muted); font-size: 0.9375rem; margin: 0; }
+    .footer-links { list-style: none; padding: 0; margin: 0; }
+    .footer-links li { margin-bottom: 10px; }
+    .footer-links a { color: var(--ink); font-weight: 600; }
+    .footer-links a:hover { color: var(--accent); }
+    .legal {
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+    .footer-requisites {
+      margin-top: 16px;
+      font-size: 0.8125rem;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .footer-requisites a { font-weight: 600; }
+
+    .consulting-strip {
+      padding: 28px 0 0;
+      background: var(--surface);
+    }
+    .consulting-strip-inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px 20px;
+      padding: 18px 22px;
+      border-radius: var(--radius-md);
+      border: 1px dashed var(--line);
+      background: var(--bg);
+    }
+    .consulting-strip-text {
+      margin: 0;
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.55;
+      max-width: 46em;
+    }
+    .consulting-strip-text strong {
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .consulting-link {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .consulting-link:hover { color: var(--accent); text-decoration: none; }
+
+    .referral-strip {
+      padding: 20px 0 48px;
+      background: var(--surface);
+    }
+    .referral-inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px 28px;
+      padding: 24px 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--bg-warm);
+      box-shadow: var(--shadow);
+    }
+    .referral-eyebrow {
+      margin: 0 0 6px;
+      font-size: 0.8125rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .referral-text {
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.5;
+      color: var(--ink);
+    }
+    .referral-text strong {
+      font-size: 1.125rem;
+      color: var(--accent);
+    }
+    .referral-strip .btn { flex-shrink: 0; }
+
+    .approach-teaser {
+      max-width: 42em;
+    }
+    .approach-teaser p {
+      color: var(--muted);
+      margin: 0 0 20px;
+      font-size: 1.0625rem;
+      line-height: 1.55;
+    }
+    .memo-bridge {
+      padding: 28px 32px;
+      background: var(--bg-warm);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      max-width: 52em;
+    }
+    .memo-bridge p {
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.55;
+      color: var(--muted);
+    }
+    .memo-bridge a { font-weight: 700; }
+
+    .feature-grid {
+      display: grid;
+      gap: 20px;
+      margin-top: 36px;
+    }
+    @media (min-width: 768px) {
+      .feature-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (min-width: 1024px) {
+      .feature-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 24px 22px;
+      height: 100%;
+    }
+    section.alt .feature-card { background: var(--bg); }
+    .feature-icon {
+      font-size: 1.5rem;
+      margin-bottom: 12px;
+      line-height: 1;
+    }
+    .feature-card h3 {
+      margin: 0 0 10px;
+      font-size: 1.0625rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+    .feature-card p {
+      margin: 0;
+      font-size: 0.9375rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .feature-card ul {
+      margin: 12px 0 0;
+      padding: 0 0 0 18px;
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .feature-card li { margin-bottom: 4px; }
+    .roles-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 32px;
+    }
+    .role-pill {
+      font-size: 0.8125rem;
+      font-weight: 700;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--ink);
+      border: 1px solid rgba(255, 90, 31, 0.2);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap header-inner">
+      <a class="logo" href="/">Pulse<span>Team</span></a>
+      <ul class="nav-links">
+        <li><a href="#product">Продукт</a></li>
+        <li><a href="#ops">Операционный день</a></li>
+        <li><a href="why.html">Зачем Pulse</a></li>
+        <li><a href="demo.html">Демо</a></li>
+        <li><a href="#pricing">Тарифы</a></li>
+        <li><a href="#referral">Реферальная программа</a></li>
+      </ul>
+      <a class="header-cta" href="demo.html">Посмотреть демо</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <p class="eyebrow">Контроль качества смен · HoReCa</p>
+          <h1>Система аналитики и оптимизации работы смен в ресторанах</h1>
+          <p class="hero-lead">
+            Мы не просто собираем обратную связь сотрудников. Помогаем видеть, что мешает смене в зале и на кухне —
+            план дня, стоп-лист, короткий опрос после работы и сводки для руководства. Всё в Telegram, без нового приложения.
+          </p>
+          <blockquote class="hero-quote">
+            <p>«Мы ищем причины проблем, а не виноватых.»</p>
+          </blockquote>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="demo.html">Посмотреть демо</a>
+            <a class="btn btn-ghost" href="https://t.me/yank0vski" target="_blank" rel="noopener">Пилот 14 дней</a>
+          </div>
+        </div>
+        <div class="hero-card">
+          <h3>Инструмент для руководителей</h3>
+          <p>Короткий опрос после смены, сводки по каждому ресторану и выводы для планёрки — без давления на линию.</p>
+          <div class="mini-stats">
+            <div class="mini-stat"><strong>10 сек</strong><span>на отметку смены</span></div>
+            <div class="mini-stat"><strong>Telegram</strong><span>без приложений</span></div>
+            <div class="mini-stat"><strong>Зал и кухня</strong><span>в одной сводке</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt compact" id="chain">
+      <div class="wrap">
+        <h2 style="margin-bottom: 8px;">От усталости команды до действия — без лишних слов</h2>
+        <p class="section-intro" style="margin-bottom: 0;">Короткая цепочка, ради которой всё и затевалось — плюс операционный день, если вы им пользуетесь.</p>
+        <div class="chain">
+          <div class="chain-item"><span class="chain-num">1</span><p>Команда устаёт раньше, чем это видно в выручке</p></div>
+          <div class="chain-item"><span class="chain-num">2</span><p>После смены линия и кухня оставляют короткую отметку — зал и кухня отдельно</p></div>
+          <div class="chain-item"><span class="chain-num">3</span><p>Управляющий видит картину по ресторану или по всей сети: что повторяется и где просело</p></div>
+          <div class="chain-item"><span class="chain-num">4</span><p>Конфликты и усталость копятся незаметно — вы успеваете среагировать до роста текучести</p></div>
+          <div class="chain-item"><span class="chain-num">5</span><p>Команда видит, что отклики не уходят в пустоту</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="white" id="product">
+      <div class="wrap">
+        <p class="section-label">Продукт</p>
+        <h2>Что вы видите на выходе</h2>
+        <p class="section-intro">Не переписка в чате, а ясная картина: что поправить в зале, как держится кухня и где команда выгорает.</p>
+        <div class="feature-grid">
+          <div class="feature-card">
+            <div class="feature-icon">☀️</div>
+            <h3>Операционный день</h3>
+            <p>Утро, вечер и чек-листы — если вы их включили, менеджер проходит их перед планом и закрытием.</p>
+            <ul>
+              <li>Чек-листы открытия и закрытия — под ваш ресторан, своими пунктами</li>
+              <li>План на день и итоги вечером — в рабочий чат команды в Telegram</li>
+              <li>Сначала чек-лист, потом план и закрытие — чтобы базу не пропускали</li>
+              <li>Напоминание менеджеру, если три дня подряд не открывали смену в боте</li>
+            </ul>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🍽</div>
+            <h3>Зал и кухня</h3>
+            <p>Зал отмечает смену анонимно в личке. Шеф — стоп-лист и оценку кухни, тоже без лишнего шума в чате.</p>
+            <ul>
+              <li>Оценка смены и «что мешало» — около 10 секунд, только в личке с ботом</li>
+              <li>Стоп от шефа сразу в рабочий чат ресторана, позиции можно дописать</li>
+              <li>Срочное сообщение шефу и менеджерам — в личку, не в общий поток</li>
+              <li>Кнопки опроса настраиваете под меню и процессы вашего ресторана</li>
+            </ul>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h3>Отчёты</h3>
+            <p>Сводки для планёрки и собственника — без ручного копания в переписках.</p>
+            <ul>
+              <li>Отдельно зал, кухня или весь ресторан</li>
+              <li>PDF для собственника — одной кнопкой из бота</li>
+              <li>«Горящие вопросы»: взяли в работу — команда видит ответ в чате</li>
+              <li>Видно, сколько дней подряд забыли открыть или закрыть смену</li>
+            </ul>
+          </div>
+        </div>
+        <div class="roles-row">
+          <span class="role-pill">Менеджер ресторана</span>
+          <span class="role-pill">Старший менеджер · задания</span>
+          <span class="role-pill">Управляющий сети</span>
+          <span class="role-pill">Шеф</span>
+        </div>
+        <div class="product-split" style="margin-top: 56px;">
+          <div>
+            <p class="flow-label">После смены · зал · 10 секунд</p>
+            <div class="tg-mock">
+              <div class="tg-top">бот · личные сообщения</div>
+              <div class="tg-bubble">Как прошёл сегодняшний день?</div>
+              <div class="tg-stars">★★★☆☆</div>
+              <div class="tg-bubble" style="font-size: 0.8125rem;">Что мешало на смене?</div>
+              <span class="tg-chip">🍽 Медленная кухня</span>
+              <span class="tg-chip">😓 Нагрузка</span>
+              <div class="tg-bubble" style="margin-top: 10px; font-size: 0.8125rem;">Что мешало лично вам?</div>
+              <span class="tg-chip">😴 Усталость</span>
+              <span class="tg-chip">💬 Коммуникация</span>
+            </div>
+            <p style="margin: 16px 0 0; font-size: 0.875rem; color: var(--muted); max-width: 340px;">
+              Оценка, что мешало, короткий комментарий — всё в личке. В рабочем чате не видно, кто что нажал.
+            </p>
+          </div>
+          <div>
+            <p class="flow-label">Управляющий · сводка</p>
+            <div class="insight-cards">
+              <div class="insight-card warn"><span>Кухня</span>Долго забирали еду — 5 отметок за неделю, ресторан на Невском</div>
+              <div class="insight-card warn"><span>Дисциплина</span>Один день без закрытия — сразу видно в отчёте</div>
+              <div class="insight-card"><span>Стоп</span>Тунец в стопе 3 раза за неделю — история в сводке кухни</div>
+              <div class="insight-card"><span>Зал</span>Средняя оценка просела — фильтр «только зал», сравнение с прошлой неделей</div>
+              <div class="insight-card ok"><span>PDF</span>Отчёт для собственника — скачивается из сводки в один клик</div>
+            </div>
+            <div class="hero-actions" style="margin-top: 24px; margin-bottom: 0;">
+              <a class="btn btn-primary" href="demo.html">10 экранов — в демо</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt compact" id="ops">
+      <div class="wrap">
+        <p class="section-label">Операционный день</p>
+        <h2>Утро, вечер и стоп — в одном месте</h2>
+        <p class="section-intro">Менеджер открывает смену и выкладывает план в чат. Шеф пишет стоп из лички — он появляется в рабочем чате ресторана. Вечером — закрытие и цифры.</p>
+        <div class="product-split">
+          <div>
+            <p class="flow-label">Менеджер · 📋 Смена</p>
+            <div class="tg-mock">
+              <div class="tg-top">бот · менеджер</div>
+              <div class="tg-bubble"><strong>☀️ Открытие смены</strong><br />☑️ Зал проверен<br />☑️ Касса включена<br />☐ Стоп согласован с кухней</div>
+              <div class="tg-btn">☀️ План дня</div>
+              <div class="tg-btn">📣 Шефу и менеджерам</div>
+              <div class="tg-btn">📋 Чек-листы смены</div>
+            </div>
+          </div>
+          <div>
+            <p class="flow-label">Шеф · личка бота</p>
+            <div class="tg-mock">
+              <div class="tg-top">бот · шеф</div>
+              <div class="tg-bubble">🛑 <strong>Стоп-лист</strong><br />Напишите позиции или «Актуальный стоп»</div>
+              <div class="tg-bubble" style="border-radius: 14px 14px 4px 14px; background: #2b5278;">тунец до 15:00 · ризотто</div>
+              <div class="tg-bubble" style="font-size: 0.8125rem;">Стоп ушёл в чат команды ✅</div>
+              <div class="tg-bubble" style="font-size: 0.8125rem;"><strong>Как прошла смена на кухне?</strong></div>
+              <span class="tg-chip">⏱ Долго забирали еду</span>
+              <span class="tg-chip">💬 Коммуникация</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt compact">
+      <div class="wrap">
+        <div class="pas-grid">
+          <div class="pas-card">
+            <h3>Проблема</h3>
+            <p>Конфликты и усталость копятся незаметно — увеличивают текучесть и бьют по сервису и отзывам.</p>
+          </div>
+          <div class="pas-card">
+            <h3>Сигнал</h3>
+            <p>Короткий опрос после смены, стоп от шефа, план дня — каждый день, в привычном Telegram.</p>
+            </div>
+          <div class="pas-card">
+            <h3>Действие</h3>
+            <p>Отчёты, «горящие вопросы», статусы «в работе / решено» — команда видит, что руководство отвечает.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="white compact" id="team">
+      <div class="wrap short-block">
+        <p class="section-label">Что происходит в команде</p>
+        <h2>Коротко для владельца</h2>
+        <p>
+          Выручка показывает результат, но не объясняет, почему смена была тяжёлой и почему люди уходят.
+          Pulse Team собирает короткие отметки после смены — по залу и кухне — и складывает их в
+          <strong>сводку по ресторанам сети</strong>: что повторяется, где просела оценка, какие темы уже в работе.
+        </p>
+        <p>
+          Это не разовый HR-опрос и не «ещё одна система». Привычный Telegram, 10 секунд на линии,
+          готовые выводы для управляющего — без охоты на виноватых.
+        </p>
+      </div>
+    </section>
+
+    <section class="alt compact" id="approach">
+      <div class="wrap approach-teaser">
+        <p class="section-label">Подход</p>
+        <h2>Не опрос ради галочки — живая картина смен</h2>
+        <p>
+          Два слоя: что мешало в зале и на кухне, и что мешало самому человеку. Линия отвечает анонимно,
+          руководитель видит картину целиком.
+        </p>
+        <a class="btn btn-ghost" href="why.html">Зачем Pulse Team — подробно</a>
+      </div>
+    </section>
+
+    <section class="white compact" id="economics">
+      <div class="wrap">
+        <h2>Один уход сотрудника часто стоит дороже года сервиса</h2>
+        <div class="econ-grid" style="margin-top: 28px;">
+          <div class="econ-stat">
+            <strong>40–120 тыс. ₽</strong>
+            <span>замена одного человека на линии</span>
+          </div>
+          <div class="econ-stat">
+            <strong>2 990–8 990 ₽/мес</strong>
+            <span>подписка на ресторан · основной тариф — 6 990 ₽</span>
+          </div>
+          <div class="econ-stat">
+            <strong>2–3 человека</strong>
+            <span>удержали — сервис уже окупился</span>
+          </div>
+        </div>
+        <p class="econ-footnote">Ориентиры по HoReCa — на пилоте посчитаем под ваш формат и численность.</p>
+      </div>
+    </section>
+
+    <section class="alt" id="pricing">
+      <div class="wrap">
+        <p class="section-label">Тарифы</p>
+        <h2>Тарифы</h2>
+        <div class="pricing-cards">
+          <div class="price-card featured">
+            <h3>Подключение сети</h3>
+            <p style="margin: 0; color: var(--muted);">Настройка сети: рестораны, роли, доступы</p>
+            <p class="price-tag">от 30 000 ₽</p>
+            <a class="btn btn-primary" href="https://t.me/yank0vski" target="_blank" rel="noopener" style="width: 100%; margin-top: 8px;">Обсудить</a>
+          </div>
+          <div class="price-card">
+            <h3>Подписка на ресторан</h3>
+            <ul>
+              <li>До 10 сотрудников — <strong>2 990 ₽ / мес</strong></li>
+              <li>11–25 сотрудников — <strong>6 990 ₽ / мес</strong></li>
+              <li>26–40 сотрудников — <strong>8 990 ₽ / мес</strong></li>
+              <li>40+ сотрудников — индивидуально</li>
+              <li style="border-top: 2px solid var(--line); margin-top: 8px; padding-top: 12px; font-size: 0.875rem;">Опрос после смены, операционный день, чек-листы, PDF, «горящие вопросы»</li>
+            </ul>
+            <p style="margin: 16px 0 0; font-size: 0.875rem; color: var(--muted);">Пилот 14 дней — бесплатно</p>
+            <a class="btn btn-ghost" href="https://t.me/yank0vski" target="_blank" rel="noopener" style="width: 100%; margin-top: 16px;">Запустить пилот</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="white compact">
+      <div class="wrap">
+        <div class="memo-bridge">
+          <p>
+            Pulse Team — не «ещё один HR-опрос».
+            <a href="why.html">Подробно: зачем мы спрашиваем про смену, личные факторы и как это помогает удерживать кадр →</a>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section style="padding: 48px 0 80px;">
+      <div class="cta-block" id="cta">
+        <h2>Бесплатный пилот — 14 дней</h2>
+        <p>
+          Подключим ваш ресторан и покажем на реальных сменах, как складывается картина — без обязательств.
+        </p>
+        <div class="hero-actions" style="justify-content: center; margin-top: 0;">
+          <a class="btn btn-primary" href="https://t.me/yank0vski" target="_blank" rel="noopener">Запустить пилот</a>
+          <a class="btn btn-ghost" href="demo.html" style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.35);color:#fff">Посмотреть, как работает</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="white" id="faq">
+      <div class="wrap">
+        <p class="section-label">FAQ</p>
+        <h2>Частые вопросы</h2>
+        <div class="faq" style="margin-top: 32px;">
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">Как работает кухня и стоп-лист?</button>
+            <div class="faq-a">
+              <div class="faq-a-inner">Шеф пишет стоп в личке — бот выкладывает его в рабочий чат ресторана, где сидит смена. Позиции можно дописать к уже опубликованному списку. Вечером шеф отдельно оценивает кухню. В отчёте можно смотреть только кухню.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">Что такое чек-листы открытия и закрытия?</button>
+            <div class="faq-a">
+              <div class="faq-a-inner">Менеджер настраивает пункты под свой ресторан. Перед планом утром — чек-лист открытия, перед итогами вечера — закрытия. Так нельзя «забыть» базу и сразу выложить цифры в чат. В отчёте видно, сколько дней прошли по правилам.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">Какие роли есть в боте?</button>
+            <div class="faq-a">
+              <div class="faq-a-inner"><strong>Менеджер ресторана</strong> — план, закрытие, отчёты, чек-листы. <strong>Старший менеджер</strong> — то же + задания смене. <strong>Управляющий сети</strong> — все рестораны организации. <strong>Шеф</strong> — стоп-лист и оценка кухни в личке.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">Можно выгрузить отчёт в PDF?</button>
+            <div class="faq-a">
+              <div class="faq-a-inner">Да. После сводки за период — кнопка «📄 Выгрузить PDF». Удобно для собственника или совета директоров: зал, кухня или весь ресторан за выбранный период.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">Это не «слежка» за сотрудниками?</button>
+            <div class="faq-a">
+              <div class="faq-a-inner">Нет. Ответы анонимны, в рабочем чате не видно, кто что написал. Цель — понять, что мешает смене, а не искать виноватых.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">Чем это отличается от HR-опросов?</button>
+            <div class="faq-a">
+              <div class="faq-a-inner">Это не опрос раз в квартал, а короткий сигнал после каждой смены — зал, кухня, план дня. Есть отчёты, PDF, повторяющиеся темы и ответ команде, когда тему берут в работу.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">Зачем спрашивать про самочувствие?</button>
+            <div class="faq-a">
+              <div class="faq-a-inner">Добровольный шаг после смены, анонимный в отчётах. Помогает людям честнее смотреть на свой вклад, а вам — видеть усталость и пробелы в обучении без публичных разборов. <a href="why.html">Развёрнутый ответ — на отдельной странице «Зачем Pulse»</a>.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">Нужны ли отдельные приложения?</button>
+            <div class="faq-a">
+              <div class="faq-a-inner">Нет. Сотрудники и менеджеры работают в Telegram.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">Есть ли помощь с внедрением?</button>
+            <div class="faq-a">
+              <div class="faq-a-inner">Да. Консалтинг: разбор аналитики, обучение менеджеров, процессы смен и коммуникация. Условия обсуждаются индивидуально — напишите в Telegram.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">Что видит команда в чате?</button>
+            <div class="faq-a">
+              <div class="faq-a-inner">Напоминание пройти отметку после смены — сама оценка только в личке с ботом. План дня, стоп, итоги вечера и посты «взяли в работу» — в общем чате. Без имён и без оценок линии.</div>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false">Можно посмотреть до пилота?</button>
+            <div class="faq-a">
+              <div class="faq-a-inner">Да — <a href="demo.html">интерактивное демо</a> на выдуманных данных: опрос в Telegram, операционный день, кухня, отчёты и «горящие вопросы». Пилот 14 дней бесплатно.</div>
+            </div>
+          </div>
+            </div>
+          </div>
+    </section>
+
+    <section class="consulting-strip" aria-label="Консалтинг и внедрение">
+      <div class="wrap">
+        <div class="consulting-strip-inner">
+          <p class="consulting-strip-text">
+            <strong>Консалтинг и внедрение.</strong>
+            Разбор аналитики, обучение менеджеров, процессы смен и коммуникация — помогаем превращать отчёты в изменения. Условия обсуждаются индивидуально.
+          </p>
+          <a class="consulting-link" href="https://t.me/yank0vski" target="_blank" rel="noopener">Обсудить в Telegram →</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="referral-strip" id="referral" aria-labelledby="referral-title">
+      <div class="wrap">
+        <div class="referral-inner">
+          <div>
+            <p class="referral-eyebrow" id="referral-title">Реферальная программа</p>
+            <p class="referral-text">
+              <strong>5&nbsp;000&nbsp;₽</strong> за каждый подключённый ресторан по вашей рекомендации.
+              Условия и выплаты — в Telegram.
+            </p>
+          </div>
+          <a class="btn btn-ghost" href="https://t.me/yank0vski" target="_blank" rel="noopener">Подробности в Telegram</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-grid">
+      <div>
+        <a class="logo" href="/">Pulse<span>Team</span></a>
+        <p class="footer-muted">Ранние сигналы о команде ресторана — из Telegram, для владельцев и управляющих.</p>
+      </div>
+      <div>
+        <p style="font-weight: 700; margin: 0 0 12px;">Контакты в Telegram</p>
+        <ul class="footer-links">
+          <li><a href="privacy.html">Политика конфиденциальности</a></li>
+          <li><a href="oferta.html">Публичная оферта</a></li>
+          <li><a href="#referral">Реферальная программа</a></li>
+          <li><a href="why.html">Зачем Pulse Team</a></li>
+          <li><a href="demo.html">Демо продукта</a></li>
+          <li><a href="one-pager.html">One-pager для клиента (PDF)</a></li>
+          <li><a href="https://t.me/yank0vski" target="_blank" rel="noopener">Заявки и внедрение — @yank0vski</a></li>
+          <li><a href="https://t.me/smena_feedback_bot" target="_blank" rel="noopener">Бот для смен — @smena_feedback_bot</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="wrap legal">
+      © 2026 Pulse Team · ИП Смирнов Сергей Евгеньевич<br />
+      <span class="footer-requisites">
+        ИНН 784815635497 · ОГРНИП 326784700194735 ·
+        <a href="privacy.html">Политика конфиденциальности</a> ·
+        <a href="oferta.html">Оферта</a>
+      </span>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      document.querySelectorAll(".faq-item").forEach(function (item) {
+        var btn = item.querySelector(".faq-q");
+        var panel = item.querySelector(".faq-a");
+        var inner = item.querySelector(".faq-a-inner");
+        btn.addEventListener("click", function () {
+          var open = item.classList.contains("open");
+          document.querySelectorAll(".faq-item").forEach(function (other) {
+            other.classList.remove("open");
+            other.querySelector(".faq-q").setAttribute("aria-expanded", "false");
+            other.querySelector(".faq-a").style.maxHeight = null;
+          });
+          if (!open) {
+            item.classList.add("open");
+            btn.setAttribute("aria-expanded", "true");
+            panel.style.maxHeight = inner.scrollHeight + 24 + "px";
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

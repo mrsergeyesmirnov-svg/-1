@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pulse Team — one-pager для ресторана</title>
+  <meta name="description" content="Pulse Team: check-in зала и кухни, операционный день, чек-листы, отчёты зал/кухня/PDF в Telegram. Пилот 14 дней." />
+  <meta name="robots" content="noindex, follow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #faf7f3;
+      --surface: #fff;
+      --ink: #1c1917;
+      --muted: #57534e;
+      --line: #e7e2dc;
+      --accent: #ff5a1f;
+      --calm: #0d9488;
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Mulish", system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .page {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 32px 24px 48px;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--line);
+    }
+    .logo {
+      font-weight: 800;
+      font-size: 1.125rem;
+      color: var(--ink);
+    }
+    .logo span { color: var(--accent); }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 10px 18px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.875rem;
+      border: none;
+      cursor: pointer;
+      text-decoration: none !important;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-ghost {
+      background: var(--surface);
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    .hero {
+      background: linear-gradient(135deg, #1c1917 0%, #292524 100%);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 36px 32px;
+      margin-bottom: 24px;
+    }
+    .hero .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.65);
+      margin: 0 0 12px;
+    }
+    .hero h1 {
+      margin: 0 0 16px;
+      font-size: clamp(1.5rem, 4vw, 2rem);
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+    }
+    .hero p {
+      margin: 0;
+      color: rgba(255,255,255,0.88);
+      font-size: 1.05rem;
+      max-width: 52ch;
+    }
+    .hero-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 24px;
+    }
+    .badge {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 640px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+    }
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+    .card p, .card ul {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9375rem;
+    }
+    .card ul {
+      padding-left: 1.15rem;
+    }
+    .card li + li { margin-top: 6px; }
+    .problem { border-left: 4px solid #ef4444; }
+    .solution { border-left: 4px solid var(--calm); }
+    .section-title {
+      font-size: 0.6875rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin: 0 0 12px;
+    }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 720px) {
+      .steps { grid-template-columns: 1fr 1fr; }
+    }
+    .step {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent-soft, rgba(255,90,31,0.12));
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 0.8125rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 8px;
+    }
+    .step strong {
+      display: block;
+      font-size: 0.875rem;
+      margin-bottom: 4px;
+    }
+    .step span {
+      font-size: 0.8125rem;
+      color: var(--muted);
+    }
+    .value-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 720px) {
+      .value-grid { grid-template-columns: 1fr; }
+    }
+    .value-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 18px;
+      border: 1px solid var(--line);
+    }
+    .value-card h3 {
+      margin: 0 0 8px;
+      font-size: 0.9375rem;
+    }
+    .value-card p {
+      margin: 0;
+      font-size: 0.8125rem;
+      color: var(--muted);
+    }
+    .included {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .included ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 24px;
+    }
+    @media (max-width: 560px) {
+      .included ul { grid-template-columns: 1fr; }
+    }
+    .included li {
+      font-size: 0.9375rem;
+      padding-left: 1.4rem;
+      position: relative;
+    }
+    .included li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: var(--calm);
+      font-weight: 800;
+    }
+    .pricing-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 640px) {
+      .pricing-row { grid-template-columns: 1fr; }
+    }
+    .price-box {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+    }
+    .price-box.featured {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(255,90,31,0.15);
+    }
+    .price-box h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+    }
+    .price-tag {
+      font-size: 1.375rem;
+      font-weight: 800;
+      margin: 8px 0 0;
+      color: var(--ink);
+    }
+    .price-box ul {
+      margin: 12px 0 0;
+      padding-left: 1.1rem;
+      color: var(--muted);
+      font-size: 0.875rem;
+    }
+    .cta {
+      background: linear-gradient(135deg, var(--accent) 0%, #e54d15 100%);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .cta h2 {
+      margin: 0 0 8px;
+      font-size: 1.25rem;
+    }
+    .cta p {
+      margin: 0 0 20px;
+      opacity: 0.95;
+      font-size: 0.9375rem;
+    }
+    .cta-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+    }
+    .cta .btn-primary {
+      background: #fff;
+      color: var(--accent);
+    }
+    .cta .btn-ghost {
+      background: transparent;
+      border-color: rgba(255,255,255,0.45);
+      color: #fff;
+    }
+    .footer-note {
+      text-align: center;
+      font-size: 0.8125rem;
+      color: var(--muted);
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+    }
+    @media print {
+      body { background: #fff; font-size: 11pt; }
+      .toolbar .btn { display: none; }
+      .page { padding: 0; max-width: none; }
+      .hero, .cta { break-inside: avoid; }
+      a { color: var(--ink); }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="toolbar">
+      <a class="logo" href="/">Pulse<span>Team</span></a>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-ghost" onclick="window.print()">Сохранить PDF</button>
+        <a class="btn btn-primary" href="https://t.me/yank0vski" target="_blank" rel="noopener">Запустить пилот</a>
+      </div>
+    </div>
+
+    <header class="hero">
+      <p class="eyebrow">One-pager · ресторан / сеть</p>
+      <h1>Операционный день и пульс команды — в одном Telegram-боте</h1>
+      <p>
+        Pulse Team — check-in зала после смены, кухня и стоп-лист в личке шефа,
+        план/закрытие дня, чек-листы открытия и отчёты для руководства (зал · кухня · PDF).
+      </p>
+      <div class="hero-badges">
+        <span class="badge">Telegram, без приложения</span>
+        <span class="badge">Зал + кухня</span>
+        <span class="badge">Чек-листы смены</span>
+        <span class="badge">PDF для собственника</span>
+        <span class="badge">Пилот 14 дней</span>
+      </div>
+    </header>
+
+    <div class="grid-2">
+      <div class="card problem">
+        <p class="section-title">Проблема</p>
+        <h2>Вы узнаёте о боли команды слишком поздно</h2>
+        <ul>
+          <li>Конфликты и усталость копятся незаметно — растёт текучесть на линии</li>
+          <li>Жалобы в отзывах и на кассе — уже постфактум</li>
+          <li>Чаты команды в Telegram не дают аналитики, HR-опросы — раз в квартал</li>
+          <li>Управляющий не видит повторяющиеся темы по ресторанам сети</li>
+        </ul>
+      </div>
+      <div class="card solution">
+        <p class="section-title">Решение</p>
+        <h2>Ежедневный сигнал + операционка + отчёты</h2>
+        <ul>
+          <li>Оценка смены зала и «что мешало» — анонимно в личке</li>
+          <li>Шеф: стоп-лист, оценка смены кухни — тоже в личке бота</li>
+          <li>План дня утром, закрытие вечером, чек-листы открытия/закрытия</li>
+          <li>Отчёт: зал / кухня / весь ресторан + выгрузка PDF</li>
+          <li>«Горящие вопросы» — темы в работе, команда видит реакцию</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="section-title">Как это работает</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <strong>Чек-лист открытия</strong>
+        <span>Галочки по пунктам → смена «открыта»</span>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <strong>План и стоп</strong>
+        <span>План в рабочий чат · стоп от шефа в личке</span>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <strong>Зал и кухня</strong>
+        <span>Check-in после смены · оценка кухни</span>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <strong>Закрытие + отчёт</strong>
+        <span>Итоги дня · PDF / сводка для руководства</span>
+      </div>
+    </div>
+
+    <p class="section-title">Роли</p>
+    <div class="value-grid" style="margin-bottom:24px;">
+      <div class="value-card">
+        <h3>Менеджер ресторана</h3>
+        <p>План, закрытие, отчёты, чек-листы, стоп-лист, сообщение шефу и менеджерам.</p>
+      </div>
+      <div class="value-card">
+        <h3>Старший менеджер</h3>
+        <p>Всё как у менеджера + назначает задания смене.</p>
+      </div>
+      <div class="value-card">
+        <h3>Управляющий сети</h3>
+        <p>Все рестораны организации, сводки, сравнение филиалов.</p>
+      </div>
+    </div>
+
+    <p class="section-title">Ценность</p>
+    <div class="value-grid">
+      <div class="value-card">
+        <h3>Владельцу / сети</h3>
+        <p>Сравнение ресторанов сети, ранние сигналы, меньше «пожаров» с сервисом и кадрами. Окупаемость при удержании 2–3 человек в год.</p>
+      </div>
+      <div class="value-card">
+        <h3>Управляющему</h3>
+        <p>Не разбор чата, а сводка: что мешало, самочувствие команды, что обсудить на планёрке без имён.</p>
+      </div>
+      <div class="value-card">
+        <h3>Шеф</h3>
+        <p>Стоп-лист в рабочий чат ресторана, актуальный стоп и оценка кухни — в личке бота.</p>
+      </div>
+    </div>
+
+    <div class="included">
+      <p class="section-title">Что входит в подписку</p>
+      <ul>
+        <li>Check-in зала после смены (анонимно)</li>
+        <li>Кухня: стоп-лист, оценка смены шефа</li>
+        <li>Операционный день: план утром, закрытие вечером</li>
+        <li>Чек-листы открытия и закрытия смены</li>
+        <li>Отчёты: зал / кухня / весь ресторан</li>
+        <li>Выгрузка PDF для собственника</li>
+        <li>«Горящие вопросы» и архив тем</li>
+        <li>Настройка кнопок опроса (зал и кухня)</li>
+        <li>Роли: менеджер, старший, управляющий сети, шеф</li>
+        <li>Алерты: смена не открыта 3+ дня</li>
+        <li>Сообщение шефу и менеджерам в личку</li>
+        <li>Поддержка при подключении</li>
+      </ul>
+    </div>
+
+    <p class="section-title">Тарифы (ориентир)</p>
+    <div class="pricing-row">
+      <div class="price-box featured">
+        <h3>Подписка на ресторан</h3>
+        <ul>
+          <li>До 10 сотрудников — <strong>2 990 ₽/мес</strong></li>
+          <li>11–25 — <strong>6 990 ₽/мес</strong></li>
+          <li>26–40 — <strong>8 990 ₽/мес</strong></li>
+          <li>40+ — индивидуально</li>
+        </ul>
+        <p class="price-tag">Пилот 14 дней — бесплатно</p>
+      </div>
+      <div class="price-box">
+        <h3>Подключение сети</h3>
+        <p style="margin:0;color:var(--muted);font-size:0.875rem;">
+          Организации, рестораны сети, роли менеджеров, обучение первой линии.
+        </p>
+        <p class="price-tag">от 30 000 ₽</p>
+        <p style="margin:12px 0 0;font-size:0.8125rem;color:var(--muted);">
+          Замена одного сотрудника на линии часто обходится в 40–120 тыс. ₽ — сервис окупается при удержании нескольких человек.
+        </p>
+      </div>
+    </div>
+
+    <div class="cta">
+      <h2>Бесплатный пилот — 14 дней в вашем ресторане</h2>
+      <p>Подключим рабочий чат команды и покажем картину по вашим сменам. Без обязательств.</p>
+      <div class="cta-actions">
+        <a class="btn btn-primary" href="https://t.me/yank0vski" target="_blank" rel="noopener">Написать в Telegram</a>
+        <a class="btn btn-ghost" href="demo.html">Посмотреть демо</a>
+        <a class="btn btn-ghost" href="/">Полный сайт</a>
+      </div>
+    </div>
+
+    <p class="footer-note">
+      Pulse Team · ИП Смирнов Сергей Евгеньевич ·
+      <a href="https://t.me/smena_feedback_bot" target="_blank" rel="noopener">@smena_feedback_bot</a> ·
+      <a href="oferta.html">Оферта</a> ·
+      <a href="privacy.html">Политика ПДн</a>
+    </p>
+  </div>
+</body>
+</html>

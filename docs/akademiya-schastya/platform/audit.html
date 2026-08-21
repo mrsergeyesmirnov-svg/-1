@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Аудит-калькулятор — Состояние смены · Академия счастья</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="site.css" />
+</head>
+<body>
+  <header class="no-print">
+    <div class="wrap header-inner">
+      <a class="logo" href="../index.html">Академия<span>счастья</span></a>
+      <ul class="nav-links">
+        <li><a href="index.html">Платформа</a></li>
+        <li><a href="crm.html">CRM</a></li>
+        <li><a href="../index.html">Академия</a></li>
+      </ul>
+      <button class="header-cta" type="button" id="logoutBtn" hidden>Выйти</button>
+    </div>
+  </header>
+
+  <div class="gate no-print" id="gate">
+    <div class="gate-card">
+      <h1>Аудит-калькулятор</h1>
+      <p>Внутренний инструмент команды. Часы × коэффициенты сложности → цена, акт и счёт.</p>
+      <p class="err" id="gateErr"></p>
+      <form id="gateForm">
+        <div class="field">
+          <label for="pwd">Пароль</label>
+          <input id="pwd" type="password" autocomplete="current-password" required />
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%">Войти</button>
+      </form>
+    </div>
+  </div>
+
+  <main class="wrap no-print" id="app" hidden style="padding: 24px 16px 64px;">
+    <p class="eyebrow">Внутренний контур</p>
+    <h1 style="margin:0 0 8px;font-size:clamp(1.4rem,3vw,1.9rem);letter-spacing:-0.03em;">Расчёт проекта</h1>
+    <p class="muted-sm" style="margin:0 0 20px;max-width:40em;">
+      Матрица S–XL и коэффициенты из методики 1.0. Черновая цена — для КП и документов. Ставку и аванс можно править.
+    </p>
+
+    <div class="audit-layout">
+      <div class="panel-box">
+        <h2>Ввод</h2>
+        <div class="field-row cols-2">
+          <div class="field">
+            <label for="client">Ресторан / клиент</label>
+            <input id="client" placeholder="Например, Сеть · Невский" />
+          </div>
+          <div class="field">
+            <label for="city">Город</label>
+            <input id="city" placeholder="Санкт-Петербург" value="Санкт-Петербург" />
+          </div>
+        </div>
+        <div class="field-row cols-2">
+          <div class="field">
+            <label for="contact">Контакт со стороны клиента</label>
+            <input id="contact" placeholder="ФИО, роль" />
+          </div>
+          <div class="field">
+            <label for="docDate">Дата документа</label>
+            <input id="docDate" type="date" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="size">Масштаб (сотрудники)</label>
+          <select id="size">
+            <option value="S">S · до 20 · низкая сложность</option>
+            <option value="M" selected>M · 20–50 · средняя</option>
+            <option value="L">L · 50–100 · высокая</option>
+            <option value="XL">XL · 100+ · системная</option>
+          </select>
+        </div>
+
+        <p class="muted-sm" style="margin:4px 0 8px;">Блоки в работе</p>
+        <div class="check-grid" style="margin-bottom:14px;">
+          <label class="check-item"><input type="checkbox" name="block" value="Люди" checked /> Люди</label>
+          <label class="check-item"><input type="checkbox" name="block" value="Финансы" /> Финансы</label>
+          <label class="check-item"><input type="checkbox" name="block" value="Гость" /> Гость</label>
+          <label class="check-item"><input type="checkbox" name="block" value="Процессы" checked /> Процессы</label>
+        </div>
+
+        <p class="muted-sm" style="margin:4px 0 8px;">Коэффициенты сложности (перемножаются)</p>
+        <div class="check-grid" style="margin-bottom:14px;">
+          <label class="check-item"><input type="checkbox" data-k="1.2" /> Много проблем ×1.2</label>
+          <label class="check-item"><input type="checkbox" data-k="1.3" /> УК слабая ×1.3</label>
+          <label class="check-item"><input type="checkbox" data-k="1.3" /> Собственник мало вовлечён ×1.3</label>
+          <label class="check-item"><input type="checkbox" data-k="1.5" /> Срочный проект ×1.5</label>
+          <label class="check-item"><input type="checkbox" data-k="2" /> Кризис ×2</label>
+        </div>
+
+        <div class="field-row cols-3">
+          <div class="field">
+            <label for="rate">Ставка ₽ / час</label>
+            <input id="rate" type="number" min="1000" step="100" value="5000" />
+          </div>
+          <div class="field">
+            <label for="prepay">Аванс %</label>
+            <input id="prepay" type="number" min="0" max="100" value="50" />
+          </div>
+          <div class="field">
+            <label for="pulse">Индекс Pulse (baseline), опц.</label>
+            <input id="pulse" type="number" min="0" max="10" step="0.1" placeholder="напр. 6.4" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="note">Комментарий к расчёту</label>
+          <textarea id="note" rows="3" placeholder="Приоритеты, аутсорс финансов/гостя, особые условия…"></textarea>
+        </div>
+      </div>
+
+      <div class="panel-box" id="resultPanel">
+        <h2>Итог</h2>
+        <p class="muted-sm" id="hoursLine">—</p>
+        <div class="result-price">от <span id="priceMin">—</span></div>
+        <p class="muted-sm">до <strong id="priceMax">—</strong> · коэффициент <strong id="kLine">1.00</strong></p>
+        <p class="muted-sm" id="splitLine">Диагностика / работа / контроль —</p>
+        <p class="muted-sm" id="blocksLine"></p>
+        <p class="muted-sm" id="outsourceLine"></p>
+        <div class="btn-row">
+          <button class="btn btn-primary" type="button" id="btnInvoice">Печать счёта</button>
+          <button class="btn btn-ghost" type="button" id="btnAct">Печать акта</button>
+          <button class="btn btn-ghost" type="button" id="btnCopy">Копировать КП</button>
+        </div>
+        <p class="muted-sm" style="margin-top:12px;" id="copyMsg"></p>
+        <p class="muted-sm" id="crmHint" style="margin-top:8px;">Счёт/акт сохранится в CRM-стикер клиента по имени.</p>
+        <p class="muted-sm" id="crmLinkLine" style="margin-top:4px;"></p>
+      </div>
+    </div>
+  </main>
+
+  <div id="printRoot" hidden></div>
+
+  <script src="crm-store.js"></script>
+
+  <footer class="site-footer no-print">
+    <div class="wrap">
+      <div>ИП Смирнов С.Е. · доступ только для команды</div>
+      <div><a href="crm.html">CRM</a> · <a href="index.html">Платформа</a></div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      // Пароль по умолчанию: smena2026 (смените строку ниже)
+      var EXPECT = null;
+
+      var MATRIX = {
+        S:  { diag: [4, 6], work: [8, 12], ctrl: [2, 3], label: "S · до 20" },
+        M:  { diag: [8, 12], work: [15, 25], ctrl: [4, 6], label: "M · 20–50" },
+        L:  { diag: [12, 20], work: [25, 45], ctrl: [6, 10], label: "L · 50–100" },
+        XL: { diag: [20, 40], work: [40, 80], ctrl: [10, 20], label: "XL · 100+" }
+      };
+
+      var REQ = {
+        name: "ИП Смирнов Сергей Евгеньевич",
+        inn: "784815635497",
+        ogrn: "326784700194735",
+        bank: "АО «ТБанк»",
+        rs: "40802810300009694958",
+        bik: "044525974",
+        ks: "30101810145250000974",
+        bankInn: "7710140679",
+        address: "196240, г. Санкт-Петербург, ул. Варшавская, д. 69, корп. 3, литера А, кв. 30"
+      };
+
+      function money(n) {
+        return Math.round(n).toLocaleString("ru-RU") + " ₽";
+      }
+      function mid(a) { return (a[0] + a[1]) / 2; }
+      function todayISO() {
+        var d = new Date();
+        return d.toISOString().slice(0, 10);
+      }
+      function formatDate(iso) {
+        if (!iso) return "—";
+        var p = iso.split("-");
+        return p[2] + "." + p[1] + "." + p[0];
+      }
+      async function sha256(text) {
+        var data = new TextEncoder().encode(text);
+        var buf = await crypto.subtle.digest("SHA-256", data);
+        return Array.from(new Uint8Array(buf)).map(function (b) {
+          return b.toString(16).padStart(2, "0");
+        }).join("");
+      }
+
+      async function initAuth() {
+        EXPECT = await sha256("smena2026");
+        var ok = sessionStorage.getItem("ss_audit_ok") === "1";
+        if (ok) showApp();
+        document.getElementById("docDate").value = todayISO();
+      }
+
+      function showApp() {
+        document.getElementById("gate").hidden = true;
+        document.getElementById("app").hidden = false;
+        document.getElementById("logoutBtn").hidden = false;
+        var qClient = new URLSearchParams(location.search).get("client");
+        if (qClient && !document.getElementById("client").value) {
+          document.getElementById("client").value = qClient;
+          var existing = window.SSCrm && SSCrm.findByName(qClient);
+          if (existing) {
+            if (existing.city) document.getElementById("city").value = existing.city;
+            if (existing.contact) document.getElementById("contact").value = existing.contact;
+            SSCrm.setActiveClient(existing.id);
+          }
+        }
+        calc();
+        refreshCrmHint();
+      }
+
+      function refreshCrmHint() {
+        if (!window.SSCrm) return;
+        var name = document.getElementById("client").value.trim();
+        var line = document.getElementById("crmLinkLine");
+        if (!name) {
+          line.innerHTML = "";
+          return;
+        }
+        var c = SSCrm.findByName(name);
+        if (c) {
+          line.innerHTML = 'CRM: <a href="crm.html?c=' + encodeURIComponent(c.id) + '">' +
+            (c.name || "клиент") + "</a> · " + SSCrm.statusLabel(c.status) +
+            " · документов: " + ((c.docs && c.docs.length) || 0);
+        } else {
+          line.textContent = "CRM: нового клиента создадим при печати счёта/акта.";
+        }
+      }
+
+      document.getElementById("gateForm").onsubmit = async function (e) {
+        e.preventDefault();
+        var err = document.getElementById("gateErr");
+        err.classList.remove("on");
+        var h = await sha256(document.getElementById("pwd").value);
+        if (h !== EXPECT) {
+          err.textContent = "Неверный пароль";
+          err.classList.add("on");
+          return;
+        }
+        sessionStorage.setItem("ss_audit_ok", "1");
+        showApp();
+      };
+
+      document.getElementById("logoutBtn").onclick = function () {
+        sessionStorage.removeItem("ss_audit_ok");
+        location.reload();
+      };
+
+      function state() {
+        var size = document.getElementById("size").value;
+        var m = MATRIX[size];
+        var k = 1;
+        document.querySelectorAll("[data-k]").forEach(function (el) {
+          if (el.checked) k *= Number(el.getAttribute("data-k"));
+        });
+        var blocks = [];
+        document.querySelectorAll('input[name="block"]:checked').forEach(function (el) {
+          blocks.push(el.value);
+        });
+        // more blocks → slight uplift
+        var blockK = 1 + Math.max(0, blocks.length - 1) * 0.08;
+        k *= blockK;
+
+        var rate = Number(document.getElementById("rate").value || 0);
+        var hoursMin = m.diag[0] + m.work[0] + m.ctrl[0];
+        var hoursMax = m.diag[1] + m.work[1] + m.ctrl[1];
+        var hMin = hoursMin * k;
+        var hMax = hoursMax * k;
+        var priceMin = hMin * rate;
+        var priceMax = hMax * rate;
+
+        var outsource = [];
+        if (blocks.indexOf("Финансы") >= 0) outsource.push("финансы (аутсорс за %)");
+        if (blocks.indexOf("Гость") >= 0) outsource.push("гость / CJM (аутсорс за %)");
+
+        return {
+          client: document.getElementById("client").value.trim() || "Клиент",
+          city: document.getElementById("city").value.trim() || "—",
+          contact: document.getElementById("contact").value.trim() || "—",
+          date: document.getElementById("docDate").value || todayISO(),
+          note: document.getElementById("note").value.trim(),
+          pulse: document.getElementById("pulse").value,
+          prepay: Number(document.getElementById("prepay").value || 0),
+          size: size,
+          sizeLabel: m.label,
+          blocks: blocks,
+          k: k,
+          rate: rate,
+          diag: [m.diag[0] * k, m.diag[1] * k],
+          work: [m.work[0] * k, m.work[1] * k],
+          ctrl: [m.ctrl[0] * k, m.ctrl[1] * k],
+          hMin: hMin,
+          hMax: hMax,
+          priceMin: priceMin,
+          priceMax: priceMax,
+          midPrice: (priceMin + priceMax) / 2,
+          outsource: outsource
+        };
+      }
+
+      function calc() {
+        var s = state();
+        document.getElementById("hoursLine").textContent =
+          "Часы (с коэфф.): " + s.hMin.toFixed(1) + " – " + s.hMax.toFixed(1) +
+          " · ставка " + money(s.rate) + "/ч · " + s.sizeLabel;
+        document.getElementById("priceMin").textContent = money(s.priceMin);
+        document.getElementById("priceMax").textContent = money(s.priceMax);
+        document.getElementById("kLine").textContent = s.k.toFixed(2);
+        document.getElementById("splitLine").textContent =
+          "Диагностика " + s.diag[0].toFixed(1) + "–" + s.diag[1].toFixed(1) + " ч · " +
+          "работа " + s.work[0].toFixed(1) + "–" + s.work[1].toFixed(1) + " ч · " +
+          "контроль " + s.ctrl[0].toFixed(1) + "–" + s.ctrl[1].toFixed(1) + " ч";
+        document.getElementById("blocksLine").textContent =
+          "Блоки: " + (s.blocks.length ? s.blocks.join(", ") : "не выбраны");
+        document.getElementById("outsourceLine").textContent =
+          s.outsource.length
+            ? "Рекомендуем подключить: " + s.outsource.join("; ")
+            : "Аутсорс по блокам не обязателен (люди/процессы — наш контур).";
+        return s;
+      }
+
+      ["size", "rate", "prepay", "pulse", "client", "city", "contact", "docDate", "note"].forEach(function (id) {
+        document.getElementById(id).addEventListener("input", function () { calc(); refreshCrmHint(); });
+        document.getElementById(id).addEventListener("change", function () { calc(); refreshCrmHint(); });
+      });
+      document.querySelectorAll("[data-k], input[name=block]").forEach(function (el) {
+        el.addEventListener("change", calc);
+      });
+
+      function docNumber(s) {
+        var d = s.date.replace(/-/g, "");
+        return "СС-" + d + "-" + s.size;
+      }
+
+      function printDoc(kind) {
+        var s = calc();
+        var num = docNumber(s);
+        var prepaySum = s.midPrice * (s.prepay / 100);
+        var title = kind === "invoice" ? "Счёт на оплату" : "Акт оказанных услуг";
+        var purpose = kind === "invoice"
+          ? "Оплата услуг по проекту «Состояние смены» (диагностика / консалтинг / мониторинг) для «" + s.client + "». Без НДС."
+          : "Оказаны услуги по проекту «Состояние смены» для «" + s.client + "»: диагностика и консалтинг по блокам " +
+            (s.blocks.join(", ") || "—") + ". Без НДС.";
+
+        var rows = "";
+        if (kind === "invoice") {
+          rows =
+            "<tr><th>№</th><th>Наименование</th><th>Кол-во</th><th>Цена</th><th>Сумма</th></tr>" +
+            "<tr><td>1</td><td>Услуги консалтинга / диагностики («Состояние смены»), ориентир " +
+            s.hMin.toFixed(0) + "–" + s.hMax.toFixed(0) + " ч, коэфф. " + s.k.toFixed(2) +
+            "</td><td>1</td><td>" + money(s.midPrice) + "</td><td>" + money(s.midPrice) + "</td></tr>";
+        } else {
+          rows =
+            "<tr><th>№</th><th>Работы / услуги</th><th>Период</th><th>Сумма</th></tr>" +
+            "<tr><td>1</td><td>Диагностика и консалтинг по методике «Состояние смены» (" +
+            s.sizeLabel + "; блоки: " + (s.blocks.join(", ") || "—") +
+            ")</td><td>" + formatDate(s.date) + "</td><td>" + money(s.midPrice) + "</td></tr>";
+        }
+
+        var extra = kind === "invoice"
+          ? "<p class='meta'>К оплате сейчас (аванс " + s.prepay + "%): <strong>" + money(prepaySum) +
+            "</strong>. Диапазон проекта: " + money(s.priceMin) + " – " + money(s.priceMax) + ".</p>"
+          : "<p class='meta'>Заказчик претензий по объёму и качеству не имеет.</p>";
+
+        var html =
+          "<div class='print-doc'>" +
+          "<h1>" + title + " № " + num + " от " + formatDate(s.date) + "</h1>" +
+          "<div class='meta'>" +
+          "<strong>Исполнитель:</strong> " + REQ.name + "<br/>" +
+          "ИНН " + REQ.inn + " · ОГРНИП " + REQ.ogrn + "<br/>" +
+          REQ.address + "<br/>" +
+          "р/с " + REQ.rs + " · " + REQ.bank + " · БИК " + REQ.bik + " · к/с " + REQ.ks +
+          "</div>" +
+          "<div class='meta'>" +
+          "<strong>Заказчик:</strong> " + s.client + "<br/>" +
+          "Город: " + s.city + " · Контакт: " + s.contact +
+          (s.pulse ? "<br/>Baseline Pulse: " + s.pulse : "") +
+          (s.note ? "<br/>Примечание: " + s.note : "") +
+          "</div>" +
+          "<table>" + rows + "</table>" +
+          "<p class='sum'>Итого: " + money(s.midPrice) + " · Без НДС</p>" +
+          extra +
+          "<p class='meta'>" + purpose + "</p>" +
+          "<p class='meta' style='margin-top:36px'>Исполнитель ________________ / Смирнов С.Е. /" +
+          (kind === "act" ? "<br/><br/>Заказчик ________________ / ______________ /" : "") +
+          "</p></div>";
+
+        var root = document.getElementById("printRoot");
+        root.hidden = false;
+        root.innerHTML = html;
+        document.body.classList.add("printing");
+        window.print();
+        setTimeout(function () {
+          root.hidden = true;
+          root.innerHTML = "";
+          document.body.classList.remove("printing");
+        }, 500);
+
+        if (window.SSCrm) {
+          var saved = SSCrm.attachDoc(SSCrm.getActiveClientId(), {
+            kind: kind,
+            number: num,
+            date: formatDate(s.date),
+            sum: s.midPrice,
+            title: title,
+            html: html,
+            clientName: s.client,
+            city: s.city,
+            contact: s.contact,
+            snapshot: {
+              size: s.size,
+              k: s.k,
+              blocks: s.blocks,
+              priceMin: s.priceMin,
+              priceMax: s.priceMax
+            }
+          });
+          if (saved) {
+            SSCrm.setActiveClient(saved.id);
+            document.getElementById("copyMsg").textContent =
+              (kind === "invoice" ? "Счёт" : "Акт") + " сохранён в CRM → «" + saved.name + "».";
+            refreshCrmHint();
+          }
+        }
+      }
+
+      document.getElementById("btnInvoice").onclick = function () { printDoc("invoice"); };
+      document.getElementById("btnAct").onclick = function () { printDoc("act"); };
+      document.getElementById("btnCopy").onclick = async function () {
+        var s = calc();
+        var text =
+          "КП · Состояние смены\n" +
+          s.client + " · " + s.city + "\n" +
+          "Масштаб: " + s.sizeLabel + " · коэфф. " + s.k.toFixed(2) + "\n" +
+          "Блоки: " + (s.blocks.join(", ") || "—") + "\n" +
+          "Часы: " + s.hMin.toFixed(1) + "–" + s.hMax.toFixed(1) + "\n" +
+          "Ориентир цены: " + money(s.priceMin) + " – " + money(s.priceMax) +
+          " (середина " + money(s.midPrice) + ")\n" +
+          "Аванс " + s.prepay + "%: " + money(s.midPrice * s.prepay / 100) + "\n" +
+          (s.outsource.length ? "Аутсорс: " + s.outsource.join("; ") + "\n" : "") +
+          (s.note ? "Комментарий: " + s.note + "\n" : "");
+        try {
+          await navigator.clipboard.writeText(text);
+          document.getElementById("copyMsg").textContent = "Текст КП скопирован.";
+        } catch (e) {
+          document.getElementById("copyMsg").textContent = text;
+        }
+      };
+
+      initAuth();
+    })();
+  </script>
+</body>
+</html>

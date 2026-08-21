@@ -13,46 +13,46 @@ MAX_CUSTOM = 8
 
 DEFAULT_BUTTONS: list[dict[str, Any]] = [
     {
+        "code": "team",
+        "label": "👥 Команда",
+        "enabled": True,
+        "builtin": True,
+        "threshold": 3,
+    },
+    {
         "code": "kitchen",
-        "label": "🍽 Медленная кухня",
+        "label": "👨‍🍳 Кухня",
         "enabled": True,
         "builtin": True,
         "threshold": 3,
     },
     {
-        "code": "conflict",
-        "label": "😤 Конфликт / напряжение",
+        "code": "guests",
+        "label": "🙋 Гости",
         "enabled": True,
         "builtin": True,
         "threshold": 3,
     },
     {
-        "code": "staff",
-        "label": "👥 Нехватка персонала",
-        "enabled": True,
-        "builtin": True,
-        "threshold": 3,
-    },
-    {
-        "code": "management",
-        "label": "📋 Плохая организация",
+        "code": "processes",
+        "label": "⚙️ Процессы",
         "enabled": True,
         "builtin": True,
         "threshold": 2,
     },
     {
-        "code": "stress",
-        "label": "😓 Сильная нагрузка",
+        "code": "self",
+        "label": "🧠 Моё состояние",
         "enabled": True,
         "builtin": True,
         "threshold": 3,
     },
     {
-        "code": "comment",
-        "label": "💬 Свой комментарий",
-        "enabled": False,
+        "code": "ok",
+        "label": "✨ Нигде — всё прошло хорошо",
+        "enabled": True,
         "builtin": True,
-        "threshold": 4,
+        "threshold": 99,
     },
 ]
 
@@ -166,32 +166,10 @@ def make_code_from_label(label: str, existing: set[str]) -> str:
 def build_problem_keyboard(data: dict[str, Any], chat_id: int):
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-    rows: list[list] = []
-    for b in enabled_buttons(get_buttons(data, chat_id)):
-        label = b["label"]
-        if len(label) > 64:
-            label = label[:61] + "…"
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text=label,
-                    callback_data=f"problem_{b['code']}"[:64],
-                )
-            ]
-        )
-    if not rows:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text="🍽 Медленная кухня",
-                    callback_data="problem_kitchen",
-                )
-            ]
-        )
-    rows.append(
-        [InlineKeyboardButton(text="Пропустить", callback_data="problem_skip")]
-    )
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    import shift_survey
+
+    # Единый опрос смены: фиксированный набор. Кастом менеджера — для порогов сигналов.
+    return shift_survey.blocker_keyboard()
 
 
 def format_config_message(data: dict[str, Any], chat_id: int, chat_title: str) -> str:

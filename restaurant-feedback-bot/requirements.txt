@@ -1,4 +1,6 @@
 aiogram>=3.13,<4
+aiohttp>=3.9,<4
+openai>=1.30,<2
 python-dotenv>=1.0,<2
 tzdata>=2024.1
 asyncpg>=0.29,<0.31

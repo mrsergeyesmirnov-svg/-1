@@ -1,0 +1,6 @@
+{
+  "pulseUrl": "https://pulse.example.com",
+  "apiKey": "replace-with-IIKO_API_KEY",
+  "organizationId": "iiko-organization-guid",
+  "servicePin": "pin-служебного-пользователя-с-правом-закрывать-чужие-смены"
+}
