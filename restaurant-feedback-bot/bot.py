@@ -961,6 +961,188 @@ async def _pr_chat_id_from_parts(
     return await _resolve_manager_problem_chat(data, uid)
 
 
+async def _upsert_hot_problem_row(
+    data: dict,
+    *,
+    chat_id: int,
+    org_id: str | None,
+    problem_key: str,
+    title: str,
+    count: int,
+    now,
+    threshold: int = 3,
+) -> problems_pulse.ProblemRow | None:
+    """Создать/обновить горящую тему (Postgres или bot_data) и вернуть row."""
+    try:
+        pool = db_pulse.pool()
+        if pool:
+            row_d, _created = await db_pulse.upsert_problem(
+                restaurant_chat_id=chat_id,
+                organization_id=org_id,
+                problem_key=problem_key,
+                title=title,
+                mentions_count=count,
+                now=now,
+                threshold=threshold,
+                mentions_since_close=0,
+            )
+            return problems_pulse._row_from_dict(row_d)
+        row, _created = await problems_pulse._upsert_local(
+            data,
+            chat_id=chat_id,
+            org_id=org_id,
+            problem_key=problem_key,
+            title=title,
+            count=count,
+            now=now,
+            threshold=threshold,
+        )
+        return row
+    except Exception as e:
+        print(f"[upsert-hot] chat={chat_id} key={problem_key}: {e}")
+        return None
+
+
+async def _notify_new_hot_problems(
+    data: dict,
+    chat_id: int,
+    *,
+    restaurant_title: str,
+    changes: list,
+) -> int:
+    """Пуш менеджеру сразу, когда sync создал новую горящую тему."""
+    new_rows = [row for row, created in changes if created]
+    if not new_rows:
+        return 0
+    managers = _chat_managers_only(data, chat_id) or set(ADMIN_IDS)
+    if not managers:
+        print(f"[new-hot] chat={chat_id}: no managers/ADMIN_IDS")
+        return 0
+    sent_map = data.setdefault("last_auto_sent", {})
+    sent = 0
+    for row in new_rows:
+        key = f"{chat_id}|new_hot|{row.id}"
+        if sent_map.get(key):
+            continue
+        html = problems_pulse.format_new_hot_problem_push(
+            row, restaurant_title=restaurant_title
+        )
+        kb = manager_alerts.alert_keyboard(chat_id, row.id)
+        delivered = False
+        for mid in managers:
+            manager_problem_chat[mid] = chat_id
+            try:
+                await bot.send_message(
+                    mid, html, parse_mode="HTML", reply_markup=kb
+                )
+                sent += 1
+                delivered = True
+            except Exception as e:
+                print(f"[new-hot] mid={mid} chat={chat_id}: {e}")
+        if delivered:
+            sent_map[key] = True
+            print(f"[new-hot] chat={chat_id} problem={row.id} title={row.title!r}")
+    return sent
+
+
+def _theme_code_from_problem_key(problem_key: str) -> str:
+    key = (problem_key or "").strip()
+    if key.startswith("ai_"):
+        key = key[3:]
+    if key.startswith("manual_"):
+        return "comment_trend"
+    return key or "comment_trend"
+
+
+async def _send_advisor_for_problem(
+    *,
+    target_message: Message,
+    data: dict,
+    prob: problems_pulse.ProblemRow,
+    uid: int,
+) -> None:
+    """OpenAI-совет по конкретной горящей теме (кнопка на карточке)."""
+    chat_id = prob.restaurant_chat_id
+    rec = chat_record(data, chat_id) or {}
+    title = str(rec.get("title") or chat_id)
+    tz_name = rec.get("timezone", DEFAULT_TZ)
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo(tz_name)
+    now = datetime.now(tz)
+    window = timedelta(hours=manager_alerts.ALERT_WINDOW_HOURS)
+    cur_events = await report_pulse.load_events(
+        [chat_id], now - window, now, jsonl_path=FEEDBACK_LOG_PATH
+    )
+    theme = _theme_code_from_problem_key(prob.problem_key)
+    comments = []
+    for e in cur_events:
+        if e.event_type != report_pulse.EVENT_COMMENT:
+            continue
+        text = (e.comment_text or "").strip()
+        if not text:
+            continue
+        linked = (e.problem_code or "").strip()
+        if linked and linked in (theme, prob.problem_key):
+            comments.append(text[:180])
+        elif theme in text.casefold() or any(
+            k in text.casefold()
+            for cl in ai_advisor.KEYWORD_CLUSTERS
+            if cl["theme_code"] == theme
+            for k in cl["keys"][:6]
+        ):
+            comments.append(text[:180])
+        if len(comments) >= 6:
+            break
+    if not comments:
+        comments = ai_advisor.extract_comments(cur_events)[:5]
+    alert = manager_alerts.ManagerAlert(
+        kind="comment_trend",
+        code=theme if theme in ai_advisor.PROBLEM_RU else "comment_trend",
+        title=f"Совет по горящему вопросу: {prob.title}",
+        body_lines=[
+            f"Тема в «Горящих»: <b>{escape(prob.title)}</b>.",
+            f"Отметок: <b>{prob.mentions_count}</b>.",
+        ],
+        recommendation=manager_alerts.RECOMMENDATIONS.get(
+            theme, manager_alerts.RECOMMENDATIONS["rating_drop"]
+        ),
+        comments=comments[:4],
+        priority=1,
+        problem_key=theme,
+    )
+    if ai_advisor._client_or_none() is None:
+        await target_message.answer(
+            "🤖 Наставник недоступен: в Railway нет <code>OPENAI_API_KEY</code>.\n"
+            "Добавьте ключ и сделайте Redeploy.",
+            parse_mode="HTML",
+        )
+        return
+    wait = await target_message.answer("🤖 Наставник читает отзывы…")
+    try:
+        advice = await ai_advisor.build_advice(
+            alert, restaurant_title=title, events=cur_events
+        )
+    except Exception as e:
+        print(f"[pr-advisor] uid={uid} pid={prob.id}: {e}")
+        advice = None
+    try:
+        await wait.delete()
+    except Exception:
+        pass
+    if not advice:
+        await target_message.answer(
+            "Не удалось получить совет. Проверьте ключ OpenAI и логи Railway."
+        )
+        return
+    await target_message.answer(
+        ai_advisor.format_advice_html(advice),
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+    )
+
+
 async def _notify_managers_problem_report(
     data: dict,
     chat_id: int,
@@ -1099,11 +1281,10 @@ async def _run_manager_alerts_for_chat(
     if not packed:
         print(f"[manager-alerts] chat={cid}: no alerts detected (порог/данные)")
         return 0
-    managers = _chat_managers_only(data, chat_id)
+    managers = _chat_managers_only(data, chat_id) or set(ADMIN_IDS)
     if not managers:
         print(
-            f"[manager-alerts] chat={cid}: нет менеджеров в bindings "
-            f"(проверьте /link_manager и что точка не дубль MOJO/МОДЖО)"
+            f"[manager-alerts] chat={cid}: нет менеджеров и ADMIN_IDS"
         )
         return 0
     sent_map = data.setdefault("last_auto_sent", {})
@@ -1165,7 +1346,7 @@ async def _run_manager_alerts_for_chat(
 
 
 async def _maybe_manager_alerts_after_event(chat_id: int, event_type: str) -> None:
-    """Сразу после сигнала линии — порог алертов + тренды по кнопкам/текстам."""
+    """Сразу после сигнала линии — новая горящая тема, порог алертов, тренды."""
     if event_type not in manager_alerts.TRIGGER_EVENTS:
         return
     try:
@@ -1174,7 +1355,27 @@ async def _maybe_manager_alerts_after_event(chat_id: int, event_type: str) -> No
         if not info:
             print(f"[manager-alerts-trigger] chat={chat_id}: no chat record")
             return
-        n = await _run_manager_alerts_for_chat(data, str(chat_id), info)
+        title = str(info.get("title") or chat_id)
+        # Сразу синхронизируем пороги кнопок → пуш при НОВОЙ теме
+        try:
+            changes = await problems_pulse.sync_problems_from_period(
+                data,
+                chat_id,
+                info.get("organization_id"),
+                jsonl_path=FEEDBACK_LOG_PATH,
+                tz_name=info.get("timezone", DEFAULT_TZ),
+                days=problems_pulse.SIGNALS_SYNC_DAYS,
+            )
+            n_new = await _notify_new_hot_problems(
+                data,
+                chat_id,
+                restaurant_title=title,
+                changes=changes,
+            )
+        except Exception as e:
+            print(f"[new-hot-sync] chat={chat_id}: {e}")
+            n_new = 0
+        n = n_new + await _run_manager_alerts_for_chat(data, str(chat_id), info)
         # Комментарий или кнопка «что мешало» — повторы по всем темам
         if event_type in (report_pulse.EVENT_COMMENT, report_pulse.EVENT_PROBLEM):
             n += await _run_comment_trend_mentor(data, str(chat_id), info)
@@ -1238,9 +1439,14 @@ async def _run_comment_trend_mentor(
         print(f"[ai-comment-trend] cooldown {trend_key}")
         return 0
 
+    problem_row = None
     try:
         pkey = f"ai_{(alert.problem_key or 'trend')}"[:48]
-        await problems_pulse._upsert_local(
+        # Для кнопки «команда» и т.п. — та же тема, что в списке горящих
+        theme = _theme_code_from_problem_key(alert.problem_key or "")
+        if theme in ("team", "kitchen", "guests", "processes", "self"):
+            pkey = theme
+        problem_row = await _upsert_hot_problem_row(
             data,
             chat_id=chat_id,
             org_id=str(oid) if oid else None,
@@ -1259,7 +1465,9 @@ async def _run_comment_trend_mentor(
         return 0
 
     html_alert = manager_alerts.format_alert_message(alert, restaurant_title=title)
-    kb = manager_alerts.alert_keyboard(chat_id, None)
+    kb = manager_alerts.alert_keyboard(
+        chat_id, problem_row.id if problem_row else None
+    )
     sent = 0
     for mid in managers:
         manager_problem_chat[mid] = chat_id
@@ -1403,13 +1611,20 @@ async def _show_problems_for_manager(
     rec = chat_record(data, chat_id) or {}
     sync_note: str | None = None
     try:
-        await problems_pulse.sync_problems_from_period(
+        changes = await problems_pulse.sync_problems_from_period(
             data,
             chat_id,
             rec.get("organization_id"),
             jsonl_path=FEEDBACK_LOG_PATH,
             tz_name=rec.get("timezone", DEFAULT_TZ),
             days=problems_pulse.SIGNALS_SYNC_DAYS,
+        )
+        # Если тема только что появилась при открытии списка — пуш менеджерам
+        await _notify_new_hot_problems(
+            data,
+            chat_id,
+            restaurant_title=str(rec.get("title") or chat_id),
+            changes=changes,
         )
         await save_data(data)
     except Exception as e:
@@ -4006,6 +4221,35 @@ async def problems_callback_handler(callback: CallbackQuery) -> None:
                     pid, prob.status, chat_id
                 ),
             )
+            return
+
+        if action == "a" and segments:
+            pid = problems_pulse.pr_problem_id_from_segments(segments)
+            if not pid:
+                await callback.answer("Тема не найдена.", show_alert=True)
+                return
+            prob = await problems_pulse.get_problem(data, pid)
+            if not prob:
+                await callback.answer("Тема не найдена.", show_alert=True)
+                return
+            chat_id = prob.restaurant_chat_id
+            if not await _manager_can_access_chat(data, uid, chat_id):
+                await callback.answer("Нет доступа к точке.", show_alert=True)
+                return
+            manager_problem_chat[uid] = chat_id
+            await callback.answer("Наставник думает…")
+            try:
+                await _send_advisor_for_problem(
+                    target_message=callback.message,
+                    data=data,
+                    prob=prob,
+                    uid=uid,
+                )
+            except Exception as e:
+                print(f"[pr-a] uid={uid} pid={pid}: {e}")
+                await callback.message.answer(
+                    "Не удалось запросить совет. Попробуйте ещё раз."
+                )
             return
 
         if action == "w" and segments:

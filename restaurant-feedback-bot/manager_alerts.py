@@ -561,6 +561,14 @@ def alert_keyboard(chat_id: int, problem_id: str | None):
         rows.append(
             [
                 InlineKeyboardButton(
+                    text="🤖 Совет наставника",
+                    callback_data=problems_pulse.pr_callback("a", problem_id),
+                )
+            ]
+        )
+        rows.append(
+            [
+                InlineKeyboardButton(
                     text="В работу",
                     callback_data=problems_pulse.pr_callback("w", problem_id, "ip"),
                 )
