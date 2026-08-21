@@ -14,7 +14,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import secrets
+import time
 from collections import Counter
+from dataclasses import dataclass
 from html import escape
 from typing import Any
 
@@ -255,54 +258,176 @@ PROBLEM_RU = {
     "comment_trend": "повторяющаяся тема в комментариях",
 }
 
-GROWTH_READINGS: dict[str, tuple[str, str]] = {
-    "team": (
-        "Спиральная динамика (уровни ценностей в команде)",
-        "https://ru.wikipedia.org/wiki/%D0%A1%D0%BF%D0%B8%D1%80%D0%B0%D0%BB%D1%8C%D0%BD%D0%B0%D1%8F_%D0%B4%D0%B8%D0%BD%D0%B0%D0%BC%D0%B8%D0%BA%D0%B0",
-    ),
-    "conflict": (
-        "Спиральная динамика и конфликты ценностей",
-        "https://ru.wikipedia.org/wiki/%D0%A1%D0%BF%D0%B8%D1%80%D0%B0%D0%BB%D1%8C%D0%BD%D0%B0%D1%8F_%D0%B4%D0%B8%D0%BD%D0%B0%D0%BC%D0%B8%D0%BA%D0%B0",
-    ),
-    "self": (
-        "Выгорание и восстановление (WHO)",
-        "https://www.who.int/news-room/questions-and-answers/item/mental-health-occupational-stress",
-    ),
-    "stress": (
-        "Выгорание и нагрузка на смене",
-        "https://www.who.int/news-room/questions-and-answers/item/mental-health-occupational-stress",
-    ),
-    "kitchen": (
-        "Системное мышление в операционке",
-        "https://ru.wikipedia.org/wiki/%D0%A1%D0%B8%D1%81%D1%82%D0%B5%D0%BC%D0%BD%D0%BE%D0%B5_%D0%BC%D1%8B%D1%88%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5",
-    ),
-    "processes": (
-        "Системное мышление: процессы, а не люди",
-        "https://ru.wikipedia.org/wiki/%D0%A1%D0%B8%D1%81%D1%82%D0%B5%D0%BC%D0%BD%D0%BE%D0%B5_%D0%BC%D1%8B%D1%88%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5",
-    ),
-    "management": (
-        "Системное мышление: процессы, а не люди",
-        "https://ru.wikipedia.org/wiki/%D0%A1%D0%B8%D1%81%D1%82%D0%B5%D0%BC%D0%BD%D0%BE%D0%B5_%D0%BC%D1%8B%D1%88%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5",
-    ),
-    "guests": (
-        "Сервис и ожидания гостя",
-        "https://ru.wikipedia.org/wiki/%D0%A3%D0%BF%D1%80%D0%B0%D0%B2%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5_%D0%BE%D0%BF%D1%8B%D1%82%D0%BE%D0%BC_%D0%BA%D0%BB%D0%B8%D0%B5%D0%BD%D1%82%D0%B0",
-    ),
-    "staff": (
-        "Спиральная динамика (уровни ценностей в команде)",
-        "https://ru.wikipedia.org/wiki/%D0%A1%D0%BF%D0%B8%D1%80%D0%B0%D0%BB%D1%8C%D0%BD%D0%B0%D1%8F_%D0%B4%D0%B8%D0%BD%D0%B0%D0%BC%D0%B8%D0%BA%D0%B0",
-    ),
-    "rating_drop": (
-        "Спиральная динамика и зрелость команды",
-        "https://ru.wikipedia.org/wiki/%D0%A1%D0%BF%D0%B8%D1%80%D0%B0%D0%BB%D1%8C%D0%BD%D0%B0%D1%8F_%D0%B4%D0%B8%D0%BD%D0%B0%D0%BC%D0%B8%D0%BA%D0%B0",
-    ),
-    "comment_trend": (
-        "Спиральная динамика — как команды взрослеют",
-        "https://ru.wikipedia.org/wiki/%D0%A1%D0%BF%D0%B8%D1%80%D0%B0%D0%BB%D1%8C%D0%BD%D0%B0%D1%8F_%D0%B4%D0%B8%D0%BD%D0%B0%D0%BC%D0%B8%D0%BA%D0%B0",
-    ),
+# Каталог материалов на случай сбоя LLM: по теме несколько вариантов (книга / статья / wiki).
+# Спиральная динамика — только один из вариантов для командных ценностей, не дефолт.
+LEARN_CATALOG: dict[str, list[dict[str, str]]] = {
+    "team": [
+        {
+            "kind": "book",
+            "title": "Пять пороков команды",
+            "blurb": "Помогает разобрать недоверие и конфликты в смене без поиска «виноватых».",
+            "reference": "Патрик Ленсиони — «Пять пороков команды»",
+        },
+        {
+            "kind": "book",
+            "title": "Психологическая безопасность",
+            "blurb": "Как сделать так, чтобы линия говорила о проблемах без страха.",
+            "reference": "Эми Эдмондсон — «The Fearless Organization» (психологическая безопасность)",
+        },
+        {
+            "kind": "wiki",
+            "title": "Спиральная динамика",
+            "blurb": "Имеет смысл, если в команде сталкиваются разные ценности и «уровни» ожиданий.",
+            "reference": "https://ru.wikipedia.org/wiki/%D0%A1%D0%BF%D0%B8%D1%80%D0%B0%D0%BB%D1%8C%D0%BD%D0%B0%D1%8F_%D0%B4%D0%B8%D0%BD%D0%B0%D0%BC%D0%B8%D0%BA%D0%B0",
+        },
+        {
+            "kind": "article",
+            "title": "Ненасильственное общение",
+            "blurb": "Практичный язык для разговоров тет-а-тет после напряжения на смене.",
+            "reference": "https://ru.wikipedia.org/wiki/%D0%9D%D0%B5%D0%BD%D0%B0%D1%81%D0%B8%D0%BB%D1%8C%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B5_%D0%BE%D0%B1%D1%89%D0%B5%D0%BD%D0%B8%D0%B5",
+        },
+    ],
+    "conflict": [
+        {
+            "kind": "book",
+            "title": "Трудные разговоры",
+            "blurb": "Как разобрать конфликт зал ↔ кухня без публичного суда.",
+            "reference": "Дуглас Стоун, Брюс Паттон, Шейла Хин — «Трудные разговоры»",
+        },
+        {
+            "kind": "wiki",
+            "title": "Спиральная динамика",
+            "blurb": "Когда конфликт — про разные ценности, а не только про «характер».",
+            "reference": "https://ru.wikipedia.org/wiki/%D0%A1%D0%BF%D0%B8%D1%80%D0%B0%D0%BB%D1%8C%D0%BD%D0%B0%D1%8F_%D0%B4%D0%B8%D0%BD%D0%B0%D0%BC%D0%B8%D0%BA%D0%B0",
+        },
+    ],
+    "kitchen": [
+        {
+            "kind": "book",
+            "title": "Цель",
+            "blurb": "Про узкие места и поток — полезно, когда отдача срывается на пике.",
+            "reference": "Элияху Голдратт — «Цель» (теория ограничений)",
+        },
+        {
+            "kind": "wiki",
+            "title": "Системное мышление",
+            "blurb": "Смотреть на тайминг и роли, а не на «медленных поваров».",
+            "reference": "https://ru.wikipedia.org/wiki/%D0%A1%D0%B8%D1%81%D1%82%D0%B5%D0%BC%D0%BD%D0%BE%D0%B5_%D0%BC%D1%8B%D1%88%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5",
+        },
+        {
+            "kind": "article",
+            "title": "Бережливое производство",
+            "blurb": "Убрать потери на раздаче и лишние движения на пике.",
+            "reference": "https://ru.wikipedia.org/wiki/%D0%91%D0%B5%D1%80%D0%B5%D0%B6%D0%BB%D0%B8%D0%B2%D0%BE%D0%B5_%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%BE",
+        },
+    ],
+    "processes": [
+        {
+            "kind": "book",
+            "title": "Чеклист",
+            "blurb": "Простые чек-листы открытия/закрытия, когда роли размыты.",
+            "reference": "Атул Гаванде — «Чеклист. Как избежать глупых ошибок»",
+        },
+        {
+            "kind": "wiki",
+            "title": "Системное мышление",
+            "blurb": "Чинить процесс, а не людей, когда на смене хаос.",
+            "reference": "https://ru.wikipedia.org/wiki/%D0%A1%D0%B8%D1%81%D1%82%D0%B5%D0%BC%D0%BD%D0%BE%D0%B5_%D0%BC%D1%8B%D1%88%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5",
+        },
+    ],
+    "management": [
+        {
+            "kind": "book",
+            "title": "Чеклист",
+            "blurb": "Структура смены и зоны ответственности до пика.",
+            "reference": "Атул Гаванде — «Чеклист. Как избежать глупых ошибок»",
+        },
+        {
+            "kind": "book",
+            "title": "Высокоэффективный менеджмент",
+            "blurb": "Как держать ясность и ритм точки без микроменеджмента.",
+            "reference": "Эндрю Гроув — «Высокоэффективный менеджмент»",
+        },
+    ],
+    "self": [
+        {
+            "kind": "book",
+            "title": "Выгорание",
+            "blurb": "Понять механизмы выгорания линии и что реально помогает восстановиться.",
+            "reference": "Эмили Нагоски, Амелия Нагоски — «Выгорание»",
+        },
+        {
+            "kind": "article",
+            "title": "Профессиональный стресс (WHO)",
+            "blurb": "Коротко и по делу: что считается выгоранием и зачем вмешиваться рано.",
+            "reference": "https://www.who.int/news-room/questions-and-answers/item/mental-health-occupational-stress",
+        },
+    ],
+    "stress": [
+        {
+            "kind": "book",
+            "title": "Выгорание",
+            "blurb": "Когда плотность смен бьёт по людям — как не доводить до ухода.",
+            "reference": "Эмили Нагоски, Амелия Нагоски — «Выгорание»",
+        },
+        {
+            "kind": "article",
+            "title": "Профессиональный стресс (WHO)",
+            "blurb": "Сверить нагрузку с признаками перегруза на смене.",
+            "reference": "https://www.who.int/news-room/questions-and-answers/item/mental-health-occupational-stress",
+        },
+    ],
+    "guests": [
+        {
+            "kind": "book",
+            "title": "Сервис, который запоминают",
+            "blurb": "Как ставить рамки сложного гостя и не оставлять официанта один на один.",
+            "reference": "Уилл Гидс, Майкл Колвелл — «Unreasonable Hospitality» (неразумное гостеприимство)",
+        },
+        {
+            "kind": "wiki",
+            "title": "Управление опытом клиента",
+            "blurb": "Ожидания гостя vs то, что линия реально может выдержать на пике.",
+            "reference": "https://ru.wikipedia.org/wiki/%D0%A3%D0%BF%D1%80%D0%B0%D0%B2%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5_%D0%BE%D0%BF%D1%8B%D1%82%D0%BE%D0%BC_%D0%BA%D0%BB%D0%B8%D0%B5%D0%BD%D1%82%D0%B0",
+        },
+    ],
+    "staff": [
+        {
+            "kind": "book",
+            "title": "Пять пороков команды",
+            "blurb": "Когда нехватка людей ломает доверие и ответственность на смене.",
+            "reference": "Патрик Ленсиони — «Пять пороков команды»",
+        },
+    ],
+    "rating_drop": [
+        {
+            "kind": "book",
+            "title": "Цель",
+            "blurb": "Найти узкое место, которое тянет вниз оценки смены.",
+            "reference": "Элияху Голдратт — «Цель»",
+        },
+        {
+            "kind": "wiki",
+            "title": "Системное мышление",
+            "blurb": "Связать падение оценок с процессом, а не с «плохими людьми».",
+            "reference": "https://ru.wikipedia.org/wiki/%D0%A1%D0%B8%D1%81%D1%82%D0%B5%D0%BC%D0%BD%D0%BE%D0%B5_%D0%BC%D1%8B%D1%88%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5",
+        },
+    ],
+    "comment_trend": [
+        {
+            "kind": "book",
+            "title": "Пять пороков команды",
+            "blurb": "Общий разбор повторов в голосе линии — через доверие и ясность.",
+            "reference": "Патрик Ленсиони — «Пять пороков команды»",
+        },
+        {
+            "kind": "wiki",
+            "title": "Системное мышление",
+            "blurb": "Увидеть повторяющуюся дыру в системе смены.",
+            "reference": "https://ru.wikipedia.org/wiki/%D0%A1%D0%B8%D1%81%D1%82%D0%B5%D0%BC%D0%BD%D0%BE%D0%B5_%D0%BC%D1%8B%D1%88%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5",
+        },
+    ],
 }
-
-DEFAULT_READING = GROWTH_READINGS["comment_trend"]
 
 SYSTEM_PROMPT = """\
 Ты — ментальный наставник управляющего ресторана. Цель — рост управляющего\
@@ -323,6 +448,28 @@ SYSTEM_PROMPT = """\
 5. Короткая фраза поддержки роста.
 
 350–500 слов. Без markdown и маркеров. Не выдумывай цитаты, которых нет в данных.\
+Не вставляй ссылки, URL, названия книг и «почитайте spiral/wiki» — материал для\
+ углубления уйдёт отдельным сообщением с кнопкой.\
+"""
+
+LEARN_MORE_PROMPT = """\
+Ты подбираешь ОДИН материал для роста управляющего ресторана под КОНКРЕТНУЮ проблему.
+
+Верни ТОЛЬКО JSON без markdown:
+{"kind":"book|article|wiki","title":"...","blurb":"1-2 предложения: почему именно это к этой ситуации","reference":"..."}
+
+Правила выбора:
+- kind=book: reference = «Автор — „Название“» (реальная известная книга). Без URL.
+- kind=article или wiki: reference = полный https:// URL на реальный источник.
+- Не повторяй одно и то же каждый раз. Варьируй книги и статьи.
+- Спиральная динамика — ТОЛЬКО если проблема явно про ценности/уровни зрелости команды.\
+ Не ставь её по умолчанию на буллинг, кухню, гостей или выгорание.
+- Кухня/отдача → системное мышление, теория ограничений, lean.
+- Процессы → чек-листы, системное мышление, операционный менеджмент.
+- Выгорание/состояние → книги и статьи про burnout / occupational stress.
+- Гости → hospitality / опыт гостя.
+- Команда/давление → психологическая безопасность, трудные разговоры, командная динамика.
+- Не выдумывай несуществующие книги и битые ссылки.
 """
 
 TREND_DETECT_PROMPT = """\
@@ -347,10 +494,123 @@ def _client_or_none() -> "AsyncOpenAI | None":
     return _client
 
 
-def growth_reading_for(code: str | None) -> tuple[str, str]:
-    if code and code in GROWTH_READINGS:
-        return GROWTH_READINGS[code]
-    return DEFAULT_READING
+@dataclass
+class LearnMore:
+    kind: str  # book | article | wiki
+    title: str
+    blurb: str
+    reference: str  # book citation or https URL
+
+
+@dataclass
+class AdvicePack:
+    text: str
+    learn: LearnMore | None = None
+    theme_code: str | None = None
+
+
+# token -> LearnMore payload (for «Подробнее» button)
+_LEARN_STORE: dict[str, dict[str, Any]] = {}
+_LEARN_STORE_MAX = 300
+
+
+def store_learn_more(learn: LearnMore) -> str:
+    token = secrets.token_urlsafe(8)[:10]
+    _LEARN_STORE[token] = {
+        "kind": learn.kind,
+        "title": learn.title,
+        "blurb": learn.blurb,
+        "reference": learn.reference,
+        "ts": time.time(),
+    }
+    if len(_LEARN_STORE) > _LEARN_STORE_MAX:
+        oldest = sorted(_LEARN_STORE.items(), key=lambda x: x[1].get("ts") or 0)
+        for k, _ in oldest[: len(_LEARN_STORE) - _LEARN_STORE_MAX]:
+            _LEARN_STORE.pop(k, None)
+    return token
+
+
+def get_learn_more(token: str) -> LearnMore | None:
+    raw = _LEARN_STORE.get(token)
+    if not raw:
+        return None
+    return LearnMore(
+        kind=str(raw.get("kind") or "article"),
+        title=str(raw.get("title") or "Материал"),
+        blurb=str(raw.get("blurb") or ""),
+        reference=str(raw.get("reference") or ""),
+    )
+
+
+def strip_links_from_advice(text: str) -> str:
+    """Убрать URL и хвосты «Подробнее изучить…» из тела совета."""
+    t = re.sub(r"https?://\S+", "", text)
+    t = re.sub(
+        r"(?is)\n*Подробнее изучить тему.*?(?:\n|$)",
+        "\n",
+        t,
+    )
+    t = re.sub(
+        r"(?is)\n*Если хотите расти как управляющий.*?(?:\n|$)",
+        "\n",
+        t,
+    )
+    return re.sub(r"\n{3,}", "\n\n", t).strip()
+
+
+def fallback_learn_more(theme_code: str | None) -> LearnMore:
+    code = theme_code if theme_code in LEARN_CATALOG else "comment_trend"
+    options = LEARN_CATALOG.get(code) or LEARN_CATALOG["comment_trend"]
+    # ротация по часу — не всегда один и тот же материал
+    idx = int(time.time() // 3600) % len(options)
+    item = options[idx]
+    return LearnMore(
+        kind=item["kind"],
+        title=item["title"],
+        blurb=item["blurb"],
+        reference=item["reference"],
+    )
+
+
+def learn_more_teaser_keyboard(token: str):
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Подробнее",
+                    callback_data=f"ai:lm:{token}",
+                )
+            ]
+        ]
+    )
+
+
+def format_learn_more_html(learn: LearnMore) -> str:
+    kind_ru = {
+        "book": "Книга",
+        "article": "Статья",
+        "wiki": "Справка",
+    }.get(learn.kind, "Материал")
+    lines = [
+        f"📚 <b>{escape(kind_ru)}: {escape(learn.title)}</b>",
+        "",
+    ]
+    if learn.blurb:
+        lines.append(escape(learn.blurb))
+        lines.append("")
+    ref = learn.reference.strip()
+    if ref.startswith("http://") or ref.startswith("https://"):
+        lines.append(f'<a href="{escape(ref, quote=True)}">{escape(ref)}</a>')
+    else:
+        lines.append(escape(ref))
+    lines.append("")
+    lines.append(
+        "<i>Это не обязательное чтение — для тех, кто хочет глубже разобрать "
+        "именно эту проблему и вырасти в ней.</i>"
+    )
+    return "\n".join(lines)
 
 
 def extract_comments(
@@ -443,16 +703,181 @@ def events_to_context(
     return "\n".join(parts)
 
 
-def append_growth_footer(advice: str, *, theme_code: str | None) -> str:
-    label, url = growth_reading_for(theme_code)
-    footer = (
-        f"\n\nПодробнее изучить тему «{label}» можно здесь: {url}\n"
-        "Если хотите расти как управляющий — перейдите и почитайте. Не обязательно, "
-        "это для тех, кто хочет глубже."
+async def pick_learn_more(
+    *,
+    theme_code: str | None,
+    restaurant_title: str,
+    alert: ma.ManagerAlert,
+    advice_text: str,
+    comments: list[str],
+) -> LearnMore:
+    """OpenAI подбирает книгу/статью/wiki под ситуацию; иначе — ротация из каталога."""
+    client = _client_or_none()
+    fallback = fallback_learn_more(theme_code)
+    if client is None:
+        return fallback
+    payload = {
+        "theme_code": theme_code or "comment_trend",
+        "restaurant": restaurant_title,
+        "alert_title": alert.title,
+        "alert_body": re.sub(r"<[^>]+>", "", " ".join(alert.body_lines))[:400],
+        "advice_excerpt": advice_text[:500],
+        "comments": comments[:6],
+    }
+    try:
+        resp = await client.chat.completions.create(
+            model=OPENAI_MODEL,
+            max_tokens=350,
+            temperature=0.7,
+            messages=[
+                {"role": "system", "content": LEARN_MORE_PROMPT},
+                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+            ],
+        )
+        raw = (resp.choices[0].message.content or "").strip()
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            return fallback
+        kind = str(data.get("kind") or "").strip().lower()
+        if kind not in ("book", "article", "wiki"):
+            return fallback
+        title = str(data.get("title") or "").strip()[:120]
+        blurb = str(data.get("blurb") or "").strip()[:400]
+        reference = str(data.get("reference") or "").strip()[:400]
+        if not title or not reference:
+            return fallback
+        if kind in ("article", "wiki") and not reference.startswith("http"):
+            return fallback
+        if kind == "book" and reference.startswith("http"):
+            # книга без URL — если модель дала ссылку, оставим как article
+            kind = "article"
+        return LearnMore(kind=kind, title=title, blurb=blurb, reference=reference)
+    except Exception as e:
+        print(f"[ai-learn-more] {e}")
+        return fallback
+
+
+def _both_sides_for(code: str | None) -> str:
+    if not code:
+        return (
+            "Вы учитесь слышать систему, а не только людей; "
+            "линия учится давать сигнал раньше, чем сломается сервис."
+        )
+    for cl in KEYWORD_CLUSTERS:
+        if cl["theme_code"] == code and cl.get("both_sides"):
+            return str(cl["both_sides"])
+    meta = BUTTON_TREND_META.get(code) or {}
+    if meta.get("both_sides"):
+        return str(meta["both_sides"])
+    return (
+        "Вы растёте как руководитель через ясность; "
+        "команда растёт через право говорить о проблеме без наказания."
     )
-    if footer.strip() in advice:
-        return advice
-    return advice.rstrip() + footer
+
+
+def template_mentor_advice(
+    alert: ma.ManagerAlert, *, restaurant_title: str
+) -> str:
+    theme = alert.title or "повторяющаяся тема"
+    body = re.sub(r"<[^>]+>", "", " ".join(alert.body_lines)).strip()
+    quotes = "\n".join(f"«{c}»" for c in (alert.comments or [])[:3])
+    code = alert.code or ""
+    cluster_q = ()
+    for cl in KEYWORD_CLUSTERS:
+        if cl["theme_code"] == code:
+            cluster_q = cl.get("questions") or ()
+            break
+    if not cluster_q:
+        cluster_q = (
+            "Как ты себя чувствуешь после таких смен?",
+            "Что, по-твоему, больше всего мешает?",
+            "Есть ли что-то, о чём сложно сказать на планёрке?",
+            "Что помогло бы тебе работать легче уже завтра?",
+        )
+    both = _both_sides_for(code)
+    text = (
+        f"Дорогой управляющий,\n\n"
+        f"На точке «{restaurant_title}» появилась тенденция: {theme}. {body}\n\n"
+    )
+    if quotes:
+        text += f"Что пишут на смене (анонимно):\n{quotes}\n\n"
+    text += (
+        f"Если не отреагировать, обе стороны проиграют: линия устанет молчать, "
+        f"а вам придётся тушить последствия вместо роста.\n\n"
+        f"Рост обеих сторон: {both}\n\n"
+        f"Что сделать сегодня (конкретно):\n"
+        f"1) {alert.recommendation}\n"
+        f"2) На планёрке без имён: «линия сигналит про это — давайте найдём дыру в системе».\n"
+        f"3) Через 3–5 дней проверьте: стало ли меньше тех же кнопок/фраз в опросе.\n\n"
+        f"Если будете говорить тет-а-тет, спросите так, чтобы человек сам покопался "
+        f"и вы оба выросли из разговора:\n"
+        f"«{cluster_q[0]}»\n"
+        f"«{cluster_q[1]}»\n"
+        f"«{cluster_q[2]}»\n"
+        f"«{cluster_q[3]}»\n\n"
+        f"Хочу, чтобы вы росли вместе с командой — через ясность и уважение, не через крик."
+    )
+    return text
+
+
+async def build_advice(
+    alert: ma.ManagerAlert,
+    *,
+    restaurant_title: str,
+    extra_context: str | None = None,
+    events: list[report_pulse.EventRow] | None = None,
+) -> AdvicePack | None:
+    """Совет через OpenAI + отдельный материал «Подробнее». Без ключа — None."""
+    client = _client_or_none()
+    if client is None:
+        print("[ai-advisor] OPENAI_API_KEY missing — mentor advice skipped")
+        return None
+    if events:
+        context = events_to_context(events, title=restaurant_title, alert=alert)
+    else:
+        context = _alert_to_context(alert, title=restaurant_title)
+    comments = extract_comments(events or [])
+    if not comments and alert.comments:
+        comments = list(alert.comments)
+    if not comments and not (alert.body_lines or []):
+        print("[ai-advisor] no comments/context — skip advice")
+        return None
+    if extra_context:
+        context += f"\n\nДополнительно:\n{extra_context}"
+    context += (
+        "\n\nЗадача: проанализируй именно эти отзывы персонала и дай совет "
+        "управляющему, чтобы выросли обе стороны. Не пиши универсальный шаблон. "
+        "Без ссылок и списка литературы в тексте."
+    )
+    try:
+        resp = await client.chat.completions.create(
+            model=OPENAI_MODEL,
+            max_tokens=900,
+            temperature=0.65,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": context},
+            ],
+        )
+        text = strip_links_from_advice(
+            (resp.choices[0].message.content or "").strip()
+        )
+        if not text:
+            print("[ai-advisor] empty OpenAI response")
+            return None
+        learn = await pick_learn_more(
+            theme_code=alert.code,
+            restaurant_title=restaurant_title,
+            alert=alert,
+            advice_text=text,
+            comments=comments,
+        )
+        return AdvicePack(text=text, learn=learn, theme_code=alert.code)
+    except Exception as e:
+        print(f"[ai-advisor] OpenAI error: {e}")
+        return None
 
 
 def detect_keyword_trends(
@@ -523,117 +948,6 @@ def detect_button_trends(
             }
         )
     return out
-
-
-def _both_sides_for(code: str | None) -> str:
-    if not code:
-        return (
-            "Вы учитесь слышать систему, а не только людей; "
-            "линия учится давать сигнал раньше, чем сломается сервис."
-        )
-    for cl in KEYWORD_CLUSTERS:
-        if cl["theme_code"] == code and cl.get("both_sides"):
-            return str(cl["both_sides"])
-    meta = BUTTON_TREND_META.get(code) or {}
-    if meta.get("both_sides"):
-        return str(meta["both_sides"])
-    return (
-        "Вы растёте как руководитель через ясность; "
-        "команда растёт через право говорить о проблеме без наказания."
-    )
-
-
-def template_mentor_advice(
-    alert: ma.ManagerAlert, *, restaurant_title: str
-) -> str:
-    theme = alert.title or "повторяющаяся тема"
-    body = re.sub(r"<[^>]+>", "", " ".join(alert.body_lines)).strip()
-    quotes = "\n".join(f"«{c}»" for c in (alert.comments or [])[:3])
-    code = alert.code or ""
-    cluster_q = ()
-    for cl in KEYWORD_CLUSTERS:
-        if cl["theme_code"] == code:
-            cluster_q = cl.get("questions") or ()
-            break
-    if not cluster_q:
-        cluster_q = (
-            "Как ты себя чувствуешь после таких смен?",
-            "Что, по-твоему, больше всего мешает?",
-            "Есть ли что-то, о чём сложно сказать на планёрке?",
-            "Что помогло бы тебе работать легче уже завтра?",
-        )
-    both = _both_sides_for(code)
-    text = (
-        f"Дорогой управляющий,\n\n"
-        f"На точке «{restaurant_title}» появилась тенденция: {theme}. {body}\n\n"
-    )
-    if quotes:
-        text += f"Что пишут на смене (анонимно):\n{quotes}\n\n"
-    text += (
-        f"Если не отреагировать, обе стороны проиграют: линия устанет молчать, "
-        f"а вам придётся тушить последствия вместо роста.\n\n"
-        f"Рост обеих сторон: {both}\n\n"
-        f"Что сделать сегодня (конкретно):\n"
-        f"1) {alert.recommendation}\n"
-        f"2) На планёрке без имён: «линия сигналит про это — давайте найдём дыру в системе».\n"
-        f"3) Через 3–5 дней проверьте: стало ли меньше тех же кнопок/фраз в опросе.\n\n"
-        f"Если будете говорить тет-а-тет, спросите так, чтобы человек сам покопался "
-        f"и вы оба выросли из разговора:\n"
-        f"«{cluster_q[0]}»\n"
-        f"«{cluster_q[1]}»\n"
-        f"«{cluster_q[2]}»\n"
-        f"«{cluster_q[3]}»\n\n"
-        f"Хочу, чтобы вы росли вместе с командой — через ясность и уважение, не через крик."
-    )
-    return append_growth_footer(text, theme_code=alert.code)
-
-
-async def build_advice(
-    alert: ma.ManagerAlert,
-    *,
-    restaurant_title: str,
-    extra_context: str | None = None,
-    events: list[report_pulse.EventRow] | None = None,
-) -> str | None:
-    """Совет только через OpenAI по реальным комментариям. Без ключа — None."""
-    client = _client_or_none()
-    if client is None:
-        print("[ai-advisor] OPENAI_API_KEY missing — mentor advice skipped")
-        return None
-    if events:
-        context = events_to_context(events, title=restaurant_title, alert=alert)
-    else:
-        context = _alert_to_context(alert, title=restaurant_title)
-    comments = extract_comments(events or [])
-    if not comments and alert.comments:
-        comments = list(alert.comments)
-    if not comments and not (alert.body_lines or []):
-        print("[ai-advisor] no comments/context — skip advice")
-        return None
-    if extra_context:
-        context += f"\n\nДополнительно:\n{extra_context}"
-    context += (
-        "\n\nЗадача: проанализируй именно эти отзывы персонала и дай совет "
-        "управляющему, чтобы выросли обе стороны. Не пиши универсальный шаблон."
-    )
-    try:
-        resp = await client.chat.completions.create(
-            model=OPENAI_MODEL,
-            max_tokens=900,
-            temperature=0.65,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": context},
-            ],
-        )
-        text = (resp.choices[0].message.content or "").strip()
-        if not text:
-            print("[ai-advisor] empty OpenAI response")
-            return None
-        return append_growth_footer(text, theme_code=alert.code)
-    except Exception as e:
-        print(f"[ai-advisor] OpenAI error: {e}")
-        return None
 
 
 async def detect_comment_trends(
@@ -748,7 +1062,7 @@ async def build_advice_from_events(
     restaurant_title: str,
     data: dict[str, Any],
     chat_id: int,
-) -> str | None:
+) -> AdvicePack | None:
     alerts = ma.detect_alerts(cur_events, prev_events, data=data, chat_id=chat_id)
     trends = await detect_comment_trends(cur_events)
     if trends:
@@ -783,7 +1097,7 @@ async def mentor_pack_for_events(
     restaurant_title: str,
     data: dict[str, Any],
     chat_id: int,
-) -> tuple[ma.ManagerAlert | None, str | None]:
+) -> tuple[ma.ManagerAlert | None, AdvicePack | None]:
     trends = await detect_comment_trends(cur_events)
     alerts = ma.detect_alerts(cur_events, prev_events, data=data, chat_id=chat_id)
     alert: ma.ManagerAlert | None = None
@@ -799,14 +1113,20 @@ async def mentor_pack_for_events(
     return alert, advice
 
 
-def format_advice_html(advice: str) -> str:
-    lines = [line for line in advice.split("\n") if line.strip()]
+def format_advice_html(advice: AdvicePack | str) -> str:
+    text = advice.text if isinstance(advice, AdvicePack) else advice
+    lines = [line for line in text.split("\n") if line.strip()]
     out = ["🤖 <b>AI-наставник</b>\n"]
     for ln in lines:
-        esc = escape(ln)
-        esc = re.sub(r"(https://[^\s<]+)", r'<a href="\1">\1</a>', esc)
-        out.append(esc)
+        out.append(escape(ln))
     return "\n".join(out)
+
+
+def teaser_learn_more_text() -> str:
+    return (
+        "📚 Чтобы глубже разобрать эту тему и развиваться именно в ней — "
+        "нажмите «Подробнее»."
+    )
 
 
 async def transcribe_voice(

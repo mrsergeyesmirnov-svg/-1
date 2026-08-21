@@ -1054,6 +1054,37 @@ def _theme_code_from_problem_key(problem_key: str) -> str:
     return key or "comment_trend"
 
 
+async def _deliver_advice_pack(
+    mid: int,
+    pack: ai_advisor.AdvicePack,
+) -> int:
+    """Совет + отдельное сообщение с кнопкой «Подробнее» (без ссылок в тексте совета)."""
+    sent = 0
+    try:
+        await bot.send_message(
+            mid,
+            ai_advisor.format_advice_html(pack),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+        sent += 1
+    except Exception as e:
+        print(f"[ai-deliver] mid={mid}: {e}")
+        return sent
+    if pack.learn:
+        token = ai_advisor.store_learn_more(pack.learn)
+        try:
+            await bot.send_message(
+                mid,
+                ai_advisor.teaser_learn_more_text(),
+                reply_markup=ai_advisor.learn_more_teaser_keyboard(token),
+            )
+            sent += 1
+        except Exception as e:
+            print(f"[ai-learn-teaser] mid={mid}: {e}")
+    return sent
+
+
 async def _send_advisor_for_problem(
     *,
     target_message: Message,
@@ -1141,6 +1172,12 @@ async def _send_advisor_for_problem(
         parse_mode="HTML",
         disable_web_page_preview=True,
     )
+    if advice.learn:
+        token = ai_advisor.store_learn_more(advice.learn)
+        await target_message.answer(
+            ai_advisor.teaser_learn_more_text(),
+            reply_markup=ai_advisor.learn_more_teaser_keyboard(token),
+        )
 
 
 async def _notify_managers_problem_report(
@@ -1331,15 +1368,8 @@ async def _run_manager_alerts_for_chat(
                     events=cur_events,
                 )
                 if advice:
-                    advice_html = ai_advisor.format_advice_html(advice)
                     for mid in managers:
-                        try:
-                            await bot.send_message(
-                                mid, advice_html, parse_mode="HTML",
-                                disable_web_page_preview=True,
-                            )
-                        except Exception as e:
-                            print(f"[ai-advisor] mid={mid}: {e}")
+                        await _deliver_advice_pack(mid, advice)
             except Exception as e:
                 print(f"[ai-advisor] build failed: {e}")
     return sent
@@ -1488,18 +1518,8 @@ async def _run_comment_trend_mentor(
     except Exception as e:
         print(f"[ai-comment-trend] build_advice {cid}: {e}")
     if advice:
-        advice_html = ai_advisor.format_advice_html(advice)
         for mid in managers:
-            try:
-                await bot.send_message(
-                    mid,
-                    advice_html,
-                    parse_mode="HTML",
-                    disable_web_page_preview=True,
-                )
-                sent += 1
-            except Exception as e:
-                print(f"[ai-comment-trend] advice mid={mid}: {e}")
+            sent += await _deliver_advice_pack(mid, advice)
     elif ai_advisor._client_or_none() is None:
         note = (
             "🤖 Наставник не написал совет: в Railway нет <code>OPENAI_API_KEY</code>.\n"
@@ -1589,15 +1609,9 @@ async def _run_weekly_ai_advice_for_chat(
             await save_data(data)
         except Exception as e:
             print(f"[ai-weekly-upsert] {cid}: {e}")
-    html = ai_advisor.format_advice_html(advice)
     managers = _chat_managers_only(data, chat_id) or set(ADMIN_IDS)
     for mid in managers:
-        try:
-            await bot.send_message(
-                mid, html, parse_mode="HTML", disable_web_page_preview=True
-            )
-        except Exception as e:
-            print(f"[ai-weekly] mid={mid} chat={cid}: {e}")
+        await _deliver_advice_pack(mid, advice)
 
 
 async def _show_problems_for_manager(
@@ -4165,6 +4179,29 @@ async def cmd_problems(message: Message) -> None:
         )
         return
     await _show_problems_for_manager(message, uid, int(scope[0][0]))
+
+
+@dp.callback_query(F.data.startswith("ai:lm:"))
+async def advisor_learn_more_handler(callback: CallbackQuery) -> None:
+    """Кнопка «Подробнее» после совета наставника — книга / статья / wiki по теме."""
+    if not callback.message or callback.message.chat.type != "private":
+        await callback.answer()
+        return
+    raw = callback.data or ""
+    token = raw.split(":", 2)[-1].strip() if raw else ""
+    learn = ai_advisor.get_learn_more(token) if token else None
+    if not learn:
+        await callback.answer(
+            "Материал устарел — запросите совет ещё раз.",
+            show_alert=True,
+        )
+        return
+    await callback.answer()
+    await callback.message.answer(
+        ai_advisor.format_learn_more_html(learn),
+        parse_mode="HTML",
+        disable_web_page_preview=False,
+    )
 
 
 @dp.callback_query(F.data.startswith("pr:"))
