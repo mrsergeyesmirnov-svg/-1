@@ -1105,6 +1105,15 @@ async def _run_manager_alerts_for_chat(
         return 0
     sent_map = data.setdefault("last_auto_sent", {})
     now = datetime.now(get_tz(tz_name))
+    title = str(info.get("title") or chat_id)
+    # События для AI — те же 72ч, что у алертов
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo(tz_name) if tz_name else get_tz(DEFAULT_TZ)
+    cur_start = now - timedelta(hours=manager_alerts.ALERT_WINDOW_HOURS)
+    cur_events = await report_pulse.load_events(
+        [chat_id], cur_start, now, jsonl_path=FEEDBACK_LOG_PATH
+    )
     sent = 0
     for alert, html, kb in packed:
         key = manager_alerts.alert_dedupe_key(chat_id, alert.kind, alert.code)
@@ -1130,18 +1139,21 @@ async def _run_manager_alerts_for_chat(
                 f"[manager-alerts] chat={cid}: sent kind={alert.kind} "
                 f"code={alert.code} to {len(managers)} mgr"
             )
-            # AI-совет после алерта — отдельным сообщением, не блокирует доставку
+            # AI-наставник: читает комментарии окна + алерт
             if ai_advisor._client_or_none() is not None:
                 try:
                     advice = await ai_advisor.build_advice(
-                        alert, restaurant_title=title
+                        alert,
+                        restaurant_title=title,
+                        events=cur_events,
                     )
                     if advice:
                         advice_html = ai_advisor.format_advice_html(advice)
                         for mid in managers:
                             try:
                                 await bot.send_message(
-                                    mid, advice_html, parse_mode="HTML"
+                                    mid, advice_html, parse_mode="HTML",
+                                    disable_web_page_preview=True,
                                 )
                             except Exception as e:
                                 print(f"[ai-advisor] mid={mid}: {e}")
@@ -1151,7 +1163,7 @@ async def _run_manager_alerts_for_chat(
 
 
 async def _maybe_manager_alerts_after_event(chat_id: int, event_type: str) -> None:
-    """Сразу после сигнала линии — проверить порог и при необходимости пнуть менеджера."""
+    """Сразу после сигнала линии — порог алертов + разбор комментариев AI."""
     if event_type not in manager_alerts.TRIGGER_EVENTS:
         return
     try:
@@ -1161,6 +1173,9 @@ async def _maybe_manager_alerts_after_event(chat_id: int, event_type: str) -> No
             print(f"[manager-alerts-trigger] chat={chat_id}: no chat record")
             return
         n = await _run_manager_alerts_for_chat(data, str(chat_id), info)
+        # После комментария — отдельно ищем повторы в текстах (даже если кнопки молчат)
+        if event_type == report_pulse.EVENT_COMMENT:
+            n += await _run_comment_trend_mentor(data, str(chat_id), info)
         if n:
             await save_data(data)
             print(f"[manager-alerts-trigger] chat={chat_id} event={event_type} msgs={n}")
@@ -1172,10 +1187,110 @@ async def _maybe_manager_alerts_after_event(chat_id: int, event_type: str) -> No
         print(f"[manager-alerts-trigger-fail] {chat_id}: {e}")
 
 
+async def _run_comment_trend_mentor(
+    data: dict, cid: str, info: dict, *, force: bool = False
+) -> int:
+    """
+    AI читает свободные комментарии. Если видит повтор — горящая тема + наставник в личку.
+    """
+    if ai_advisor._client_or_none() is None:
+        return 0
+    if info.get("removed_at") or info.get("active") is False:
+        return 0
+    oid = info.get("organization_id")
+    if oid and pulse_model.is_org_billing_blocked(data, oid):
+        return 0
+    chat_id = int(cid)
+    tz_name = info.get("timezone", DEFAULT_TZ)
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo(tz_name)
+    now = datetime.now(tz)
+    window = timedelta(hours=manager_alerts.ALERT_WINDOW_HOURS)
+    cur_events = await report_pulse.load_events(
+        [chat_id], now - window, now, jsonl_path=FEEDBACK_LOG_PATH
+    )
+    prev_events = await report_pulse.load_events(
+        [chat_id], now - window * 2, now - window, jsonl_path=FEEDBACK_LOG_PATH
+    )
+    comments = ai_advisor.extract_comments(cur_events)
+    if len(comments) < ai_advisor.TREND_MIN_COMMENTS:
+        return 0
+
+    title = str(info.get("title") or cid)
+    try:
+        alert, advice = await ai_advisor.mentor_pack_for_events(
+            cur_events,
+            prev_events,
+            restaurant_title=title,
+            data=data,
+            chat_id=chat_id,
+        )
+    except Exception as e:
+        print(f"[ai-comment-trend] {cid}: {e}")
+        return 0
+    if not alert or alert.kind != "comment_trend" or not advice:
+        return 0
+
+    sent_map = data.setdefault("last_auto_sent", {})
+    # Антидубль по заголовку тенденции (сутки)
+    trend_key = manager_alerts.alert_dedupe_key(
+        chat_id, "comment_trend", (alert.title or "")[:40]
+    )
+    if not force and manager_alerts.alert_recently_sent(
+        sent_map, trend_key, now=now, cooldown_hours=24
+    ):
+        print(f"[ai-comment-trend] cooldown {trend_key}")
+        return 0
+
+    # Попасть в «Горящие вопросы»
+    try:
+        pkey = f"ai_{(alert.problem_key or 'trend')}"[:48]
+        await problems_pulse._upsert_local(
+            data,
+            chat_id=chat_id,
+            org_id=str(oid) if oid else None,
+            problem_key=pkey,
+            title=(alert.title or "Тенденция в отзывах")[:120],
+            count=max(3, int(getattr(alert, "priority", 1) and 3)),
+            now=now,
+            threshold=3,
+        )
+    except Exception as e:
+        print(f"[ai-comment-trend-upsert] {cid}: {e}")
+
+    managers = _chat_managers_only(data, chat_id)
+    if not managers:
+        return 0
+    html_alert = manager_alerts.format_alert_message(alert, restaurant_title=title)
+    kb = manager_alerts.alert_keyboard(chat_id, None)
+    advice_html = ai_advisor.format_advice_html(advice)
+    sent = 0
+    for mid in managers:
+        manager_problem_chat[mid] = chat_id
+        try:
+            await bot.send_message(
+                mid, html_alert, parse_mode="HTML", reply_markup=kb
+            )
+            await bot.send_message(
+                mid,
+                advice_html,
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
+            sent += 2
+        except Exception as e:
+            print(f"[ai-comment-trend] mid={mid}: {e}")
+    if sent:
+        manager_alerts.mark_alert_sent(sent_map, trend_key, now=now)
+        print(f"[ai-comment-trend] chat={cid} sent to managers")
+    return sent
+
+
 async def _run_weekly_ai_advice_for_chat(
     data: dict, cid: str, info: dict
 ) -> None:
-    """Воскресенье 20:00 (по tz точки) — AI-советник смотрит неделю и пишет управляющему."""
+    """Воскресенье 20:00 — наставник читает неделю (комментарии + корреляции)."""
     if ai_advisor._client_or_none() is None:
         return
     if info.get("removed_at") or info.get("active") is False:
@@ -1200,23 +1315,49 @@ async def _run_weekly_ai_advice_for_chat(
         return
     title = str(info.get("title") or cid)
     try:
-        advice = await ai_advisor.build_advice_from_events(
+        alert, advice = await ai_advisor.mentor_pack_for_events(
             cur_events,
             prev_events,
             restaurant_title=title,
             data=data,
             chat_id=chat_id,
         )
+        if not advice:
+            advice = await ai_advisor.build_advice_from_events(
+                cur_events,
+                prev_events,
+                restaurant_title=title,
+                data=data,
+                chat_id=chat_id,
+            )
     except Exception as e:
         print(f"[ai-weekly] build_advice failed chat={cid}: {e}")
         return
     if not advice:
         return
+    if alert and alert.kind == "comment_trend":
+        try:
+            pkey = f"ai_{(alert.problem_key or 'trend')}"[:48]
+            await problems_pulse._upsert_local(
+                data,
+                chat_id=chat_id,
+                org_id=str(oid) if oid else None,
+                problem_key=pkey,
+                title=(alert.title or "Тенденция недели")[:120],
+                count=5,
+                now=now,
+                threshold=3,
+            )
+            await save_data(data)
+        except Exception as e:
+            print(f"[ai-weekly-upsert] {cid}: {e}")
     html = ai_advisor.format_advice_html(advice)
     managers = _chat_managers_only(data, chat_id)
     for mid in managers:
         try:
-            await bot.send_message(mid, html, parse_mode="HTML")
+            await bot.send_message(
+                mid, html, parse_mode="HTML", disable_web_page_preview=True
+            )
         except Exception as e:
             print(f"[ai-weekly] mid={mid} chat={cid}: {e}")
 

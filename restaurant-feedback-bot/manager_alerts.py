@@ -499,6 +499,7 @@ def format_alert_message(alert: ManagerAlert, *, restaurant_title: str) -> str:
         "hot": "🔥",
         "rating_drop": "📉",
         "improved": "✅",
+        "comment_trend": "🔎",
     }.get(alert.kind, "🔔")
     lines = [
         f"{emoji} <b>{escape(alert.title)}</b>",
