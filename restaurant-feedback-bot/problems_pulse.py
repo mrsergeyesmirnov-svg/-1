@@ -30,6 +30,10 @@ THRESHOLDS: dict[str, int] = {
 
 PROBLEM_TITLES: dict[str, str] = {
     "kitchen": "Медленная кухня",
+    "team": "Команда",
+    "guests": "Гости",
+    "processes": "Процессы",
+    "self": "Моё состояние",
     "staff": "Нехватка персонала",
     "management": "Плохая организация",
     "conflict": "Конфликт / напряжение",
@@ -588,6 +592,18 @@ def format_problem_card(p: ProblemRow) -> str:
     return "\n".join(lines)
 
 
+def format_new_hot_problem_push(p: ProblemRow, *, restaurant_title: str) -> str:
+    """Мгновенный пуш менеджеру: появилась новая горящая тема."""
+    return (
+        f"🔥 <b>Новый горящий вопрос</b>\n"
+        f"<i>{escape(restaurant_title)}</i>\n\n"
+        f"<b>{escape(p.title)}</b>\n"
+        f"Отметок линии: <b>{p.mentions_count}</b>\n"
+        f"Статус: 🔴 Новая\n\n"
+        f"<i>Можно взять в работу, закрыть или запросить совет наставника.</i>"
+    )
+
+
 def format_manager_peer_status_update(
     p: ProblemRow,
     *,
@@ -854,7 +870,14 @@ def problem_card_keyboard(problem_id: str, status: str, chat_id: int):
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
     cid = str(chat_id)
-    rows = []
+    rows = [
+        [
+            InlineKeyboardButton(
+                text="🤖 Совет наставника",
+                callback_data=pr_callback("a", problem_id),
+            )
+        ]
+    ]
     if status != STATUS_IN_PROGRESS:
         rows.append(
             [
