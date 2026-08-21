@@ -1142,7 +1142,7 @@ async def _run_manager_alerts_for_chat(
                 f"[manager-alerts] chat={cid}: sent kind={alert.kind} "
                 f"code={alert.code} to {len(managers)} mgr"
             )
-            # Наставник: шаблон по теме или GPT — рост управа и линии
+            # AI-наставник: анализ реальных комментариев через OpenAI
             try:
                 advice = await ai_advisor.build_advice(
                     alert,
@@ -1193,9 +1193,9 @@ async def _run_comment_trend_mentor(
     data: dict, cid: str, info: dict, *, force: bool = False
 ) -> int:
     """
-    Кнопки + тексты (≥3): команда, кухня, гости, процессы, состояние.
-    Без OpenAI — шаблонный наставник; с ключом — глубже.
-    Если менеджеры не привязаны — шлём ADMIN_IDS, чтобы сигнал не терялся.
+    Кнопки + тексты (≥3) → горящий вопрос.
+    Совет наставника — только OpenAI по реальным комментариям (без шаблонов).
+    Если менеджеры не привязаны — шлём ADMIN_IDS.
     """
     if info.get("removed_at") or info.get("active") is False:
         return 0
@@ -1220,21 +1220,15 @@ async def _run_comment_trend_mentor(
 
     title = str(info.get("title") or cid)
     try:
-        alert, advice = await ai_advisor.mentor_pack_for_events(
-            cur_events,
-            prev_events,
-            restaurant_title=title,
-            data=data,
-            chat_id=chat_id,
-        )
+        trends = await ai_advisor.detect_comment_trends(cur_events)
     except Exception as e:
-        print(f"[ai-comment-trend] {cid}: {e}")
+        print(f"[ai-comment-trend] detect {cid}: {e}")
         return 0
-    if not alert or alert.kind != "comment_trend" or not advice:
+    if not trends:
         return 0
+    alert = ai_advisor.trend_to_alert(trends[0])
 
     sent_map = data.setdefault("last_auto_sent", {})
-    # Антидубль по заголовку тенденции (сутки)
     trend_key = manager_alerts.alert_dedupe_key(
         chat_id, "comment_trend", (alert.title or "")[:40]
     )
@@ -1244,7 +1238,6 @@ async def _run_comment_trend_mentor(
         print(f"[ai-comment-trend] cooldown {trend_key}")
         return 0
 
-    # Попасть в «Горящие вопросы»
     try:
         pkey = f"ai_{(alert.problem_key or 'trend')}"[:48]
         await problems_pulse._upsert_local(
@@ -1264,9 +1257,9 @@ async def _run_comment_trend_mentor(
     if not managers:
         print(f"[ai-comment-trend] no managers and no ADMIN_IDS chat={cid}")
         return 0
+
     html_alert = manager_alerts.format_alert_message(alert, restaurant_title=title)
     kb = manager_alerts.alert_keyboard(chat_id, None)
-    advice_html = ai_advisor.format_advice_html(advice)
     sent = 0
     for mid in managers:
         manager_problem_chat[mid] = chat_id
@@ -1274,25 +1267,61 @@ async def _run_comment_trend_mentor(
             await bot.send_message(
                 mid, html_alert, parse_mode="HTML", reply_markup=kb
             )
-            await bot.send_message(
-                mid,
-                advice_html,
-                parse_mode="HTML",
-                disable_web_page_preview=True,
-            )
-            sent += 2
+            sent += 1
         except Exception as e:
             print(f"[ai-comment-trend] mid={mid}: {e}")
+
+    # Совет — только анализ OpenAI по комментариям, без шаблонов
+    advice = None
+    try:
+        advice = await ai_advisor.build_advice(
+            alert, restaurant_title=title, events=cur_events
+        )
+    except Exception as e:
+        print(f"[ai-comment-trend] build_advice {cid}: {e}")
+    if advice:
+        advice_html = ai_advisor.format_advice_html(advice)
+        for mid in managers:
+            try:
+                await bot.send_message(
+                    mid,
+                    advice_html,
+                    parse_mode="HTML",
+                    disable_web_page_preview=True,
+                )
+                sent += 1
+            except Exception as e:
+                print(f"[ai-comment-trend] advice mid={mid}: {e}")
+    elif ai_advisor._client_or_none() is None:
+        note = (
+            "🤖 Наставник не написал совет: в Railway нет <code>OPENAI_API_KEY</code>.\n"
+            "Тренд уже в «Горящих вопросах». Добавьте ключ и Redeploy — "
+            "тогда AI будет разбирать комментарии персонала."
+        )
+        for mid in set(ADMIN_IDS) | managers:
+            try:
+                await bot.send_message(mid, note, parse_mode="HTML")
+                sent += 1
+            except Exception as e:
+                print(f"[ai-comment-trend] no-key note mid={mid}: {e}")
+            break  # один раз достаточно
+
     if sent:
         manager_alerts.mark_alert_sent(sent_map, trend_key, now=now)
-        print(f"[ai-comment-trend] chat={cid} sent to {len(managers)} recipients")
+        print(
+            f"[ai-comment-trend] chat={cid} sent={sent} "
+            f"advice={'yes' if advice else 'no'}"
+        )
     return sent
 
 
 async def _run_weekly_ai_advice_for_chat(
     data: dict, cid: str, info: dict
 ) -> None:
-    """Воскресенье 20:00 — наставник читает неделю (кнопки + тексты + корреляции)."""
+    """Воскресенье 20:00 — OpenAI читает неделю по комментариям (не шаблон)."""
+    if ai_advisor._client_or_none() is None:
+        print(f"[ai-weekly] skip chat={cid}: no OPENAI_API_KEY")
+        return
     if info.get("removed_at") or info.get("active") is False:
         return
     oid = info.get("organization_id")

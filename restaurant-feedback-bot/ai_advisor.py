@@ -6,7 +6,8 @@ AI-наставник управляющего.
 Пишет в личку управу: тенденция → к чему ведёт → что сделать → вопросы тет-а-тет
 → ссылка «почитать, если хотите расти».
 
-Работает и без OpenAI (ключевые слова + шаблон), с ключом — глубже.
+Работает с OpenAI: читает комментарии и пишет живой совет.
+Кнопки/ключевые слова только помогают вовремя заметить повтор.
 """
 from __future__ import annotations
 
@@ -307,17 +308,21 @@ SYSTEM_PROMPT = """\
 Ты — ментальный наставник управляющего ресторана. Цель — рост управляющего\
  и команды вместе, не «накричать на смену».
 
-Данные анонимны. Ищи повторы и корреляции по темам: команда, кухня, гости,\
- процессы, состояние людей.
+Данные анонимны. Ты ОБЯЗАН опираться на реальные комментарии и отметки персонала\
+ из контекста: читай их, находи повторы и корреляции по темам (команда, кухня,\
+ гости, процессы, состояние). Не выдавай общие шаблоны — советы должны следовать\
+ из того, что написала линия.
 
 Структура ответа живыми абзацами на русском:
-1. «Дорогой управляющий…» — что заметил (тенденция), без имён.
+1. «Дорогой управляющий…» — что заметил в комментариях/отметках (тенденция),\
+ со ссылкой на суть цитат без имён.
 2. К чему приведёт за 2–4 недели, если не трогать.
-3. 2–3 конкретных действия (первое — сегодня), чтобы выросли обе стороны.
+3. 2–3 конкретных действия (первое — сегодня), чтобы выросли обе стороны\
+ (управ и линия). Не «поговорите» — что именно сделать.
 4. 3–4 вопроса для тет-а-тет («Как ты…», «Что, по-твоему…») — не допрос.
 5. Короткая фраза поддержки роста.
 
-350–500 слов. Без markdown и маркеров. Не выдумывай цитаты.\
+350–500 слов. Без markdown и маркеров. Не выдумывай цитаты, которых нет в данных.\
 """
 
 TREND_DETECT_PROMPT = """\
@@ -590,15 +595,27 @@ async def build_advice(
     extra_context: str | None = None,
     events: list[report_pulse.EventRow] | None = None,
 ) -> str | None:
+    """Совет только через OpenAI по реальным комментариям. Без ключа — None."""
     client = _client_or_none()
     if client is None:
-        return template_mentor_advice(alert, restaurant_title=restaurant_title)
+        print("[ai-advisor] OPENAI_API_KEY missing — mentor advice skipped")
+        return None
     if events:
         context = events_to_context(events, title=restaurant_title, alert=alert)
     else:
         context = _alert_to_context(alert, title=restaurant_title)
+    comments = extract_comments(events or [])
+    if not comments and alert.comments:
+        comments = list(alert.comments)
+    if not comments and not (alert.body_lines or []):
+        print("[ai-advisor] no comments/context — skip advice")
+        return None
     if extra_context:
         context += f"\n\nДополнительно:\n{extra_context}"
+    context += (
+        "\n\nЗадача: проанализируй именно эти отзывы персонала и дай совет "
+        "управляющему, чтобы выросли обе стороны. Не пиши универсальный шаблон."
+    )
     try:
         resp = await client.chat.completions.create(
             model=OPENAI_MODEL,
@@ -611,11 +628,12 @@ async def build_advice(
         )
         text = (resp.choices[0].message.content or "").strip()
         if not text:
-            return template_mentor_advice(alert, restaurant_title=restaurant_title)
+            print("[ai-advisor] empty OpenAI response")
+            return None
         return append_growth_footer(text, theme_code=alert.code)
     except Exception as e:
         print(f"[ai-advisor] OpenAI error: {e}")
-        return template_mentor_advice(alert, restaurant_title=restaurant_title)
+        return None
 
 
 async def detect_comment_trends(

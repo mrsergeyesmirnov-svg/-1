@@ -117,7 +117,7 @@ def test_template_advice_both_sides():
     assert "Спиральная" in text or "https://" in text
 
 
-def test_build_advice_without_openai():
+def test_build_advice_requires_openai():
     alert = ma.ManagerAlert(
         kind="comment_trend",
         code="processes",
@@ -131,9 +131,8 @@ def test_build_advice_without_openai():
     text = asyncio.get_event_loop().run_until_complete(
         a.build_advice(alert, restaurant_title="Точка А")
     )
-    assert text
-    assert "управляющий" in text.lower() or "Управляющий" in text
-    assert "Рост обеих сторон" in text
+    # Без ключа советов-шаблонов нет — только OpenAI
+    assert text is None
 
 
 def test_charged_blocker_keyboard_no_ok():
