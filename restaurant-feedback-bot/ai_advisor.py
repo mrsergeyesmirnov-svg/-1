@@ -35,11 +35,14 @@ DEPT_LABELS = {
 }
 
 PROBLEM_RU = {
-    "kitchen": "медленная кухня / отдача",
-    "staff": "нехватка людей",
-    "management": "организация смены",
+    "kitchen": "кухня / отдача",
+    "team": "команда",
+    "staff": "команда / нехватка людей",
+    "processes": "процессы / организация",
+    "management": "процессы / организация",
     "conflict": "конфликт / напряжение",
     "stress": "высокая нагрузка",
+    "self": "состояние людей на смене",
     "guests": "гости / сервис",
     "rating_drop": "падение оценок",
     "improved": "улучшение",
@@ -169,3 +172,25 @@ def format_advice_html(advice: str) -> str:
     out = ["🤖 <b>AI-советник</b>\n"]
     out.extend(escape(ln) for ln in lines)
     return "\n".join(out)
+
+
+async def transcribe_voice(file_bytes: bytes, *, filename: str = "voice.ogg") -> str | None:
+    """Whisper: голос → текст. Тот же OPENAI_API_KEY. None если ключа нет или ошибка."""
+    client = _client_or_none()
+    if client is None:
+        return None
+    try:
+        import io
+
+        buf = io.BytesIO(file_bytes)
+        buf.name = filename
+        resp = await client.audio.transcriptions.create(
+            model="whisper-1",
+            file=buf,
+            language="ru",
+        )
+        text = (getattr(resp, "text", None) or str(resp) or "").strip()
+        return text or None
+    except Exception as e:
+        print(f"[whisper] {e}")
+        return None

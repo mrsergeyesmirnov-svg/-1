@@ -19,7 +19,13 @@ import pulse_model
 import db_pulse
 
 PROBLEM_LABELS: dict[str, str] = {
-    "kitchen": "Медленная кухня",
+    "team": "Команда",
+    "kitchen": "Кухня",
+    "guests": "Гости",
+    "processes": "Процессы",
+    "self": "Моё состояние",
+    "ok": "Нигде — всё прошло хорошо",
+    # legacy (старые ответы в логе)
     "conflict": "Конфликт / напряжение",
     "staff": "Нехватка персонала",
     "management": "Плохая организация",

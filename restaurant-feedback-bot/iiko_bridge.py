@@ -20,13 +20,12 @@ BAD_NUDGE_THRESHOLD = 3
 NUDGE_COOLDOWN_HOURS = 6
 
 BLOCKERS = [
-    {"code": "kitchen", "label": "Кухня / отдача"},
-    {"code": "staff", "label": "Нехватка людей"},
-    {"code": "management", "label": "Организация смены"},
-    {"code": "conflict", "label": "Конфликт / напряжение"},
-    {"code": "stress", "label": "Нагрузка"},
-    {"code": "guests", "label": "Гости"},
-    {"code": "ok", "label": "Ничего не мешало"},
+    {"code": "team", "label": "👥 Команда"},
+    {"code": "kitchen", "label": "👨‍🍳 Кухня"},
+    {"code": "guests", "label": "🙋 Гости"},
+    {"code": "processes", "label": "⚙️ Процессы"},
+    {"code": "self", "label": "🧠 Моё состояние"},
+    {"code": "ok", "label": "✨ Нигде — всё прошло хорошо"},
 ]
 
 

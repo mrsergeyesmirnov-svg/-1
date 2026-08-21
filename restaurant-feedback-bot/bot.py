@@ -48,6 +48,7 @@ import onboarding_reels
 import reminders_ui
 import iiko_bridge
 import ai_advisor
+import shift_survey
 
 # На Railway без Volume файлы в контейнере теряются при redeploy.
 # Смонтируйте Volume и задайте PULSE_DATA_DIR=/data (или другой путь) — туда пойдут bot_data.json и feedback_log.jsonl.
@@ -791,14 +792,15 @@ def group_reminder_text(data: dict, chat_id: int, *, at: datetime | None = None)
 
 
 def private_rating_prompt(data: dict, chat_id: int | None) -> str:
-    tz_name = _chat_tz_name(data, chat_id) if chat_id is not None else DEFAULT_TZ
-    hour = datetime.now(get_tz(tz_name)).hour
-    if _is_evening_reminder_hour(hour):
-        return "Как прошёл сегодняшний день?"
-    return "Как прошёл вчерашний день на смене?"
+    return shift_survey.mood_prompt()
 
 PROBLEM_LABELS = {
-    "kitchen": "медленная кухня",
+    "team": "команда",
+    "kitchen": "кухня",
+    "guests": "гости",
+    "processes": "процессы",
+    "self": "моё состояние",
+    "ok": "ничего не мешало",
     "conflict": "конфликт / напряжение",
     "staff": "нехватка персонала",
     "management": "плохая организация",
@@ -809,102 +811,12 @@ PROBLEM_LABELS = {
 PERSONAL_LABELS = report_pulse.PERSONAL_FACTOR_LABELS
 
 
-rating_keyboard = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [
-            InlineKeyboardButton(text="1 ⭐", callback_data="rating_1"),
-            InlineKeyboardButton(text="2 ⭐", callback_data="rating_2"),
-            InlineKeyboardButton(text="3 ⭐", callback_data="rating_3"),
-            InlineKeyboardButton(text="4 ⭐", callback_data="rating_4"),
-            InlineKeyboardButton(text="5 ⭐", callback_data="rating_5"),
-        ]
-    ]
-)
+# Совместимость со старыми сообщениями в чатах (звёзды)
+rating_keyboard = shift_survey.mood_keyboard()
 
-personal_keyboard = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [
-            InlineKeyboardButton(
-                text="📚 Нехватка знаний по процессам",
-                callback_data="personal_knowledge",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="😴 Усталость / плохое состояние",
-                callback_data="personal_fatigue",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="⏱ Сложности с тайм-менеджментом",
-                callback_data="personal_time_mgmt",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="💬 Сложности в коммуникации",
-                callback_data="personal_communication",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="🎯 Потеря концентрации",
-                callback_data="personal_concentration",
-            )
-        ],
-        [InlineKeyboardButton(text="Пропустить", callback_data="personal_skip")],
-    ]
-)
+final_comment_keyboard = shift_survey.comment_keyboard()
 
-final_comment_keyboard = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [InlineKeyboardButton(text="Пропустить", callback_data="final_skip")],
-    ]
-)
-
-rating5_followup_keyboard = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [InlineKeyboardButton(text="✍️ Опишите подробнее", callback_data="rating5_more")],
-        [InlineKeyboardButton(text="Пропустить", callback_data="rating5_skip")],
-    ]
-)
-
-problem_keyboard = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [
-            InlineKeyboardButton(
-                text="🍽 Медленная кухня",
-                callback_data="problem_kitchen",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="😤 Конфликт / напряжение",
-                callback_data="problem_conflict",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="👥 Нехватка персонала",
-                callback_data="problem_staff",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="📋 Плохая организация",
-                callback_data="problem_management",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="😓 Сильная нагрузка",
-                callback_data="problem_stress",
-            )
-        ],
-        [InlineKeyboardButton(text="Пропустить", callback_data="problem_skip")],
-    ]
-)
+problem_keyboard = shift_survey.blocker_keyboard()
 
 
 def restaurant_label_for_log(data: dict, user_id: int) -> str:
@@ -2049,27 +1961,6 @@ async def _show_evening_status(
         )
 
 
-def _problem_keyboard_for_user(data: dict, user_id: int) -> InlineKeyboardMarkup:
-    chat_id = user_linked_chat.get(user_id)
-    if chat_id is None:
-        from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
-        rows = [
-            [
-                InlineKeyboardButton(
-                    text=b["label"][:64],
-                    callback_data=f"problem_{b['code']}"[:64],
-                )
-            ]
-            for b in survey_buttons.enabled_buttons(survey_buttons._copy_defaults())
-        ]
-        rows.append(
-            [InlineKeyboardButton(text="Пропустить", callback_data="problem_skip")]
-        )
-        return InlineKeyboardMarkup(inline_keyboard=rows)
-    return survey_buttons.build_problem_keyboard(data, chat_id)
-
-
 @dp.my_chat_member()
 async def on_my_chat_member(event: ChatMemberUpdated) -> None:
     if event.new_chat_member.user.id != event.bot.id:
@@ -2141,12 +2032,13 @@ async def cmd_start(message: Message) -> None:
             user_private_slug.pop(uid, None)
             waiting_for_comment.add(uid)
             await message.answer(
-                "Напишите, что случилось на смене — одним сообщением. "
+                "Напишите, что случилось на смене — текстом или голосовым. "
                 "В чат ресторана это не попадёт.",
                 reply_markup=pulse_model.support_only_reply_markup(),
             )
             await message.answer(
-                "Свободный комментарий или «Пропустить».",
+                shift_survey.comment_prompt(),
+                parse_mode="HTML",
                 reply_markup=final_comment_keyboard,
             )
             return
@@ -2157,7 +2049,7 @@ async def cmd_start(message: Message) -> None:
             user_private_slug.pop(uid, None)
             data = await load_data()
             await message.answer(
-                "Здесь можно ответить анонимно — выберите оценку ниже.",
+                "Здесь можно ответить анонимно — как прошла смена?",
                 reply_markup=pulse_model.support_only_reply_markup(),
             )
             await message.answer(
@@ -2171,7 +2063,7 @@ async def cmd_start(message: Message) -> None:
         data.setdefault("private_slugs", {})[str(uid)] = arg
         await save_data(data)
         await message.answer(
-            "Здесь можно ответить анонимно — выберите оценку ниже.",
+            "Здесь можно ответить анонимно — как прошла смена?",
             reply_markup=pulse_model.support_only_reply_markup(),
         )
         await message.answer(
@@ -3377,22 +3269,23 @@ async def answer_private_flow_end(message: Message, user_id: int, text: str) -> 
     await message.answer(text, **extra)
 
 
-async def prompt_personal_factors(message: Message) -> None:
+def _problem_keyboard_for_user(data: dict, user_id: int) -> InlineKeyboardMarkup:
+    return shift_survey.blocker_keyboard()
+
+
+async def prompt_blocker(message: Message) -> None:
     await message.answer(
-        "<b>Личные факторы смены</b> — как вы повлияли на смену\n\n"
-        "Выберите пункт или «Пропустить».",
-        parse_mode="HTML",
-        reply_markup=personal_keyboard,
+        shift_survey.blocker_prompt(),
+        reply_markup=shift_survey.blocker_keyboard(),
     )
 
 
 async def prompt_final_comment(message: Message, user_id: int) -> None:
     waiting_for_comment.add(user_id)
     await message.answer(
-        "Последний шаг: <b>свободный комментарий</b> к смене одним сообщением "
-        "или «Пропустить».",
+        shift_survey.comment_prompt(),
         parse_mode="HTML",
-        reply_markup=final_comment_keyboard,
+        reply_markup=shift_survey.comment_keyboard(),
     )
 
 
@@ -3672,17 +3565,18 @@ async def scheduler_loop() -> None:
         await asyncio.sleep(45)
 
 
-@dp.callback_query(F.data.startswith("rating_"), lambda c: c.message.chat.type != "private")
-async def rating_wrong_chat(callback: CallbackQuery) -> None:
+@dp.callback_query(
+    F.data.startswith("rating_")
+    | F.data.startswith("mood_")
+    | F.data.startswith("problem_")
+    | F.data.startswith("blocker_"),
+    lambda c: c.message.chat.type != "private",
+)
+async def survey_wrong_chat(callback: CallbackQuery) -> None:
     await callback.answer(
         "Оценку нужно пройти в личке: нажмите «Рассказать в личке» в последнем сообщении бота.",
         show_alert=True,
     )
-
-
-@dp.callback_query(F.data.startswith("problem_"), lambda c: c.message.chat.type != "private")
-async def problem_wrong_chat(callback: CallbackQuery) -> None:
-    await callback.answer("Продолжите в личке с ботом по ссылке из чата.", show_alert=True)
 
 
 @dp.callback_query(
@@ -3695,16 +3589,21 @@ async def personal_wrong_chat(callback: CallbackQuery) -> None:
     await callback.answer("Продолжите в личке с ботом по ссылке из чата.", show_alert=True)
 
 
-@dp.callback_query(F.data.startswith("rating_"), lambda c: c.message.chat.type == "private")
-async def rating_handler(callback: CallbackQuery) -> None:
-    rating = int(callback.data.split("_")[1])
+@dp.callback_query(F.data.startswith("mood_"), lambda c: c.message.chat.type == "private")
+async def mood_handler(callback: CallbackQuery) -> None:
+    code = callback.data.replace("mood_", "", 1)
+    rating = shift_survey.rating_from_mood(code)
+    if rating is None:
+        await callback.answer()
+        return
     user_id = callback.from_user.id
     data = await load_data()
     restaurant = restaurant_label_for_log(data, user_id)
     rest_chat = user_linked_chat.get(user_id)
+    label = shift_survey.MOOD_LABELS.get(code, code)
 
     print("------------")
-    print(f"LOG rating user={user_id} rest={restaurant} val={rating}")
+    print(f"LOG mood user={user_id} rest={restaurant} mood={code} rating={rating}")
     print("------------")
     await log_feedback_event(
         {
@@ -3714,57 +3613,33 @@ async def rating_handler(callback: CallbackQuery) -> None:
             "restaurant_label": restaurant,
             "organization_id": org_id_for_restaurant_chat(data, rest_chat),
             "rating": rating,
+            "mood": code,
             "department": chef_survey.DEPARTMENT_FLOOR,
         }
     )
-
     await callback.message.edit_reply_markup(reply_markup=None)
-
-    if rating == 5:
-        await callback.message.answer(
-            "Спасибо! Оценка <b>5</b> сохранена ⭐",
-            parse_mode="HTML",
-        )
-        await callback.message.answer(
-            "Можете коротко описать, что было хорошо на смене:",
-            reply_markup=rating5_followup_keyboard,
-        )
-    else:
-        data = await load_data()
-        await callback.message.answer(
-            "Что повлияло на смену? Можно несколько кнопок или <b>Пропустить</b>.",
-            parse_mode="HTML",
-            reply_markup=_problem_keyboard_for_user(data, user_id),
-        )
+    await callback.message.answer(f"Записали: <b>{escape(label)}</b>", parse_mode="HTML")
     await callback.answer()
+    await prompt_blocker(callback.message)
 
 
-@dp.callback_query(F.data.startswith("rating5_"), lambda c: c.message.chat.type == "private")
-async def rating5_followup_handler(callback: CallbackQuery) -> None:
-    action = callback.data.replace("rating5_", "")
-    user_id = callback.from_user.id
-    await callback.message.edit_reply_markup(reply_markup=None)
-
-    if action == "more":
-        waiting_for_comment.add(user_id)
-        await callback.message.answer("Опишите подробнее ✍️")
+@dp.callback_query(F.data.startswith("rating_"), lambda c: c.message.chat.type == "private")
+async def rating_handler_legacy(callback: CallbackQuery) -> None:
+    """Старые сообщения со звёздами — всё равно ведём в новый опрос."""
+    try:
+        rating = int(callback.data.split("_")[1])
+    except Exception:
         await callback.answer()
         return
-
-    if action == "skip":
-        finish_private_flow(user_id)
-        await callback.answer()
-        await answer_private_flow_end(
-            callback.message, user_id, "Спасибо за обратную связь ❤️"
-        )
-        return
-
-    await callback.answer()
+    # Обратная карта: 5→charged, 4→normal, 3/2→meh, 1→heavy
+    mood = {5: "charged", 4: "normal", 3: "meh", 2: "meh", 1: "heavy"}.get(rating, "meh")
+    callback.data = f"mood_{mood}"
+    await mood_handler(callback)
 
 
-@dp.callback_query(F.data.startswith("problem_"), lambda c: c.message.chat.type == "private")
-async def problem_handler(callback: CallbackQuery) -> None:
-    action = callback.data.replace("problem_", "")
+@dp.callback_query(F.data.startswith("blocker_"), lambda c: c.message.chat.type == "private")
+async def blocker_handler(callback: CallbackQuery) -> None:
+    action = callback.data.replace("blocker_", "", 1)
     user_id = callback.from_user.id
     data = await load_data()
     restaurant = restaurant_label_for_log(data, user_id)
@@ -3773,38 +3648,64 @@ async def problem_handler(callback: CallbackQuery) -> None:
 
     await callback.message.edit_reply_markup(reply_markup=None)
 
-    if action == "skip":
-        user_pending_problem.pop(user_id, None)
-        waiting_for_comment.discard(user_id)
-        await callback.answer()
-        await prompt_personal_factors(callback.message)
-        return
-
-    allowed = (
-        survey_buttons.valid_codes(data, rest_chat)
-        if rest_chat is not None
-        else {b["code"] for b in survey_buttons.DEFAULT_BUTTONS if b.get("enabled")}
-    )
-    if action not in allowed:
+    if action not in shift_survey.BLOCKER_LABELS:
         await callback.answer()
         return
 
-    await log_feedback_event(
-        {
-            "event": "problem",
-            "user_id": user_id,
-            "restaurant_chat_id": rest_chat,
-            "restaurant_label": restaurant,
-            "organization_id": org_id,
-            "problem": action,
-            "department": chef_survey.DEPARTMENT_FLOOR,
-        }
-    )
-    user_last_problem_code[user_id] = action
+    label = shift_survey.BLOCKER_LABELS[action]
+    if action != "ok":
+        await log_feedback_event(
+            {
+                "event": "problem",
+                "user_id": user_id,
+                "restaurant_chat_id": rest_chat,
+                "restaurant_label": restaurant,
+                "organization_id": org_id,
+                "problem": action,
+                "department": chef_survey.DEPARTMENT_FLOOR,
+            }
+        )
+        user_last_problem_code[user_id] = action
+    else:
+        user_last_problem_code.pop(user_id, None)
+
     user_pending_problem.pop(user_id, None)
-    waiting_for_comment.discard(user_id)
+    await callback.message.answer(f"Записали: <b>{escape(label)}</b>", parse_mode="HTML")
     await callback.answer()
-    await prompt_personal_factors(callback.message)
+    await prompt_final_comment(callback.message, user_id)
+
+
+@dp.callback_query(F.data.startswith("problem_"), lambda c: c.message.chat.type == "private")
+async def problem_handler_legacy(callback: CallbackQuery) -> None:
+    """Старые кнопки problem_* → тот же шаг «что мешало»."""
+    action = callback.data.replace("problem_", "", 1)
+    if action == "skip":
+        action = "ok"
+    # legacy → новые коды
+    legacy_map = {
+        "staff": "team",
+        "management": "processes",
+        "conflict": "team",
+        "stress": "self",
+        "comment": "ok",
+    }
+    action = legacy_map.get(action, action)
+    if action not in shift_survey.BLOCKER_LABELS:
+        action = "ok"
+    callback.data = f"blocker_{action}"
+    await blocker_handler(callback)
+
+
+@dp.callback_query(
+    F.data.startswith("rating5_"),
+    lambda c: c.message.chat.type == "private",
+)
+async def rating5_followup_handler(callback: CallbackQuery) -> None:
+    """Старый follow-up после 5★ — сразу к комментарию."""
+    user_id = callback.from_user.id
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.answer()
+    await prompt_final_comment(callback.message, user_id)
 
 
 @dp.callback_query(
@@ -3812,37 +3713,10 @@ async def problem_handler(callback: CallbackQuery) -> None:
     lambda c: c.message.chat.type == "private",
 )
 async def personal_handler(callback: CallbackQuery) -> None:
-    action = callback.data.replace("personal_", "")
+    """Старый шаг личных факторов — пропускаем к комментарию."""
     user_id = callback.from_user.id
     await callback.message.edit_reply_markup(reply_markup=None)
-
-    if action == "skip":
-        await callback.answer()
-        await prompt_final_comment(callback.message, user_id)
-        return
-
-    if action not in PERSONAL_LABELS:
-        await callback.answer()
-        return
-
-    data = await load_data()
-    restaurant = restaurant_label_for_log(data, user_id)
-    rest_chat = user_linked_chat.get(user_id)
-    org_id = org_id_for_restaurant_chat(data, rest_chat)
-    await log_feedback_event(
-        {
-            "event": "personal_factor",
-            "user_id": user_id,
-            "restaurant_chat_id": rest_chat,
-            "restaurant_label": restaurant,
-            "organization_id": org_id,
-            "problem": action,
-            "department": chef_survey.DEPARTMENT_FLOOR,
-        }
-    )
-    label = PERSONAL_LABELS.get(action, action)
     await callback.answer()
-    await callback.message.answer(f"Записали: <b>{escape(label)}</b>", parse_mode="HTML")
     await prompt_final_comment(callback.message, user_id)
 
 
@@ -7404,9 +7278,12 @@ async def comment_handler(message: Message) -> None:
     if user_id not in waiting_for_comment:
         return
 
+    await _save_shift_comment(message, user_id, message.text or "")
+
+
+async def _save_shift_comment(message: Message, user_id: int, comment: str) -> None:
     data = await load_data()
     restaurant = restaurant_label_for_log(data, user_id)
-    comment = message.text
     rest_chat = user_linked_chat.get(user_id)
     org_id = org_id_for_restaurant_chat(data, rest_chat)
     problem_code = user_last_problem_code.get(user_id) or user_pending_problem.get(
@@ -7429,6 +7306,49 @@ async def comment_handler(message: Message) -> None:
     waiting_for_comment.discard(user_id)
     finish_private_flow(user_id)
     await answer_private_flow_end(message, user_id, "Спасибо за честную обратную связь ❤️")
+
+
+@dp.message(F.voice | F.audio | F.video_note, F.chat.type == "private")
+async def private_voice_comment(message: Message) -> None:
+    user_id = message.from_user.id
+    if user_id not in waiting_for_comment:
+        return
+    file_id = None
+    filename = "voice.ogg"
+    if message.voice:
+        file_id = message.voice.file_id
+        filename = "voice.ogg"
+    elif message.audio:
+        file_id = message.audio.file_id
+        filename = message.audio.file_name or "audio.mp3"
+    elif message.video_note:
+        file_id = message.video_note.file_id
+        filename = "video_note.mp4"
+    if not file_id:
+        return
+    await message.answer("🎧 Расшифровываю…")
+    try:
+        f = await bot.get_file(file_id)
+        buf = await bot.download_file(f.file_path)
+        raw = buf.read()
+    except Exception as e:
+        print(f"[voice-download] {e}")
+        await message.answer("Не удалось скачать голосовое. Напишите текстом или попробуйте ещё раз.")
+        return
+    text = await ai_advisor.transcribe_voice(raw, filename=filename)
+    if not text:
+        if ai_advisor._client_or_none() is None:
+            await message.answer(
+                "Голос пока не расшифровывается: нужен OPENAI_API_KEY. "
+                "Напишите текстом или нажмите «Пропустить»."
+            )
+        else:
+            await message.answer(
+                "Не разобрал голосовое. Напишите текстом или нажмите «Пропустить»."
+            )
+        return
+    await message.answer(f"Распознали:\n<i>{escape(text)}</i>", parse_mode="HTML")
+    await _save_shift_comment(message, user_id, text)
 
 
 async def main() -> None:

@@ -157,13 +157,12 @@ namespace Pulse.IikoShiftSurvey
             root.Children.Add(new TextBlock { Text = "Что мешало работать", FontSize = 18, Margin = new Thickness(0, 16, 0, 8) });
             foreach (var pair in new[]
                      {
-                         ("kitchen", "Кухня / отдача"),
-                         ("staff", "Нехватка людей"),
-                         ("management", "Организация смены"),
-                         ("conflict", "Конфликт / напряжение"),
-                         ("stress", "Нагрузка"),
+                         ("team", "Команда"),
+                         ("kitchen", "Кухня"),
                          ("guests", "Гости"),
-                         ("ok", "Ничего не мешало")
+                         ("processes", "Процессы"),
+                         ("self", "Моё состояние"),
+                         ("ok", "Нигде — всё прошло хорошо")
                      })
             {
                 var code = pair.Item1;
