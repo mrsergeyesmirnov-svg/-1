@@ -1,4 +1,4 @@
-"""AI mentor: trends for all themes, growth footer, charged keyboard."""
+"""AI mentor: trends, learn-more button, no spiral footer in advice."""
 from __future__ import annotations
 
 import asyncio
@@ -10,11 +10,44 @@ import report_pulse as rp
 import shift_survey
 
 
-def test_growth_footer_spiral():
-    text = a.append_growth_footer("Дорогой управляющий, тест.", theme_code="team")
-    assert "Спиральная динамика" in text
-    assert "https://" in text
-    assert "перейдите и почитайте" in text.lower() or "почитайте" in text
+def test_strip_links_and_no_spiral_in_advice_body():
+    raw = (
+        "Дорогой управляющий, тест.\n\n"
+        "Подробнее изучить тему «Спиральная динамика» можно здесь: "
+        "https://ru.wikipedia.org/wiki/x\n"
+        "Если хотите расти как управляющий — перейдите и почитайте."
+    )
+    clean = a.strip_links_from_advice(raw)
+    assert "https://" not in clean
+    assert "Спиральная динамика" not in clean
+    assert "Дорогой управляющий" in clean
+
+
+def test_fallback_learn_more_varies_by_theme():
+    kitchen = a.fallback_learn_more("kitchen")
+    assert kitchen.title
+    assert kitchen.reference
+    assert "Спиральная" not in kitchen.title  # кухня ≠ spiral по умолчанию
+    self_lm = a.fallback_learn_more("self")
+    assert self_lm.kind in ("book", "article", "wiki")
+
+
+def test_learn_more_store_and_format():
+    learn = a.LearnMore(
+        kind="book",
+        title="Цель",
+        blurb="Про узкие места на отдаче.",
+        reference="Элияху Голдратт — «Цель»",
+    )
+    token = a.store_learn_more(learn)
+    got = a.get_learn_more(token)
+    assert got is not None
+    assert got.title == "Цель"
+    html = a.format_learn_more_html(learn)
+    assert "Книга" in html
+    assert "Цель" in html
+    kb = a.learn_more_teaser_keyboard(token)
+    assert kb.inline_keyboard[0][0].callback_data == f"ai:lm:{token}"
 
 
 def test_trend_to_alert():
@@ -100,7 +133,7 @@ def test_button_trends_without_openai():
     assert trends[0]["count_estimate"] >= 3
 
 
-def test_template_advice_both_sides():
+def test_template_advice_no_footer_links():
     alert = a.trend_to_alert(
         {
             "theme_code": "guests",
@@ -113,8 +146,8 @@ def test_template_advice_both_sides():
     )
     text = a.template_mentor_advice(alert, restaurant_title="Тест")
     assert "Рост обеих сторон" in text
-    assert "тет-а-тет" in text.lower() or "Тет-а-тет" in text or "спросите" in text.lower()
-    assert "Спиральная" in text or "https://" in text
+    assert "https://" not in text
+    assert "Спиральная" not in text
 
 
 def test_build_advice_requires_openai():
@@ -131,8 +164,14 @@ def test_build_advice_requires_openai():
     text = asyncio.get_event_loop().run_until_complete(
         a.build_advice(alert, restaurant_title="Точка А")
     )
-    # Без ключа советов-шаблонов нет — только OpenAI
     assert text is None
+
+
+def test_format_advice_pack():
+    pack = a.AdvicePack(text="Дорогой управляющий, привет.", learn=None)
+    html = a.format_advice_html(pack)
+    assert "AI-наставник" in html
+    assert "https://" not in html
 
 
 def test_charged_blocker_keyboard_no_ok():
