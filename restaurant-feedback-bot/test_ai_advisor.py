@@ -136,26 +136,23 @@ def test_button_trends_without_openai():
 def test_template_advice_report_format():
     alert = a.trend_to_alert(
         {
-            "theme_code": "guests",
-            "title": "Гости давят",
+            "theme_code": "kitchen",
+            "title": "Отдача тормозит",
             "count_estimate": 3,
-            "evidence": ["сложный гость", "скандал"],
-            "future_risk": "выгорание",
-            "first_action": "сценарий подхвата",
+            "evidence": ["долго ждали", "кухня не успевала"],
+            "future_risk": "гости уйдут",
+            "first_action": "разобрать пик с шефом",
         }
     )
     text = a.template_mentor_advice(alert, restaurant_title="Тест")
     assert "Отчёт наставника" in text
-    assert "👉" in text or "Сделайте" in text
-    assert "Смысл разговора" in text
-    # без нравоучений управу
-    assert "наорать" not in text.lower()
-    assert "не ори" not in text.lower()
-    assert "запрет" not in text.lower()
+    assert "Что повторяется" in text
+    assert "Цена бездействия" in text
+    assert "Рабочая инструкция" in text
+    # кухня — без обязательного блока вопросов
+    assert "Если нужен разговор" not in text
+    assert "тет-а-тет" not in text.lower()
     assert "https://" not in text
-    html = a.format_advice_html(text)
-    assert "<b>" in html
-    assert "&lt;b&gt;" not in html
 
 
 def test_filter_events_keeps_theme_boundary():
@@ -191,20 +188,38 @@ def test_render_advice_report_has_cta():
         {
             "signal": "Повтор по команде",
             "quotes": ["давят на смене"],
-            "risk": "уйдут люди",
-            "tone": "без крика, один на один",
-            "actions": ["сегодня тет-а-тет"],
+            "risk": "уйдут люди, сигнал пропадёт",
+            "playbook": [
+                "сегодня разберите один конфликтный узел",
+                "каждый день держите тему на планёрке",
+            ],
             "questions": ["Как ты себя чувствуешь?"],
-            "cta": "Сегодня один спокойный разговор",
-            "close": "растите вместе",
+            "cta": "Сегодня один конкретный шаг и кто держит контроль",
         },
         restaurant_title="Моджо",
         theme_code="team",
     )
     assert "Моджо" in html
-    assert "команда" in html.lower() or "Команда" in html or "team" in html.lower() or "Тема" in html or "тема" in html
+    assert "Рабочая инструкция" in html
+    assert "Цена бездействия" in html
     assert "Сделайте в ближайшие 24 часа" in html
-    assert "Сегодня один спокойный разговор" in html
+    assert "Если нужен разговор" in html
+
+
+def test_kitchen_template_skips_questions():
+    alert = ma.ManagerAlert(
+        kind="comment_trend",
+        code="kitchen",
+        title="Кухня",
+        body_lines=["отдача"],
+        recommendation="Разберите пик с шефом",
+        comments=["завал на раздаче"],
+        priority=1,
+        problem_key="kitchen",
+    )
+    data = a.template_report_data(alert, restaurant_title="A")
+    assert data["questions"] == []
+    assert len(data["playbook"]) >= 3
 
 
 def test_build_advice_requires_openai():
