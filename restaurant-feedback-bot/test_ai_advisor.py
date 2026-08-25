@@ -147,12 +147,15 @@ def test_template_advice_report_format():
     text = a.template_mentor_advice(alert, restaurant_title="Тест")
     assert "Отчёт наставника" in text
     assert "👉" in text or "Сделайте" in text
-    assert "Как говорить" in text
-    assert "наорать" in text.lower() or "крик" in text.lower() or "голоса" in text
+    assert "Смысл разговора" in text
+    # без нравоучений управу
+    assert "наорать" not in text.lower()
+    assert "не ори" not in text.lower()
+    assert "запрет" not in text.lower()
     assert "https://" not in text
     html = a.format_advice_html(text)
     assert "<b>" in html
-    assert "&lt;b&gt;" not in html  # не двойное экранирование
+    assert "&lt;b&gt;" not in html
 
 
 def test_filter_events_keeps_theme_boundary():
