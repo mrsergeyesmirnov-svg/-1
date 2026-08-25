@@ -133,7 +133,7 @@ def test_button_trends_without_openai():
     assert trends[0]["count_estimate"] >= 3
 
 
-def test_template_advice_no_footer_links():
+def test_template_advice_report_format():
     alert = a.trend_to_alert(
         {
             "theme_code": "guests",
@@ -145,9 +145,63 @@ def test_template_advice_no_footer_links():
         }
     )
     text = a.template_mentor_advice(alert, restaurant_title="Тест")
-    assert "Рост обеих сторон" in text
+    assert "Отчёт наставника" in text
+    assert "👉" in text or "Сделайте" in text
+    assert "Как говорить" in text
+    assert "наорать" in text.lower() or "крик" in text.lower() or "голоса" in text
     assert "https://" not in text
-    assert "Спиральная" not in text
+    html = a.format_advice_html(text)
+    assert "<b>" in html
+    assert "&lt;b&gt;" not in html  # не двойное экранирование
+
+
+def test_filter_events_keeps_theme_boundary():
+    now = datetime.now(timezone.utc)
+    events = [
+        rp.EventRow(now, rp.EVENT_PROBLEM, None, "team", None, 1, "x"),
+        rp.EventRow(now, rp.EVENT_PROBLEM, None, "kitchen", None, 1, "x"),
+        rp.EventRow(
+            now, rp.EVENT_COMMENT, None, "team", "коллега орёт и давит", 1, "x"
+        ),
+        rp.EventRow(
+            now, rp.EVENT_COMMENT, None, "kitchen", "кухня не успевает на отдаче", 1, "x"
+        ),
+        rp.EventRow(
+            now, rp.EVENT_COMMENT, None, None, "гость устроил скандал", 1, "x"
+        ),
+    ]
+    scoped = a.filter_events_for_theme(events, "team")
+    codes = {
+        (e.problem_code or "")
+        for e in scoped
+        if e.event_type == rp.EVENT_PROBLEM
+    }
+    assert "team" in codes
+    assert "kitchen" not in codes
+    comments = a.extract_comments(scoped)
+    assert any("орёт" in c or "давит" in c for c in comments)
+    assert not any("отдаче" in c for c in comments)
+
+
+def test_render_advice_report_has_cta():
+    html = a.render_advice_report(
+        {
+            "signal": "Повтор по команде",
+            "quotes": ["давят на смене"],
+            "risk": "уйдут люди",
+            "tone": "без крика, один на один",
+            "actions": ["сегодня тет-а-тет"],
+            "questions": ["Как ты себя чувствуешь?"],
+            "cta": "Сегодня один спокойный разговор",
+            "close": "растите вместе",
+        },
+        restaurant_title="Моджо",
+        theme_code="team",
+    )
+    assert "Моджо" in html
+    assert "команда" in html.lower() or "Команда" in html or "team" in html.lower() or "Тема" in html or "тема" in html
+    assert "Сделайте в ближайшие 24 часа" in html
+    assert "Сегодня один спокойный разговор" in html
 
 
 def test_build_advice_requires_openai():
@@ -170,7 +224,7 @@ def test_build_advice_requires_openai():
 def test_format_advice_pack():
     pack = a.AdvicePack(text="Дорогой управляющий, привет.", learn=None)
     html = a.format_advice_html(pack)
-    assert "AI-наставник" in html
+    assert "Отчёт наставника" in html
     assert "https://" not in html
 
 

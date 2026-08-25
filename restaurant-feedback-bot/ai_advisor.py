@@ -431,25 +431,31 @@ LEARN_CATALOG: dict[str, list[dict[str, str]]] = {
 
 SYSTEM_PROMPT = """\
 Ты — ментальный наставник управляющего ресторана. Цель — рост управляющего\
- и команды вместе, не «накричать на смену».
+ и линии вместе. НЕ «накричать на смену».
 
-Данные анонимны. Ты ОБЯЗАН опираться на реальные комментарии и отметки персонала\
- из контекста: читай их, находи повторы и корреляции по темам (команда, кухня,\
- гости, процессы, состояние). Не выдавай общие шаблоны — советы должны следовать\
- из того, что написала линия.
+Данные анонимны. Опирайся ТОЛЬКО на отзывы и отметки по ЗАДАННОЙ теме.\
+ Не уходи в другие темы (если тема «команда» — не пиши про кухню и наоборот).
 
-Структура ответа живыми абзацами на русском:
-1. «Дорогой управляющий…» — что заметил в комментариях/отметках (тенденция),\
- со ссылкой на суть цитат без имён.
-2. К чему приведёт за 2–4 недели, если не трогать.
-3. 2–3 конкретных действия (первое — сегодня), чтобы выросли обе стороны\
- (управ и линия). Не «поговорите» — что именно сделать.
-4. 3–4 вопроса для тет-а-тет («Как ты…», «Что, по-твоему…») — не допрос.
-5. Короткая фраза поддержки роста.
+Верни ТОЛЬКО JSON без markdown:
+{
+  "signal": "1-2 предложения: что повторяется в отзывах по ЭТОЙ теме",
+  "quotes": ["короткая цитата1", "цитата2"],
+  "risk": "к чему приведёт за 2-4 недели, если не трогать",
+  "tone": "как говорить с людьми: тон, поза, чего НЕ делать (запрет крика/публичного суда)",
+  "actions": ["действие сегодня", "действие на планёрке", "проверка через 3-5 дней"],
+  "questions": ["вопрос1", "вопрос2", "вопрос3"],
+  "cta": "одна фраза-призыв: что сделать в ближайшие 24 часа",
+  "close": "короткая поддержка роста обеих сторон"
+}
 
-350–500 слов. Без markdown и маркеров. Не выдумывай цитаты, которых нет в данных.\
-Не вставляй ссылки, URL, названия книг и «почитайте spiral/wiki» — материал для\
- углубления уйдёт отдельным сообщением с кнопкой.\
+Правила тет-а-тет (критично):
+- Вопросы — НЕ допрос и НЕ повод «вызвать и наорать».
+- В tone явно напиши: сначала безопасность и слушание, потом вопросы;\
+ запрещено повышать голос, публично разбирать людей, искать виноватого.
+- Цель разговора: человек сам покопался, вы оба выросли; не «задать вопросы и надавить».
+
+actions — конкретные шаги, не «поговорите». quotes — только из данных, не выдумывай.\
+ Без URL и названий книг. Русский язык.\
 """
 
 LEARN_MORE_PROMPT = """\
@@ -634,6 +640,88 @@ def extract_comments(
     return out
 
 
+def theme_keys(theme_code: str | None) -> tuple[str, ...]:
+    if not theme_code:
+        return ()
+    for cl in KEYWORD_CLUSTERS:
+        if cl["theme_code"] == theme_code:
+            return tuple(cl.get("keys") or ())
+    # близкие коды
+    aliases = {
+        "staff": "team",
+        "conflict": "team",
+        "management": "processes",
+        "stress": "self",
+    }
+    mapped = aliases.get(theme_code)
+    if mapped:
+        return theme_keys(mapped)
+    return ()
+
+
+def comment_matches_theme(text: str, theme_code: str | None, *, problem_key: str | None = None) -> bool:
+    if not text:
+        return False
+    low = text.casefold()
+    if problem_key and problem_key.casefold() in low:
+        return True
+    keys = theme_keys(theme_code)
+    if not keys:
+        return False
+    return any(k in low for k in keys)
+
+
+def filter_events_for_theme(
+    events: list[report_pulse.EventRow],
+    theme_code: str | None,
+    *,
+    problem_key: str | None = None,
+) -> list[report_pulse.EventRow]:
+    """Оставить только события выбранной темы — чтобы совет не «уплыл» на кухню."""
+    if not theme_code and not problem_key:
+        return list(events)
+    codes = {c for c in (theme_code, problem_key) if c}
+    # синонимы кнопок
+    if theme_code == "team":
+        codes |= {"staff", "conflict"}
+    elif theme_code == "processes":
+        codes |= {"management"}
+    elif theme_code == "self":
+        codes |= {"stress"}
+    out: list[report_pulse.EventRow] = []
+    for e in events:
+        if e.event_type == report_pulse.EVENT_PROBLEM and (e.problem_code or "") in codes:
+            out.append(e)
+            continue
+        if e.event_type == report_pulse.EVENT_COMMENT:
+            linked = (e.problem_code or "").strip()
+            if linked and linked in codes:
+                out.append(e)
+                continue
+            if comment_matches_theme(
+                e.comment_text or "", theme_code, problem_key=problem_key
+            ):
+                out.append(e)
+    return out
+
+
+def extract_comments_for_theme(
+    events: list[report_pulse.EventRow],
+    theme_code: str | None,
+    *,
+    problem_key: str | None = None,
+    limit: int = MAX_COMMENTS_IN_PROMPT,
+) -> list[str]:
+    scoped = filter_events_for_theme(events, theme_code, problem_key=problem_key)
+    return extract_comments(scoped, limit=limit)
+
+
+def theme_label(code: str | None) -> str:
+    if not code:
+        return "общая тема"
+    return PROBLEM_RU.get(code, code)
+
+
 def extract_problem_summary(events: list[report_pulse.EventRow]) -> str:
     c: Counter[str] = Counter()
     for e in events:
@@ -777,12 +865,94 @@ def _both_sides_for(code: str | None) -> str:
     )
 
 
-def template_mentor_advice(
-    alert: ma.ManagerAlert, *, restaurant_title: str
+def parse_advice_json(raw: str) -> dict[str, Any] | None:
+    text = (raw or "").strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    try:
+        data = json.loads(text)
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def render_advice_report(
+    data: dict[str, Any],
+    *,
+    restaurant_title: str,
+    theme_code: str | None,
+    problem_title: str | None = None,
 ) -> str:
-    theme = alert.title or "повторяющаяся тема"
-    body = re.sub(r"<[^>]+>", "", " ".join(alert.body_lines)).strip()
-    quotes = "\n".join(f"«{c}»" for c in (alert.comments or [])[:3])
+    """Telegram HTML-отчёт по отзывам: блоки, эмодзи, CTA."""
+    theme = problem_title or theme_label(theme_code)
+    signal = str(data.get("signal") or "").strip()
+    risk = str(data.get("risk") or "").strip()
+    tone = str(data.get("tone") or "").strip()
+    cta = str(data.get("cta") or "").strip()
+    close = str(data.get("close") or "").strip()
+    quotes = data.get("quotes") or []
+    actions = data.get("actions") or []
+    questions = data.get("questions") or []
+    if not isinstance(quotes, list):
+        quotes = []
+    if not isinstance(actions, list):
+        actions = []
+    if not isinstance(questions, list):
+        questions = []
+
+    lines = [
+        "🤖 <b>Отчёт наставника</b>",
+        f"📍 {escape(restaurant_title)} · тема: <b>{escape(theme)}</b>",
+        "",
+    ]
+    if signal:
+        lines.append("🔎 <b>Что повторяется</b>")
+        lines.append(escape(signal))
+        lines.append("")
+    if quotes:
+        lines.append("💬 <b>Голос смены</b> <i>(анонимно)</i>")
+        for q in quotes[:4]:
+            q = str(q).strip()
+            if q:
+                lines.append(f"• «{escape(q)}»")
+        lines.append("")
+    if risk:
+        lines.append("⚠️ <b>Если не трогать</b>")
+        lines.append(escape(risk))
+        lines.append("")
+    if tone:
+        lines.append("🧭 <b>Как говорить</b>")
+        lines.append(escape(tone))
+        lines.append(
+            "<i>Тет-а-тет ≠ допрос и ≠ повод наорать. Сначала безопасность, потом вопросы.</i>"
+        )
+        lines.append("")
+    if actions:
+        lines.append("✅ <b>Что сделать</b>")
+        for i, a in enumerate(actions[:4], 1):
+            a = str(a).strip()
+            if a:
+                lines.append(f"{i}. {escape(a)}")
+        lines.append("")
+    if questions:
+        lines.append("🗣 <b>Вопросы тет-а-тет</b> <i>(спокойно, один на один)</i>")
+        for q in questions[:4]:
+            q = str(q).strip()
+            if q:
+                lines.append(f"• «{escape(q)}»")
+        lines.append("")
+    if cta:
+        lines.append("👉 <b>Сделайте в ближайшие 24 часа</b>")
+        lines.append(f"<b>{escape(cta)}</b>")
+        lines.append("")
+    if close:
+        lines.append(escape(close))
+    return "\n".join(lines).strip()
+
+
+def template_report_data(
+    alert: ma.ManagerAlert, *, restaurant_title: str
+) -> dict[str, Any]:
     code = alert.code or ""
     cluster_q = ()
     for cl in KEYWORD_CLUSTERS:
@@ -796,30 +966,39 @@ def template_mentor_advice(
             "Есть ли что-то, о чём сложно сказать на планёрке?",
             "Что помогло бы тебе работать легче уже завтра?",
         )
-    both = _both_sides_for(code)
-    text = (
-        f"Дорогой управляющий,\n\n"
-        f"На точке «{restaurant_title}» появилась тенденция: {theme}. {body}\n\n"
+    body = re.sub(r"<[^>]+>", "", " ".join(alert.body_lines)).strip()
+    return {
+        "signal": f"{alert.title or 'Повтор в отзывах'}. {body}"[:400],
+        "quotes": list(alert.comments or [])[:3],
+        "risk": (
+            "Линия устанет молчать, сервис просядет, а вам придётся тушить "
+            "последствия вместо роста."
+        ),
+        "tone": (
+            "Один на один, спокойно, без публичного суда и без повышения голоса. "
+            "Сначала скажите, что хотите понять систему, а не найти виноватого. "
+            "Задать вопросы и наорать — провал: человек закроется, сигнал пропадёт."
+        ),
+        "actions": [
+            alert.recommendation,
+            "На планёрке без имён: «линия сигналит про это — найдём дыру в системе».",
+            "Через 3–5 дней проверьте: стало ли меньше тех же кнопок/фраз.",
+        ],
+        "questions": list(cluster_q)[:4],
+        "cta": "Сегодня проведите один спокойный тет-а-тет без крика и публичного разбора.",
+        "close": _both_sides_for(code),
+    }
+
+
+def template_mentor_advice(
+    alert: ma.ManagerAlert, *, restaurant_title: str
+) -> str:
+    return render_advice_report(
+        template_report_data(alert, restaurant_title=restaurant_title),
+        restaurant_title=restaurant_title,
+        theme_code=alert.code,
+        problem_title=alert.title,
     )
-    if quotes:
-        text += f"Что пишут на смене (анонимно):\n{quotes}\n\n"
-    text += (
-        f"Если не отреагировать, обе стороны проиграют: линия устанет молчать, "
-        f"а вам придётся тушить последствия вместо роста.\n\n"
-        f"Рост обеих сторон: {both}\n\n"
-        f"Что сделать сегодня (конкретно):\n"
-        f"1) {alert.recommendation}\n"
-        f"2) На планёрке без имён: «линия сигналит про это — давайте найдём дыру в системе».\n"
-        f"3) Через 3–5 дней проверьте: стало ли меньше тех же кнопок/фраз в опросе.\n\n"
-        f"Если будете говорить тет-а-тет, спросите так, чтобы человек сам покопался "
-        f"и вы оба выросли из разговора:\n"
-        f"«{cluster_q[0]}»\n"
-        f"«{cluster_q[1]}»\n"
-        f"«{cluster_q[2]}»\n"
-        f"«{cluster_q[3]}»\n\n"
-        f"Хочу, чтобы вы росли вместе с командой — через ясность и уважение, не через крик."
-    )
-    return text
 
 
 async def build_advice(
@@ -828,50 +1007,80 @@ async def build_advice(
     restaurant_title: str,
     extra_context: str | None = None,
     events: list[report_pulse.EventRow] | None = None,
+    lock_theme: bool = True,
 ) -> AdvicePack | None:
-    """Совет через OpenAI + отдельный материал «Подробнее». Без ключа — None."""
+    """Совет через OpenAI + «Подробнее». lock_theme=True — только выбранная тема."""
     client = _client_or_none()
     if client is None:
         print("[ai-advisor] OPENAI_API_KEY missing — mentor advice skipped")
         return None
-    if events:
-        context = events_to_context(events, title=restaurant_title, alert=alert)
-    else:
-        context = _alert_to_context(alert, title=restaurant_title)
-    comments = extract_comments(events or [])
+
+    theme = alert.code
+    pkey = alert.problem_key or theme
+    scoped_events = list(events or [])
+    if lock_theme and theme and theme not in ("comment_trend", "other", "rating_drop"):
+        scoped_events = filter_events_for_theme(
+            scoped_events, theme, problem_key=pkey
+        )
+
+    comments = extract_comments(scoped_events) if scoped_events else []
     if not comments and alert.comments:
+        # только если цитаты уже привязаны к алерту/теме
         comments = list(alert.comments)
     if not comments and not (alert.body_lines or []):
-        print("[ai-advisor] no comments/context — skip advice")
+        print("[ai-advisor] no comments/context for theme — skip advice")
         return None
+
+    if scoped_events:
+        context = events_to_context(
+            scoped_events, title=restaurant_title, alert=alert
+        )
+    else:
+        context = _alert_to_context(alert, title=restaurant_title)
     if extra_context:
         context += f"\n\nДополнительно:\n{extra_context}"
     context += (
-        "\n\nЗадача: проанализируй именно эти отзывы персонала и дай совет "
-        "управляющему, чтобы выросли обе стороны. Не пиши универсальный шаблон. "
-        "Без ссылок и списка литературы в тексте."
+        f"\n\nЖЁСТКО: тема совета = «{theme_label(theme)}» "
+        f"(code={theme or '-'}). Не пиши про другие темы.\n"
+        "Верни JSON-отчёт по схеме. "
+        "В tone обязательно запрети крик и публичный суд на тет-а-тет."
     )
     try:
         resp = await client.chat.completions.create(
             model=OPENAI_MODEL,
             max_tokens=900,
-            temperature=0.65,
+            temperature=0.55,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": context},
             ],
         )
-        text = strip_links_from_advice(
-            (resp.choices[0].message.content or "").strip()
-        )
-        if not text:
-            print("[ai-advisor] empty OpenAI response")
-            return None
+        raw = (resp.choices[0].message.content or "").strip()
+        parsed = parse_advice_json(raw)
+        if parsed:
+            text = render_advice_report(
+                parsed,
+                restaurant_title=restaurant_title,
+                theme_code=theme,
+                problem_title=alert.title,
+            )
+        else:
+            # fallback: очистить сплошной текст и обернуть минимально
+            clean = strip_links_from_advice(raw)
+            if not clean:
+                print("[ai-advisor] empty OpenAI response")
+                return None
+            text = (
+                f"🤖 <b>Отчёт наставника</b>\n"
+                f"📍 {escape(restaurant_title)} · тема: "
+                f"<b>{escape(theme_label(theme))}</b>\n\n"
+                f"{escape(clean)}"
+            )
         learn = await pick_learn_more(
             theme_code=alert.code,
             restaurant_title=restaurant_title,
             alert=alert,
-            advice_text=text,
+            advice_text=re.sub(r"<[^>]+>", "", text),
             comments=comments,
         )
         return AdvicePack(text=text, learn=learn, theme_code=alert.code)
@@ -1114,9 +1323,19 @@ async def mentor_pack_for_events(
 
 
 def format_advice_html(advice: AdvicePack | str) -> str:
+    """Текст уже в HTML (отчёт) — не экранируем повторно."""
     text = advice.text if isinstance(advice, AdvicePack) else advice
+    text = (text or "").strip()
+    if not text:
+        return "🤖 <b>Отчёт наставника</b>"
+    # Уже готовый отчёт с разметкой
+    if "<b>" in text or "<i>" in text:
+        if "Отчёт наставника" not in text and "AI-наставник" not in text:
+            return "🤖 <b>Отчёт наставника</b>\n\n" + text
+        return text
+    # Plain text fallback
     lines = [line for line in text.split("\n") if line.strip()]
-    out = ["🤖 <b>AI-наставник</b>\n"]
+    out = ["🤖 <b>Отчёт наставника</b>\n"]
     for ln in lines:
         out.append(escape(ln))
     return "\n".join(out)
