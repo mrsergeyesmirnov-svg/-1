@@ -1092,7 +1092,7 @@ async def _send_advisor_for_problem(
     prob: problems_pulse.ProblemRow,
     uid: int,
 ) -> None:
-    """OpenAI-совет по конкретной горящей теме (кнопка на карточке)."""
+    """OpenAI-совет строго по выбранной горящей теме (не по «последней»)."""
     chat_id = prob.restaurant_chat_id
     rec = chat_record(data, chat_id) or {}
     title = str(rec.get("title") or chat_id)
@@ -1107,41 +1107,41 @@ async def _send_advisor_for_problem(
         [chat_id], now - window, now, jsonl_path=FEEDBACK_LOG_PATH
     )
     theme = _theme_code_from_problem_key(prob.problem_key)
-    comments = []
-    for e in cur_events:
-        if e.event_type != report_pulse.EVENT_COMMENT:
-            continue
-        text = (e.comment_text or "").strip()
-        if not text:
-            continue
-        linked = (e.problem_code or "").strip()
-        if linked and linked in (theme, prob.problem_key):
-            comments.append(text[:180])
-        elif theme in text.casefold() or any(
-            k in text.casefold()
-            for cl in ai_advisor.KEYWORD_CLUSTERS
-            if cl["theme_code"] == theme
-            for k in cl["keys"][:6]
-        ):
-            comments.append(text[:180])
-        if len(comments) >= 6:
-            break
-    if not comments:
-        comments = ai_advisor.extract_comments(cur_events)[:5]
+    # Только события этой темы — иначе совет «уплывает» на кухню и т.п.
+    scoped = ai_advisor.filter_events_for_theme(
+        cur_events, theme, problem_key=prob.problem_key
+    )
+    comments = ai_advisor.extract_comments(scoped, limit=8)
+    # Если текстовых цитат нет — опираемся на отметки кнопки этой темы
+    button_n = sum(
+        1
+        for e in scoped
+        if e.event_type == report_pulse.EVENT_PROBLEM
+        and (e.problem_code or "") in {theme, prob.problem_key}
+    )
+    if not comments and button_n <= 0 and prob.mentions_count <= 0:
+        await target_message.answer(
+            f"По теме «{escape(prob.title)}» пока мало отзывов для разбора.\n"
+            "Когда линия отметит эту кнопку или напишет комментарий — "
+            "наставник разберёт именно её.",
+            parse_mode="HTML",
+        )
+        return
     alert = manager_alerts.ManagerAlert(
         kind="comment_trend",
         code=theme if theme in ai_advisor.PROBLEM_RU else "comment_trend",
-        title=f"Совет по горящему вопросу: {prob.title}",
+        title=prob.title,
         body_lines=[
-            f"Тема в «Горящих»: <b>{escape(prob.title)}</b>.",
-            f"Отметок: <b>{prob.mentions_count}</b>.",
+            f"Выбрана тема «Горящих»: <b>{escape(prob.title)}</b>.",
+            f"Отметок по теме: <b>{max(prob.mentions_count, button_n)}</b>.",
+            "Разбирай ТОЛЬКО эту тему, не соседние.",
         ],
         recommendation=manager_alerts.RECOMMENDATIONS.get(
             theme, manager_alerts.RECOMMENDATIONS["rating_drop"]
         ),
         comments=comments[:4],
         priority=1,
-        problem_key=theme,
+        problem_key=theme or prob.problem_key,
     )
     if ai_advisor._client_or_none() is None:
         await target_message.answer(
@@ -1150,10 +1150,15 @@ async def _send_advisor_for_problem(
             parse_mode="HTML",
         )
         return
-    wait = await target_message.answer("🤖 Наставник читает отзывы…")
+    wait = await target_message.answer(
+        f"🤖 Наставник разбирает тему «{escape(prob.title)}»…"
+    )
     try:
         advice = await ai_advisor.build_advice(
-            alert, restaurant_title=title, events=cur_events
+            alert,
+            restaurant_title=title,
+            events=scoped,  # не все события точки
+            lock_theme=True,
         )
     except Exception as e:
         print(f"[pr-advisor] uid={uid} pid={prob.id}: {e}")
@@ -1164,7 +1169,8 @@ async def _send_advisor_for_problem(
         pass
     if not advice:
         await target_message.answer(
-            "Не удалось получить совет. Проверьте ключ OpenAI и логи Railway."
+            "Не удалось получить совет по этой теме. "
+            "Проверьте ключ OpenAI и логи Railway."
         )
         return
     await target_message.answer(
@@ -1360,12 +1366,23 @@ async def _run_manager_alerts_for_chat(
                 f"[manager-alerts] chat={cid}: sent kind={alert.kind} "
                 f"code={alert.code} to {len(managers)} mgr"
             )
-            # AI-наставник: анализ реальных комментариев через OpenAI
+            # AI-наставник: строго по теме алерта
             try:
+                scoped = cur_events
+                if alert.code and alert.code not in (
+                    "comment_trend",
+                    "other",
+                    "rating_drop",
+                    "improved",
+                ):
+                    scoped = ai_advisor.filter_events_for_theme(
+                        cur_events, alert.code, problem_key=alert.problem_key
+                    ) or cur_events
                 advice = await ai_advisor.build_advice(
                     alert,
                     restaurant_title=title,
-                    events=cur_events,
+                    events=scoped,
+                    lock_theme=True,
                 )
                 if advice:
                     for mid in managers:
@@ -1509,11 +1526,19 @@ async def _run_comment_trend_mentor(
         except Exception as e:
             print(f"[ai-comment-trend] mid={mid}: {e}")
 
-    # Совет — только анализ OpenAI по комментариям, без шаблонов
+    # Совет — OpenAI только по теме тренда
     advice = None
     try:
+        scoped = cur_events
+        if alert.code and alert.code not in ("comment_trend", "other"):
+            scoped = ai_advisor.filter_events_for_theme(
+                cur_events, alert.code, problem_key=alert.problem_key
+            ) or cur_events
         advice = await ai_advisor.build_advice(
-            alert, restaurant_title=title, events=cur_events
+            alert,
+            restaurant_title=title,
+            events=scoped,
+            lock_theme=True,
         )
     except Exception as e:
         print(f"[ai-comment-trend] build_advice {cid}: {e}")
