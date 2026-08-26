@@ -22,6 +22,7 @@ from aiogram.types import (
     InlineKeyboardButton,
     CallbackQuery,
     ChatMemberUpdated,
+    FSInputFile,
 )
 
 try:
@@ -48,6 +49,7 @@ import onboarding_reels
 import reminders_ui
 import iiko_bridge
 import ai_advisor
+import ai_auditor
 import shift_survey
 
 # На Railway без Volume файлы в контейнере теряются при redeploy.
@@ -171,7 +173,22 @@ def is_global_admin(user_id: int) -> bool:
 
 def _manager_menu_markup(uid: int):
     ga = is_global_admin(uid)
-    return pulse_model.manager_menu_reply_markup(show_inbox=ga, show_commands=ga)
+    show_ai_audit = ga
+    happiness_only = False
+    try:
+        if DATA_PATH.exists():
+            data = json.loads(DATA_PATH.read_text(encoding="utf-8"))
+            if not ga:
+                happiness_only = pulse_model.is_happiness_manager_only(data, uid)
+            show_ai_audit = ga or pulse_model.has_ai_auditor_access(data, uid)
+    except Exception:
+        pass
+    return pulse_model.manager_menu_reply_markup(
+        show_inbox=ga,
+        show_commands=ga,
+        show_ai_audit=show_ai_audit,
+        happiness_only=happiness_only,
+    )
 
 
 def _chat_managers_only(data: dict, chat_id: int) -> set[int]:
@@ -476,10 +493,14 @@ waiting_reminder_custom: dict[int, dict] = {}  # uid -> {chat_id, slot}
 
 async def _staff_assign_more_markup(uid: int):
     data = await load_data()
-    show = staff_assign.can_manage_staff(
-        data, uid, is_global_admin=is_global_admin(uid)
+    ga = is_global_admin(uid)
+    happiness_only = (not ga) and pulse_model.is_happiness_manager_only(data, uid)
+    show = (not happiness_only) and staff_assign.can_manage_staff(
+        data, uid, is_global_admin=ga
     )
-    return pulse_model.manager_menu_more_markup(show_staff_assign=show)
+    return pulse_model.manager_menu_more_markup(
+        show_staff_assign=show, happiness_only=happiness_only
+    )
 
 
 async def _show_staff_remove_menu(message: Message, uid: int) -> None:
@@ -1897,6 +1918,248 @@ async def _ops_pick_chat_or_ask(
     return None
 
 
+async def _user_can_ai_audit(uid: int, data: dict | None = None) -> bool:
+    if is_global_admin(uid):
+        return True
+    data = data if data is not None else await load_data()
+    return pulse_model.has_ai_auditor_access(data, uid)
+
+
+def _audit_locations_keyboard(scope: list[tuple[str, str]]) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for cid, title in scope[:25]:
+        short = title[:40] + ("…" if len(title) > 40 else "")
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"📍 {short}",
+                    callback_data=f"audit:pick:{cid}"[:64],
+                )
+            ]
+        )
+    rows.append(
+        [InlineKeyboardButton(text="Отмена", callback_data="audit:cancel")]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+async def _begin_audit_at_chat(message: Message, uid: int, chat_id: int) -> None:
+    data = await load_data()
+    if not await _user_can_ai_audit(uid, data):
+        await message.answer("ИИ-аудит доступен менеджеру по счастью и управляющему сети.")
+        return
+    if not await _manager_can_access_chat(data, uid, chat_id):
+        await message.answer("Нет доступа к этой точке.")
+        return
+    rec = chat_record(data, chat_id) or {}
+    title = str(rec.get("title") or chat_id)
+    ai_auditor.start_session(
+        uid, restaurant_id=str(chat_id), restaurant_title=title
+    )
+    await message.answer(
+        f"<b>🧠 ИИ-аудит</b> · {escape(title)}\n\n"
+        "Пришлите <b>голосовые</b>, <b>аудио</b> или <b>файлы</b> кусками "
+        "(разговор с управляющим / заметки с точки).\n"
+        "Лимит одного файла ~20 МБ — длинное лучше нарезать.\n\n"
+        f"Когда всё собрано — «{pulse_model.BTN_AUDIT_FINISH}».",
+        parse_mode="HTML",
+        reply_markup=pulse_model.audit_session_markup(),
+    )
+
+
+async def _offer_ai_audit(message: Message, uid: int) -> None:
+    data = await load_data()
+    if not await _user_can_ai_audit(uid, data):
+        await message.answer(
+            "ИИ-аудит — для роли «Менеджер по счастью» или управляющего сети.\n"
+            "Назначьте роль: «Подключить доступ» или "
+            "<code>/link_manager ID org_id happiness CHAT_ID</code>.",
+            parse_mode="HTML",
+            reply_markup=_manager_menu_markup(uid),
+        )
+        return
+    scope = await _ops_scope(data, uid)
+    if not scope:
+        await message.answer(
+            "Нет привязанных точек для аудита.",
+            reply_markup=_manager_menu_markup(uid),
+        )
+        return
+    if len(scope) == 1:
+        await _begin_audit_at_chat(message, uid, int(scope[0][0]))
+        return
+    await message.answer(
+        "<b>🧠 ИИ-аудит</b>\n\nВыберите точку:",
+        parse_mode="HTML",
+        reply_markup=_audit_locations_keyboard(scope),
+    )
+
+
+async def _audit_ingest_media(message: Message, uid: int) -> bool:
+    """True если сообщение обработано как часть аудита."""
+    sess = ai_auditor.get_active(uid)
+    if not sess:
+        return False
+    kind = "file"
+    file_id = None
+    file_unique_id = ""
+    filename = "file.bin"
+    mime = ""
+    size = None
+    if message.voice:
+        kind = "voice"
+        file_id = message.voice.file_id
+        file_unique_id = message.voice.file_unique_id or ""
+        filename = "voice.ogg"
+        mime = message.voice.mime_type or "audio/ogg"
+        size = message.voice.file_size
+    elif message.audio:
+        kind = "audio"
+        file_id = message.audio.file_id
+        file_unique_id = message.audio.file_unique_id or ""
+        filename = message.audio.file_name or "audio.mp3"
+        mime = message.audio.mime_type or ""
+        size = message.audio.file_size
+    elif message.video_note:
+        kind = "video_note"
+        file_id = message.video_note.file_id
+        file_unique_id = message.video_note.file_unique_id or ""
+        filename = "video_note.mp4"
+        size = message.video_note.file_size
+    elif message.document:
+        kind = "document"
+        doc = message.document
+        file_id = doc.file_id
+        file_unique_id = doc.file_unique_id or ""
+        filename = doc.file_name or "document.bin"
+        mime = doc.mime_type or ""
+        size = doc.file_size
+    elif message.text and message.text.strip() not in pulse_model.MANAGER_MENU_BUTTONS:
+        # текстовая заметка в сессии
+        text = message.text.strip()
+        if not text:
+            return True
+        store = ai_auditor.load_store()
+        active = store.get("active", {}).get(str(uid))
+        if not isinstance(active, dict):
+            return True
+        chunks = active.setdefault("chunks", [])
+        if len(chunks) >= ai_auditor.MAX_CHUNKS:
+            await message.answer(
+                f"Уже {ai_auditor.MAX_CHUNKS} фрагментов — завершите анализ.",
+                reply_markup=pulse_model.audit_session_markup(),
+            )
+            return True
+        chunks.append(
+            {
+                "kind": "text",
+                "text": text[:8000],
+                "filename": "note.txt",
+                "added_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        store["active"][str(uid)] = active
+        ai_auditor.save_store(store)
+        await message.answer(
+            f"✅ Текстовая заметка #{len(chunks)}. Можно ещё голос/файл или завершить.",
+            reply_markup=pulse_model.audit_session_markup(),
+        )
+        return True
+    else:
+        return False
+    if not file_id:
+        return False
+    sess2, err = ai_auditor.add_chunk(
+        uid,
+        kind=kind,
+        file_id=file_id,
+        file_unique_id=file_unique_id,
+        filename=filename,
+        mime=mime,
+        size=size,
+    )
+    if err and sess2 is None:
+        await message.answer(err)
+        return True
+    if err:
+        await message.answer(err, reply_markup=pulse_model.audit_session_markup())
+        return True
+    n = len((sess2 or {}).get("chunks") or [])
+    await message.answer(
+        f"✅ Фрагмент #{n} принят ({escape(filename)}).\n"
+        "Пришлите ещё или нажмите «Завершить анализ».",
+        parse_mode="HTML",
+        reply_markup=pulse_model.audit_session_markup(),
+    )
+    return True
+
+
+async def _deliver_audit_report(message: Message, uid: int, record: dict) -> None:
+    html = ai_auditor.tg_summary_html(record)
+    pdf_path = Path(str(record.get("pdf_path") or ""))
+    await message.answer(
+        html,
+        parse_mode="HTML",
+        reply_markup=_manager_menu_markup(uid),
+    )
+    if pdf_path.is_file():
+        try:
+            await message.answer_document(
+                FSInputFile(str(pdf_path), filename=f"{record.get('id', 'audit')}.pdf"),
+                caption="PDF · операционное здоровье",
+            )
+        except Exception as e:
+            print(f"[ai-auditor] send pdf to user: {e}")
+            await message.answer("PDF сохранён, но не удалось отправить файл в Telegram.")
+
+    # Всегда копия главному админу
+    title = str(record.get("restaurant_title") or "")
+    for aid in ADMIN_IDS:
+        if aid == uid:
+            continue
+        try:
+            await bot.send_message(
+                aid,
+                f"📬 Аудит от <code>{uid}</code>\n{html}",
+                parse_mode="HTML",
+            )
+            if pdf_path.is_file():
+                await bot.send_document(
+                    aid,
+                    FSInputFile(str(pdf_path), filename=f"{record.get('id', 'audit')}.pdf"),
+                    caption=f"PDF · {title[:60]}",
+                )
+        except Exception as e:
+            print(f"[ai-auditor] notify admin {aid}: {e}")
+
+
+async def _finish_ai_audit(message: Message, uid: int) -> None:
+    sess = ai_auditor.get_active(uid)
+    if not sess:
+        await message.answer(
+            "Нет активной сессии аудита.",
+            reply_markup=_manager_menu_markup(uid),
+        )
+        return
+    await message.answer("⏳ Расшифровка и расчёт индекса здоровья… Это может занять минуту.")
+
+    async def _download(file_id: str) -> bytes:
+        f = await bot.get_file(file_id)
+        buf = await bot.download_file(f.file_path)
+        return buf.read()
+
+    record, err = await ai_auditor.process_session(uid, download_bytes=_download)
+    if err or not record:
+        await message.answer(
+            err or "Не удалось завершить аудит.",
+            reply_markup=pulse_model.audit_session_markup()
+            if ai_auditor.get_active(uid)
+            else _manager_menu_markup(uid),
+        )
+        return
+    await _deliver_audit_report(message, uid, record)
+
+
 async def _post_morning_to_group(
     data: dict, chat_id: int, day: str
 ) -> tuple[str, str | None]:
@@ -2891,6 +3154,16 @@ async def cmd_managers(message: Message) -> None:
                     f"<b>{escape(str(org_name))}</b> (<code>{escape(str(oid))}</code>) · групп: {len(locs)} "
                     f"({escape(sample)}){more}\n"
                 )
+            elif role == pulse_model.ROLE_HAPPINESS_MANAGER:
+                locs = p.get("location_chat_ids") or []
+                sample = ", ".join((locs or [])[:3])
+                more = "" if len(locs) <= 3 else f" (+{len(locs)-3})"
+                lines.append(
+                    f"• <code>{escape(str(mid))}</code> — "
+                    f"{pulse_model.ROLE_LABELS_RU[pulse_model.ROLE_HAPPINESS_MANAGER]} "
+                    f"<b>{escape(str(org_name))}</b> (<code>{escape(str(oid))}</code>) · групп: {len(locs)} "
+                    f"({escape(sample)}){more}\n"
+                )
             else:
                 lines.append(f"• <code>{escape(str(mid))}</code> — org <code>{escape(str(oid))}</code> (role: {escape(str(role))})\n")
 
@@ -2993,12 +3266,14 @@ async def cmd_link_manager(message: Message) -> None:
     # /link_manager USER_ID ORG_ID location CHAT_ID
     # /link_manager USER_ID ORG_ID chef CHAT_ID
     # /link_manager USER_ID ORG_ID senior CHAT_ID
+    # /link_manager USER_ID ORG_ID happiness CHAT_ID
     if len(parts) < 4:
         await message.answer(
             "Формат:\n"
             "<code>/link_manager &lt;telegram_id&gt; &lt;org_id&gt; network</code> — управляющий сети\n"
             "<code>/link_manager &lt;telegram_id&gt; &lt;org_id&gt; location &lt;chat_id&gt;</code> — менеджер точки\n"
             "<code>/link_manager &lt;telegram_id&gt; &lt;org_id&gt; senior &lt;chat_id&gt;</code> — старший менеджер\n"
+            "<code>/link_manager &lt;telegram_id&gt; &lt;org_id&gt; happiness &lt;chat_id&gt;</code> — менеджер по счастью\n"
             "<code>/link_manager &lt;telegram_id&gt; &lt;org_id&gt; chef &lt;chat_id&gt;</code> — шеф\n\n"
             "Узнать id: человек пишет боту <code>/myid</code>.",
             parse_mode="HTML",
@@ -3022,7 +3297,7 @@ async def cmd_link_manager(message: Message) -> None:
         pulse_model.set_manager_binding(
             data, target_uid, org_id, pulse_model.ROLE_NETWORK_ADMIN, None
         )
-    elif mode in ("location", "chef", "senior"):
+    elif mode in ("location", "chef", "senior", "happiness", "happy"):
         if len(parts) < 5:
             await message.answer("Укажите chat_id группы (число, часто отрицательное).")
             return
@@ -3035,26 +3310,29 @@ async def cmd_link_manager(message: Message) -> None:
             role = pulse_model.ROLE_CHEF
         elif mode == "senior":
             role = pulse_model.ROLE_SENIOR_MANAGER
+        elif mode in ("happiness", "happy"):
+            role = pulse_model.ROLE_HAPPINESS_MANAGER
         else:
             role = pulse_model.ROLE_LOCATION_ADMIN
         pulse_model.set_manager_binding(data, target_uid, org_id, role, [loc_cid])
     else:
         await message.answer(
             "Режим: <code>network</code>, <code>location</code>, "
-            "<code>senior</code> или <code>chef</code>.",
+            "<code>senior</code>, <code>happiness</code> или <code>chef</code>.",
             parse_mode="HTML",
         )
         return
     await save_data(data)
-    role_ru = pulse_model.role_label_ru(
-        pulse_model.ROLE_CHEF
-        if mode == "chef"
-        else pulse_model.ROLE_SENIOR_MANAGER
-        if mode == "senior"
-        else pulse_model.ROLE_LOCATION_ADMIN
-        if mode == "location"
-        else pulse_model.ROLE_NETWORK_ADMIN
-    )
+    if mode == "chef":
+        role_ru = pulse_model.role_label_ru(pulse_model.ROLE_CHEF)
+    elif mode == "senior":
+        role_ru = pulse_model.role_label_ru(pulse_model.ROLE_SENIOR_MANAGER)
+    elif mode in ("happiness", "happy"):
+        role_ru = pulse_model.role_label_ru(pulse_model.ROLE_HAPPINESS_MANAGER)
+    elif mode == "location":
+        role_ru = pulse_model.role_label_ru(pulse_model.ROLE_LOCATION_ADMIN)
+    else:
+        role_ru = pulse_model.role_label_ru(pulse_model.ROLE_NETWORK_ADMIN)
     await message.answer(
         f"Готово: <code>{target_uid}</code> → <b>{escape(role_ru)}</b> "
         f"· <code>{escape(org_id)}</code>.",
@@ -4807,6 +5085,48 @@ async def checklist_callback_handler(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+@dp.callback_query(F.data.startswith("audit:"))
+async def audit_callback_handler(callback: CallbackQuery) -> None:
+    if not callback.message or callback.message.chat.type != "private":
+        await callback.answer()
+        return
+    uid = callback.from_user.id
+    data = await load_data()
+    if not await _user_can_ai_audit(uid, data):
+        await callback.answer("Нет доступа.", show_alert=True)
+        return
+    parts = (callback.data or "").split(":")
+    action = parts[1] if len(parts) > 1 else ""
+    if action == "cancel":
+        ai_auditor.cancel_session(uid)
+        await callback.answer("Отменено")
+        try:
+            await callback.message.edit_text("Аудит отменён.")
+        except Exception:
+            pass
+        await callback.message.answer(
+            "Главное меню.", reply_markup=_manager_menu_markup(uid)
+        )
+        return
+    if action == "pick" and len(parts) > 2:
+        try:
+            chat_id = int(parts[2])
+        except ValueError:
+            await callback.answer()
+            return
+        if not await _manager_can_access_chat(data, uid, chat_id):
+            await callback.answer("Нет доступа.", show_alert=True)
+            return
+        await callback.answer()
+        try:
+            await callback.message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await _begin_audit_at_chat(callback.message, uid, chat_id)
+        return
+    await callback.answer()
+
+
 @dp.callback_query(F.data.startswith("sa:"))
 async def staff_assign_callback_handler(callback: CallbackQuery) -> None:
     if not callback.message or callback.message.chat.type != "private":
@@ -6233,6 +6553,8 @@ async def training_staff_button_handler(message: Message) -> None:
 @dp.message(F.document, F.chat.type == "private")
 async def training_document_handler(message: Message) -> None:
     uid = message.from_user.id
+    if await _audit_ingest_media(message, uid):
+        return
     flow = waiting_training_upload.get(uid)
     if not flow:
         return
@@ -6344,7 +6666,27 @@ async def manager_menu_handler(message: Message) -> None:
     waiting_reminder_custom.pop(uid, None)
     me = await bot.get_me()
     ga = is_global_admin(uid)
-    mk_root = pulse_model.manager_menu_root_markup(show_inbox=ga, show_commands=ga)
+    data_menu = await load_data()
+    happiness_only = (not ga) and pulse_model.is_happiness_manager_only(data_menu, uid)
+    show_ai_audit = ga or pulse_model.has_ai_auditor_access(data_menu, uid)
+    mk_root = pulse_model.manager_menu_root_markup(
+        show_inbox=ga,
+        show_commands=ga,
+        show_ai_audit=show_ai_audit,
+        happiness_only=happiness_only,
+    )
+
+    if t in (pulse_model.BTN_AUDIT_FINISH, pulse_model.BTN_AUDIT_CANCEL, pulse_model.BTN_AI_AUDIT):
+        if t == pulse_model.BTN_AI_AUDIT:
+            await _offer_ai_audit(message, uid)
+            return
+        if t == pulse_model.BTN_AUDIT_CANCEL:
+            ai_auditor.cancel_session(uid)
+            await message.answer("Аудит отменён.", reply_markup=mk_root)
+            return
+        if t == pulse_model.BTN_AUDIT_FINISH:
+            await _finish_ai_audit(message, uid)
+            return
 
     if t == pulse_model.BTN_FOLDER_INBOX:
         if not is_global_admin(uid):
@@ -6368,10 +6710,19 @@ async def manager_menu_handler(message: Message) -> None:
         await message.answer(
             "<b>Аналитика</b>\nОтчёты и «Горящие вопросы» по точке.",
             parse_mode="HTML",
-            reply_markup=pulse_model.manager_menu_analytics_markup(),
+            reply_markup=pulse_model.manager_menu_analytics_markup(
+                show_ai_audit=show_ai_audit
+            ),
         )
         return
     if t == pulse_model.BTN_FOLDER_SHIFT:
+        if happiness_only:
+            await message.answer(
+                "Папка «Смена» — для менеджеров точки. "
+                "Вам доступны аналитика и ИИ-аудит.",
+                reply_markup=mk_root,
+            )
+            return
         await message.answer(
             "<b>Смена</b>\n"
             f"· <b>{pulse_model.BTN_FOLDER_SHIFT_DAY}</b> — план, закрытие, чек-листы\n"
@@ -6445,6 +6796,26 @@ async def manager_menu_handler(message: Message) -> None:
     if t == pulse_model.BTN_MENU_HOME:
         await message.answer(
             "Главное меню Pulse Team.",
+            reply_markup=mk_root,
+        )
+        return
+
+    # Менеджер по счастью — только аналитика / аудит / материалы / ещё
+    if happiness_only and t not in (
+        pulse_model.BTN_FOLDER_ANALYTICS,
+        pulse_model.BTN_REPORT,
+        pulse_model.BTN_SIGNALS,
+        pulse_model.BTN_AI_AUDIT,
+        pulse_model.BTN_TRAINING_MGR,
+        pulse_model.BTN_FOLDER_MORE,
+        pulse_model.BTN_SUBSCRIPTION,
+        pulse_model.BTN_SUPPORT,
+        pulse_model.BTN_MENU_HOME,
+        pulse_model.BTN_AUDIT_FINISH,
+        pulse_model.BTN_AUDIT_CANCEL,
+    ):
+        await message.answer(
+            "Эта функция для менеджеров точки. Вам доступны аналитика и ИИ-аудит.",
             reply_markup=mk_root,
         )
         return
@@ -7117,6 +7488,17 @@ async def comment_handler(message: Message) -> None:
         return
     user_id = message.from_user.id
     text_in = message.text.strip()
+
+    if ai_auditor.get_active(user_id):
+        if text_in in (
+            pulse_model.BTN_AUDIT_FINISH,
+            pulse_model.BTN_AUDIT_CANCEL,
+            pulse_model.BTN_AI_AUDIT,
+            pulse_model.BTN_MENU_HOME,
+        ):
+            pass  # обработает ManagerMenuFilter / ниже не дублируем
+        elif await _audit_ingest_media(message, user_id):
+            return
 
     if user_id in waiting_task_assign:
         assign = waiting_task_assign.pop(user_id)
@@ -7798,6 +8180,8 @@ async def _save_shift_comment(message: Message, user_id: int, comment: str) -> N
 @dp.message(F.voice | F.audio | F.video_note, F.chat.type == "private")
 async def private_voice_comment(message: Message) -> None:
     user_id = message.from_user.id
+    if await _audit_ingest_media(message, user_id):
+        return
     if user_id not in waiting_for_comment:
         return
     file_id = None

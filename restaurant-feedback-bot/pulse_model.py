@@ -52,9 +52,18 @@ BTN_TRAINING_MGR = "📚 Материалы"
 BTN_TRAINING = "📚 Обучение"
 BTN_DAY_CLOSE_PAST = "Закрыть за дату"
 BTN_REMINDERS = "⏰ Напоминания"
+BTN_AI_AUDIT = "🧠 ИИ-аудит"
+BTN_AUDIT_FINISH = "✅ Завершить анализ"
+BTN_AUDIT_CANCEL = "❌ Отменить аудит"
 
 MANAGER_ROOT_BUTTONS = frozenset(
-    {BTN_FOLDER_ANALYTICS, BTN_FOLDER_SHIFT, BTN_FOLDER_INBOX, BTN_FOLDER_MORE}
+    {
+        BTN_FOLDER_ANALYTICS,
+        BTN_FOLDER_SHIFT,
+        BTN_FOLDER_INBOX,
+        BTN_FOLDER_MORE,
+        BTN_AI_AUDIT,
+    }
 )
 SHIFT_FOLDER_BUTTONS = frozenset(
     {
@@ -88,6 +97,9 @@ MANAGER_ACTION_BUTTONS = frozenset(
         BTN_TRAINING_MGR,
         BTN_DAY_CLOSE_PAST,
         BTN_REMINDERS,
+        BTN_AI_AUDIT,
+        BTN_AUDIT_FINISH,
+        BTN_AUDIT_CANCEL,
         BTN_MENU_HOME,
     }
 ) | SHIFT_FOLDER_BUTTONS
@@ -109,17 +121,27 @@ ROLE_NETWORK_ADMIN = "network_admin"
 ROLE_LOCATION_ADMIN = "location_admin"
 ROLE_SENIOR_MANAGER = "senior_manager"
 ROLE_CHEF = "chef"
+ROLE_HAPPINESS_MANAGER = "happiness_manager"
 
 ROLE_LABELS_RU: dict[str, str] = {
     ROLE_NETWORK_ADMIN: "Управляющий сети",
     ROLE_LOCATION_ADMIN: "Менеджер точки",
     ROLE_SENIOR_MANAGER: "Старший менеджер",
     ROLE_CHEF: "Шеф",
+    ROLE_HAPPINESS_MANAGER: "Менеджер по счастью",
 }
 
 MANAGER_ROLES = frozenset(
-    {ROLE_NETWORK_ADMIN, ROLE_LOCATION_ADMIN, ROLE_SENIOR_MANAGER}
+    {
+        ROLE_NETWORK_ADMIN,
+        ROLE_LOCATION_ADMIN,
+        ROLE_SENIOR_MANAGER,
+        ROLE_HAPPINESS_MANAGER,
+    }
 )
+
+# Роли с доступом к ИИ-аудитору (глобальный админ — отдельно в bot.py)
+AI_AUDITOR_ROLES = frozenset({ROLE_HAPPINESS_MANAGER, ROLE_NETWORK_ADMIN})
 
 SUB_ACTIVE = "active"
 SUB_GRACE = "grace"
@@ -340,8 +362,46 @@ def has_chef_access(data: dict[str, Any], user_id: int) -> bool:
     )
 
 
+def has_happiness_manager_access(data: dict[str, Any], user_id: int) -> bool:
+    return any(
+        isinstance(p, dict) and p.get("role") == ROLE_HAPPINESS_MANAGER
+        for p in manager_profiles(data, user_id)
+    )
+
+
+def has_ai_auditor_access(data: dict[str, Any], user_id: int) -> bool:
+    return any(
+        isinstance(p, dict) and p.get("role") in AI_AUDITOR_ROLES
+        for p in manager_profiles(data, user_id)
+    )
+
+
+def is_happiness_manager_only(data: dict[str, Any], user_id: int) -> bool:
+    """Только менеджер по счастью — без опер. ролей точки/сети."""
+    profiles = manager_profiles(data, user_id)
+    roles = {p.get("role") for p in profiles if isinstance(p, dict)}
+    if ROLE_HAPPINESS_MANAGER not in roles:
+        return False
+    ops = roles & {
+        ROLE_NETWORK_ADMIN,
+        ROLE_LOCATION_ADMIN,
+        ROLE_SENIOR_MANAGER,
+    }
+    return not ops
+
+
 def has_ops_staff_access(data: dict[str, Any], user_id: int) -> bool:
     return has_manager_access(data, user_id) or has_chef_access(data, user_id)
+
+
+_LOCATION_BOUND_ROLES = frozenset(
+    {
+        ROLE_LOCATION_ADMIN,
+        ROLE_SENIOR_MANAGER,
+        ROLE_CHEF,
+        ROLE_HAPPINESS_MANAGER,
+    }
+)
 
 
 def _location_ids_from_profiles(
@@ -356,7 +416,7 @@ def _location_ids_from_profiles(
         if role == ROLE_NETWORK_ADMIN and role in roles and oid:
             for cid, _ in list_chats_for_org(data, str(oid)):
                 ids.add(cid)
-        elif role in (ROLE_LOCATION_ADMIN, ROLE_SENIOR_MANAGER, ROLE_CHEF) and role in roles:
+        elif role in _LOCATION_BOUND_ROLES and role in roles:
             for c in p.get("location_chat_ids") or []:
                 ids.add(str(c))
     return ids
@@ -367,7 +427,14 @@ def allowed_chat_ids_for_manager(data: dict[str, Any], user_id: int) -> set[str]
     return _location_ids_from_profiles(
         data,
         manager_profiles(data, user_id),
-        roles=frozenset({ROLE_NETWORK_ADMIN, ROLE_LOCATION_ADMIN, ROLE_SENIOR_MANAGER}),
+        roles=frozenset(
+            {
+                ROLE_NETWORK_ADMIN,
+                ROLE_LOCATION_ADMIN,
+                ROLE_SENIOR_MANAGER,
+                ROLE_HAPPINESS_MANAGER,
+            }
+        ),
     )
 
 
@@ -397,7 +464,7 @@ def set_manager_binding(
     rest = [p for p in data["managers"].get(key, []) if not isinstance(p, dict) or p.get("organization_id") != org_id]
     if role == ROLE_NETWORK_ADMIN:
         locs: list[str] = []
-    elif role in (ROLE_LOCATION_ADMIN, ROLE_SENIOR_MANAGER, ROLE_CHEF):
+    elif role in _LOCATION_BOUND_ROLES:
         locs = [str(x) for x in (location_chat_ids or [])]
     else:
         locs = [str(x) for x in (location_chat_ids or [])]
@@ -429,11 +496,7 @@ def remove_manager_binding(
         if role and p.get("role") != role:
             new_profiles.append(p)
             continue
-        if location_chat_id and p.get("role") in (
-            ROLE_LOCATION_ADMIN,
-            ROLE_SENIOR_MANAGER,
-            ROLE_CHEF,
-        ):
+        if location_chat_id and p.get("role") in _LOCATION_BOUND_ROLES:
             locs = [str(x) for x in (p.get("location_chat_ids") or [])]
             locs = [x for x in locs if x != str(location_chat_id)]
             if locs:
@@ -662,6 +725,8 @@ def text_subscription_status(data: dict[str, Any], user_id: int) -> str:
             role_ru = ROLE_LABELS_RU[ROLE_SENIOR_MANAGER]
         elif role == ROLE_CHEF:
             role_ru = ROLE_LABELS_RU[ROLE_CHEF]
+        elif role == ROLE_HAPPINESS_MANAGER:
+            role_ru = ROLE_LABELS_RU[ROLE_HAPPINESS_MANAGER]
         else:
             role_ru = ROLE_LABELS_RU[ROLE_LOCATION_ADMIN]
         lines.append(
@@ -711,16 +776,36 @@ def text_connect_point(bot_username: str) -> str:
     )
 
 
-def manager_menu_root_markup(*, show_inbox: bool = False, show_commands: bool = False):
+def manager_menu_root_markup(
+    *,
+    show_inbox: bool = False,
+    show_commands: bool = False,
+    show_ai_audit: bool = False,
+    happiness_only: bool = False,
+):
     from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+
+    if happiness_only:
+        rows: list[list] = [
+            [
+                KeyboardButton(text=BTN_FOLDER_ANALYTICS),
+                KeyboardButton(text=BTN_AI_AUDIT),
+            ],
+            [KeyboardButton(text=BTN_TRAINING_MGR)],
+            [KeyboardButton(text=BTN_FOLDER_MORE)],
+        ]
+        return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
     rows = [
         [
             KeyboardButton(text=BTN_FOLDER_ANALYTICS),
             KeyboardButton(text=BTN_FOLDER_SHIFT),
         ],
-        [KeyboardButton(text=BTN_TRAINING_MGR)],
     ]
+    if show_ai_audit:
+        rows.append([KeyboardButton(text=BTN_AI_AUDIT), KeyboardButton(text=BTN_TRAINING_MGR)])
+    else:
+        rows.append([KeyboardButton(text=BTN_TRAINING_MGR)])
     admin_row: list = []
     if show_inbox:
         admin_row.append(KeyboardButton(text=BTN_FOLDER_INBOX))
@@ -732,13 +817,25 @@ def manager_menu_root_markup(*, show_inbox: bool = False, show_commands: bool = 
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 
-def manager_menu_analytics_markup():
+def manager_menu_analytics_markup(*, show_ai_audit: bool = False):
+    from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+
+    rows: list[list] = [
+        [KeyboardButton(text=BTN_REPORT), KeyboardButton(text=BTN_SIGNALS)],
+    ]
+    if show_ai_audit:
+        rows.append([KeyboardButton(text=BTN_AI_AUDIT)])
+    rows.append([KeyboardButton(text=BTN_MENU_HOME)])
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
+
+
+def audit_session_markup():
     from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=BTN_REPORT), KeyboardButton(text=BTN_SIGNALS)],
-            [KeyboardButton(text=BTN_MENU_HOME)],
+            [KeyboardButton(text=BTN_AUDIT_FINISH)],
+            [KeyboardButton(text=BTN_AUDIT_CANCEL), KeyboardButton(text=BTN_MENU_HOME)],
         ],
         resize_keyboard=True,
     )
@@ -849,31 +946,52 @@ def chef_menu_stop_markup():
     )
 
 
-def manager_menu_more_markup(*, show_staff_assign: bool = False):
+def manager_menu_more_markup(
+    *, show_staff_assign: bool = False, happiness_only: bool = False
+):
     from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
     rows: list[list] = []
-    if show_staff_assign:
+    if show_staff_assign and not happiness_only:
         rows.append(
             [
                 KeyboardButton(text=BTN_STAFF_ASSIGN),
                 KeyboardButton(text=BTN_STAFF_REMOVE),
             ]
         )
-    rows.extend(
-        [
-            [KeyboardButton(text=BTN_REMINDERS)],
-            [KeyboardButton(text=BTN_SUBSCRIPTION), KeyboardButton(text=BTN_SUPPORT)],
-            [KeyboardButton(text=BTN_CONNECT)],
-            [KeyboardButton(text=BTN_MENU_HOME)],
-        ]
-    )
+    if happiness_only:
+        rows.extend(
+            [
+                [KeyboardButton(text=BTN_SUBSCRIPTION), KeyboardButton(text=BTN_SUPPORT)],
+                [KeyboardButton(text=BTN_MENU_HOME)],
+            ]
+        )
+    else:
+        rows.extend(
+            [
+                [KeyboardButton(text=BTN_REMINDERS)],
+                [KeyboardButton(text=BTN_SUBSCRIPTION), KeyboardButton(text=BTN_SUPPORT)],
+                [KeyboardButton(text=BTN_CONNECT)],
+                [KeyboardButton(text=BTN_MENU_HOME)],
+            ]
+        )
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 
-def manager_menu_reply_markup(*, show_inbox: bool = False, show_commands: bool = False):
+def manager_menu_reply_markup(
+    *,
+    show_inbox: bool = False,
+    show_commands: bool = False,
+    show_ai_audit: bool = False,
+    happiness_only: bool = False,
+):
     """Корневое меню (папки; «Сводки» и «Команды» — только глобальный админ)."""
-    return manager_menu_root_markup(show_inbox=show_inbox, show_commands=show_commands)
+    return manager_menu_root_markup(
+        show_inbox=show_inbox,
+        show_commands=show_commands,
+        show_ai_audit=show_ai_audit,
+        happiness_only=happiness_only,
+    )
 
 
 def admin_commands_reference_chunks() -> list[str]:
@@ -894,11 +1012,13 @@ def admin_commands_reference_chunks() -> list[str]:
             "<code>/link_manager ID org_id network</code> — управляющий сети (все точки org)\n"
             "<code>/link_manager ID org_id location CHAT_ID</code> — менеджер точки\n"
             "<code>/link_manager ID org_id senior CHAT_ID</code> — старший менеджер (задания + точка)\n"
-            "<code>/link_manager ID org_id chef CHAT_ID</code> — шеф\n\n"
+            "<code>/link_manager ID org_id chef CHAT_ID</code> — шеф\n"
+            "<code>/link_manager ID org_id happiness CHAT_ID</code> — менеджер по счастью\n\n"
             "<b>Роли</b>\n"
             "· <b>Менеджер точки</b> — план, закрытие, отчёты, стоп\n"
             "· <b>Старший менеджер</b> — то же + назначает задания\n"
             "· <b>Управляющий сети</b> — все точки организации\n"
+            "· <b>Менеджер по счастью</b> — аналитика + ИИ-аудит здоровья точки\n"
             "· <b>Шеф</b> — стоп-лист и оценка смены кухни в личке\n\n"
             "<b>В группе точки</b>\n"
             "<code>/link_org org_id</code> — привязать чат к организации"
@@ -935,6 +1055,7 @@ def admin_commands_reference_chunks() -> list[str]:
         (
             "<b>📊 Меню менеджера (кнопки)</b>\n"
             f"<b>{BTN_FOLDER_ANALYTICS}</b> — {BTN_REPORT}, {BTN_SIGNALS}\n"
+            f"<b>{BTN_AI_AUDIT}</b> — голос/файлы → индекс здоровья + PDF\n"
             f"<b>{BTN_FOLDER_SHIFT}</b> — подпапки:\n"
             f"· {BTN_FOLDER_SHIFT_DAY} — {BTN_DAY_PLAN}, {BTN_DAY_CLOSE}, {BTN_CHECKLISTS}, {BTN_OPS_BROADCAST}\n"
             f"· {BTN_FOLDER_SHIFT_STOP} — {BTN_STOP_LIST}, {BTN_STOP_ADD}, {BTN_STOP_CURRENT}\n"
