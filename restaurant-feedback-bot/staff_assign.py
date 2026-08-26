@@ -18,6 +18,7 @@ ROLE_CODES: dict[str, str] = {
     "loc": pulse_model.ROLE_LOCATION_ADMIN,
     "sn": pulse_model.ROLE_SENIOR_MANAGER,
     "chf": pulse_model.ROLE_CHEF,
+    "hm": pulse_model.ROLE_HAPPINESS_MANAGER,
 }
 
 CODE_FOR_ROLE = {v: k for k, v in ROLE_CODES.items()}
@@ -141,10 +142,17 @@ def _assigner_roles(data: dict[str, Any], user_id: int, *, is_global_admin: bool
                     pulse_model.ROLE_SENIOR_MANAGER,
                     pulse_model.ROLE_LOCATION_ADMIN,
                     pulse_model.ROLE_CHEF,
+                    pulse_model.ROLE_HAPPINESS_MANAGER,
                 }
             )
         elif r == pulse_model.ROLE_LOCATION_ADMIN:
-            roles.update({pulse_model.ROLE_LOCATION_ADMIN, pulse_model.ROLE_CHEF})
+            roles.update(
+                {
+                    pulse_model.ROLE_LOCATION_ADMIN,
+                    pulse_model.ROLE_CHEF,
+                    pulse_model.ROLE_HAPPINESS_MANAGER,
+                }
+            )
     return roles
 
 
@@ -164,6 +172,7 @@ def assignable_role_options(
     order = [
         (pulse_model.ROLE_LOCATION_ADMIN, "loc"),
         (pulse_model.ROLE_SENIOR_MANAGER, "sn"),
+        (pulse_model.ROLE_HAPPINESS_MANAGER, "hm"),
         (pulse_model.ROLE_CHEF, "chf"),
     ]
     out: list[tuple[str, str]] = []
