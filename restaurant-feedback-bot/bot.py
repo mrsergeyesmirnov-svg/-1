@@ -6710,9 +6710,7 @@ async def manager_menu_handler(message: Message) -> None:
         await message.answer(
             "<b>Аналитика</b>\nОтчёты и «Горящие вопросы» по точке.",
             parse_mode="HTML",
-            reply_markup=pulse_model.manager_menu_analytics_markup(
-                show_ai_audit=show_ai_audit
-            ),
+            reply_markup=pulse_model.manager_menu_analytics_markup(),
         )
         return
     if t == pulse_model.BTN_FOLDER_SHIFT:

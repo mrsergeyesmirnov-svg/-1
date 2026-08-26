@@ -817,16 +817,16 @@ def manager_menu_root_markup(
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 
-def manager_menu_analytics_markup(*, show_ai_audit: bool = False):
+def manager_menu_analytics_markup():
     from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
-    rows: list[list] = [
-        [KeyboardButton(text=BTN_REPORT), KeyboardButton(text=BTN_SIGNALS)],
-    ]
-    if show_ai_audit:
-        rows.append([KeyboardButton(text=BTN_AI_AUDIT)])
-    rows.append([KeyboardButton(text=BTN_MENU_HOME)])
-    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=BTN_REPORT), KeyboardButton(text=BTN_SIGNALS)],
+            [KeyboardButton(text=BTN_MENU_HOME)],
+        ],
+        resize_keyboard=True,
+    )
 
 
 def audit_session_markup():
