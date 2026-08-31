@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Состояние смены · Mini App</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="app.css" />
+  <script>
+    /* На GitHub Pages укажите URL Railway с /api/miniapp/me, например:
+       window.MINIAPP_API_BASE = "https://your-app.up.railway.app"; */
+    window.MINIAPP_API_BASE = window.MINIAPP_API_BASE || "";
+  </script>
+</head>
+<body>
+  <div id="app">
+    <header class="top">
+      <p class="brand">Состояние <span>смены</span></p>
+      <p class="sub" id="roleLine">Загрузка…</p>
+    </header>
+
+    <section class="note" id="feedbackNote" hidden>
+      <strong>Отзыв линейки — в боте.</strong>
+      <span>Оценка смены и комментарии остаются в Telegram-боте (кнопка из группы → личка). Здесь — обучение, отчёты и управление.</span>
+    </section>
+
+    <main id="screens" class="screens"></main>
+
+    <section class="locations" id="locations" hidden>
+      <h2>Ваши точки</h2>
+      <ul id="locList"></ul>
+    </section>
+
+    <footer class="foot">
+      <button type="button" class="ghost" id="btnBot">Открыть бота</button>
+      <button type="button" class="primary" id="btnClose">Закрыть</button>
+    </footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
