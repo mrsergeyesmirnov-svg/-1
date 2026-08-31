@@ -23,6 +23,8 @@ from aiogram.types import (
     CallbackQuery,
     ChatMemberUpdated,
     FSInputFile,
+    MenuButtonWebApp,
+    WebAppInfo,
 )
 
 try:
@@ -50,6 +52,7 @@ import reminders_ui
 import iiko_bridge
 import ai_advisor
 import ai_auditor
+import miniapp_api
 import shift_survey
 
 # На Railway без Volume файлы в контейнере теряются при redeploy.
@@ -660,20 +663,35 @@ async def _apply_staff_assign_from_state(
 
 PRIVATE_WELCOME = """Привет! 👋
 
-Этот бот помогает делать смены комфортнее и улучшать рабочие процессы в ресторане.
+«Состояние смены» — бот и Mini App для ресторанной команды.
 
-Здесь можно анонимно поделиться:
+В боте линейка оставляет отзыв о смене (анонимно для чата):
+• оценка 1–10
+• что мешало и что было хорошего
+• атмосфера и идеи
 
-• впечатлением от смены
-• проблемами в работе
-• атмосферой в команде
-• предложениями и идеями
-
-Обратная связь помогает быстрее замечать проблемы и делать работу команды лучше ❤️
-
-Опрос займёт меньше 30 секунд.
+В Mini App — обучение, тесты, отчёты управам и ИИ-аудит владельцу.
+Опрос о смене по-прежнему только здесь, в боте (кнопка из группы).
 
 Политика конфиденциальности: https://www.pulseteam.online/privacy.html"""
+
+BOT_SHORT_DESCRIPTION = (
+    "Состояние смены: Mini App для команды и управов. "
+    "Отзыв линейки о смене — в боте."
+)
+
+BOT_DESCRIPTION = (
+    "«Состояние смены» — цифровой контур Академии счастья.\n\n"
+    "Mini App\n"
+    "· Линейка: тесты и обучение\n"
+    "· Управляющие: отчёты, горящие вопросы, материалы, доступы\n"
+    "· Владелец: ИИ-аудит, сводка по точкам, оплаты\n\n"
+    "Бот\n"
+    "· Оценка и отзыв о смене — только здесь, из группы «в личку»\n"
+    "· Напоминания, стоп-лист, операционный день\n\n"
+    "Сайт: https://www.pulseteam.online/sostoyanie/\n"
+    "Конфиденциальность: https://www.pulseteam.online/privacy.html"
+)
 
 # Личка: /start без ссылки из чата — коротко, без длинного приветствия
 PRIVATE_START_NO_LINK = (
@@ -8220,6 +8238,47 @@ async def private_voice_comment(message: Message) -> None:
     await _save_shift_comment(message, user_id, text)
 
 
+async def _configure_bot_profile(username: str) -> None:
+    """Описание ссылки t.me/bot + кнопка Mini App в меню чата."""
+    try:
+        await bot.set_my_short_description(short_description=BOT_SHORT_DESCRIPTION[:120])
+    except Exception as e:
+        print(f"[bot-short-description] {e}")
+    try:
+        await bot.set_my_description(description=BOT_DESCRIPTION[:512])
+    except Exception as e:
+        print(f"[bot-description] {e}")
+
+    # Mini App должен открываться с того же HTTPS, где крутится /api/miniapp/me
+    # (обычно публичный домен Railway). Pages без API = «нет доступа».
+    mini_url = os.getenv("MINIAPP_URL", "").strip()
+    if not mini_url:
+        railway = (
+            os.getenv("RAILWAY_PUBLIC_DOMAIN", "").strip()
+            or os.getenv("RAILWAY_STATIC_URL", "").strip()
+        )
+        if railway:
+            if not railway.startswith("http"):
+                railway = "https://" + railway
+            mini_url = railway.rstrip("/") + "/"
+    if not mini_url:
+        print(
+            "[miniapp-menu] MINIAPP_URL не задан — кнопка меню не ставится. "
+            "Укажите HTTPS Railway (статика+API), не один только Pages."
+        )
+        return
+    try:
+        await bot.set_chat_menu_button(
+            menu_button=MenuButtonWebApp(
+                text="Приложение",
+                web_app=WebAppInfo(url=mini_url),
+            )
+        )
+        print(f"[miniapp-menu] {mini_url}")
+    except Exception as e:
+        print(f"[miniapp-menu] {e}")
+
+
 async def main() -> None:
     dsn = os.getenv("DATABASE_URL", "").strip()
     if dsn:
@@ -8229,6 +8288,19 @@ async def main() -> None:
     asyncio.create_task(scheduler_loop())
     me = await bot.get_me()
     print("Бот:", me.username, "| ADMIN_IDS:", sorted(ADMIN_IDS))
+    await _configure_bot_profile(me.username or "")
+
+    # HTTP: Mini App static + /api/miniapp/me (Railway PORT или MINIAPP_PORT)
+    if os.getenv("MINIAPP_HTTP", "1").strip() not in ("0", "false", "no"):
+        asyncio.create_task(
+            miniapp_api.start_miniapp_server(
+                bot_token=TOKEN,
+                load_data=load_data,
+                is_global_admin_fn=is_global_admin,
+                bot_username=me.username or "",
+            )
+        )
+
     iiko_key = os.getenv("IIKO_API_KEY", "").strip()
     if iiko_key:
 
@@ -8237,12 +8309,12 @@ async def main() -> None:
             if not nudge:
                 return
             try:
-                me = await bot.get_me()
+                me2 = await bot.get_me()
                 link_chat = int(nudge.get("link_chat_id") or nudge["chat_id"])
                 await bot.send_message(
                     int(nudge["chat_id"]),
                     nudge["text"],
-                    reply_markup=more_link_markup(link_chat, me.username),
+                    reply_markup=more_link_markup(link_chat, me2.username),
                     disable_web_page_preview=True,
                 )
             except Exception as e:

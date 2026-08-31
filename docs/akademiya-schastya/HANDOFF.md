@@ -29,3 +29,20 @@ git clone --depth 1 -b cursor/akademiya-schastya-a3f9 \
 В футере публичных страниц: тихая ссылка `Платформа для консультантов` → `/platform/` (пароль `smena2026`).
 
 Живой сайт сейчас: https://www.pulseteam.online/ — после этой переписи нужно заново выложить html/css с `-1`.
+
+## Mini App (август 2026)
+
+**Важно:** UI и API должны быть на одном HTTPS (или API явно прописан).
+
+| Что | Где |
+|---|---|
+| Статика + `GET /api/miniapp/me` | Railway-бот (`MINIAPP_HTTP=1`, порт `PORT`) |
+| BotFather Menu Button URL | тот же Railway HTTPS, напр. `https://….up.railway.app/` |
+| Env | `MINIAPP_URL=https://….up.railway.app/` |
+
+Pages `/sostoyanie/app/` — только демо/зеркало. Если меню ведёт на Pages без  
+`window.MINIAPP_API_BASE` → в приложении будет «нет связи с API».
+
+Исходники UI: `docs/sostoyanie-smeny/app/` · копия: `restaurant-feedback-bot/miniapp/`.
+
+Отзыв линейки о смене — только в боте.
