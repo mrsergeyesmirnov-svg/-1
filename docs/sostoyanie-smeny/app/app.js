@@ -3,9 +3,9 @@
   if (tg) {
     tg.ready();
     tg.expand();
-    try {
-      tg.setHeaderColor("secondary_bg_color");
-    } catch (_) {}
+    // Светлая палитра Академии — не наследуем тёмный theme Telegram
+    try { tg.setHeaderColor("#faf7f3"); } catch (_) {}
+    try { tg.setBackgroundColor("#faf7f3"); } catch (_) {}
   }
 
   const roleLine = document.getElementById("roleLine");
