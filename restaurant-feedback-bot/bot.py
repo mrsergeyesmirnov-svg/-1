@@ -8248,10 +8248,25 @@ async def _configure_bot_profile(username: str) -> None:
         await bot.set_my_description(description=BOT_DESCRIPTION[:512])
     except Exception as e:
         print(f"[bot-description] {e}")
+
+    # Mini App должен открываться с того же HTTPS, где крутится /api/miniapp/me
+    # (обычно публичный домен Railway). Pages без API = «нет доступа».
     mini_url = os.getenv("MINIAPP_URL", "").strip()
     if not mini_url:
-        # дефолт на продуктовую страницу /app после выкладки на Pages
-        mini_url = "https://www.pulseteam.online/sostoyanie/app/"
+        railway = (
+            os.getenv("RAILWAY_PUBLIC_DOMAIN", "").strip()
+            or os.getenv("RAILWAY_STATIC_URL", "").strip()
+        )
+        if railway:
+            if not railway.startswith("http"):
+                railway = "https://" + railway
+            mini_url = railway.rstrip("/") + "/"
+    if not mini_url:
+        print(
+            "[miniapp-menu] MINIAPP_URL не задан — кнопка меню не ставится. "
+            "Укажите HTTPS Railway (статика+API), не один только Pages."
+        )
+        return
     try:
         await bot.set_chat_menu_button(
             menu_button=MenuButtonWebApp(

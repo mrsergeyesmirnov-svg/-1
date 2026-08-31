@@ -32,15 +32,17 @@ git clone --depth 1 -b cursor/akademiya-schastya-a3f9 \
 
 ## Mini App (август 2026)
 
-Исходники UI: `docs/sostoyanie-smeny/app/` → на Pages выложить в `/sostoyanie/app/`.
-Копия для Railway: `restaurant-feedback-bot/miniapp/`.
+**Важно:** UI и API должны быть на одном HTTPS (или API явно прописан).
 
-Бот при старте:
-- `setMyDescription` / `setMyShortDescription` — описание ссылки t.me/bot
-- Menu Button «Приложение» → `MINIAPP_URL` (по умолчанию `https://www.pulseteam.online/sostoyanie/app/`)
+| Что | Где |
+|---|---|
+| Статика + `GET /api/miniapp/me` | Railway-бот (`MINIAPP_HTTP=1`, порт `PORT`) |
+| BotFather Menu Button URL | тот же Railway HTTPS, напр. `https://….up.railway.app/` |
+| Env | `MINIAPP_URL=https://….up.railway.app/` |
 
-API ролей: `GET /api/miniapp/me` (Authorization: `tma <initData>`), порт `MINIAPP_PORT` / `PORT`.
+Pages `/sostoyanie/app/` — только демо/зеркало. Если меню ведёт на Pages без  
+`window.MINIAPP_API_BASE` → в приложении будет «нет связи с API».
 
-На Pages, если API на Railway, в `index.html` задать `window.MINIAPP_API_BASE = "https://….railway.app"`.
+Исходники UI: `docs/sostoyanie-smeny/app/` · копия: `restaurant-feedback-bot/miniapp/`.
 
 Отзыв линейки о смене — только в боте.

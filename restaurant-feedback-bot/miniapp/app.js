@@ -3,7 +3,6 @@
   if (tg) {
     tg.ready();
     tg.expand();
-    // Светлая палитра Академии — не наследуем тёмный theme Telegram
     try { tg.setHeaderColor("#faf7f3"); } catch (_) {}
     try { tg.setBackgroundColor("#faf7f3"); } catch (_) {}
   }
@@ -42,42 +41,43 @@
     return (window.MINIAPP_API_BASE || "").replace(/\/$/, "");
   }
 
+  function tgUser() {
+    const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+    if (!u) return { first_name: "" };
+    return {
+      id: u.id,
+      first_name: u.first_name || "",
+      username: u.username || "",
+    };
+  }
+
   async function loadProfile() {
     const initData = (tg && tg.initData) || "";
-    const headers = {};
-    if (initData) headers.Authorization = `tma ${initData}`;
-
-    // демо без Telegram (браузер)
     if (!initData) {
-      return {
-        ok: true,
-        demo: true,
-        user: { first_name: "Демо" },
-        role: "manager",
-        role_label: "Управляющий (демо)",
-        bot_username: "smena_feedback_bot",
-        feedback_in_bot: true,
-        note: "Оценку и отзыв о смене линейка по-прежнему оставляет в боте.",
-        screens: [
-          { id: "reports", title: "Отчёты", blurb: "Сводка смены и недели", status: "ready" },
-          { id: "signals", title: "Горящие вопросы", blurb: "Проблемы смены", status: "ready" },
-          { id: "materials", title: "Материалы", blurb: "Загрузка и обучение", status: "ready" },
-          { id: "access", title: "Доступы", blurb: "Роли точки", status: "ready" },
-          { id: "feedback_bot", title: "Отзыв линейки", blurb: "Только через бота", status: "bot" },
-        ],
-        locations: [{ id: "1", title: "Демо-точка" }],
-      };
+      throw new Error("no_telegram");
     }
 
-    const res = await fetch(`${apiBase()}/api/miniapp/me`, { headers });
-    if (!res.ok) throw new Error("auth");
-    return res.json();
+    const headers = { Authorization: `tma ${initData}` };
+    const url = `${apiBase()}/api/miniapp/me`;
+    let res;
+    try {
+      res = await fetch(url, { headers });
+    } catch (e) {
+      const err = new Error("network");
+      err.cause = e;
+      throw err;
+    }
+    if (res.status === 401) throw new Error("unauthorized");
+    if (!res.ok) throw new Error(`http_${res.status}`);
+    const data = await res.json();
+    if (!data || data.ok === false) throw new Error("bad_payload");
+    return data;
   }
 
   function render(data) {
     profile = data;
     const name = (data.user && data.user.first_name) || "";
-    roleLine.textContent = `${data.role_label}${name ? " · " + name : ""}${data.demo ? " · демо" : ""}`;
+    roleLine.textContent = `${data.role_label}${name ? " · " + name : ""}`;
     noteEl.hidden = false;
     if (data.note) {
       noteEl.querySelector("span").textContent = data.note;
@@ -104,6 +104,35 @@
         .map((l) => `<li>${escapeHtml(l.title)}</li>`)
         .join("");
     }
+  }
+
+  function renderApiError(kind) {
+    const user = tgUser();
+    roleLine.textContent = user.first_name
+      ? `${user.first_name} · нет связи с API`
+      : "Нет связи с API ролей";
+
+    noteEl.hidden = false;
+    noteEl.querySelector("span").textContent =
+      "Отзыв о смене по-прежнему только в боте. Ниже — что нужно для входа в приложение.";
+
+    let detail;
+    if (kind === "no_telegram") {
+      detail =
+        "Откройте Mini App <b>из меню бота</b> в Telegram (не из браузера).";
+    } else if (kind === "unauthorized") {
+      detail =
+        "Подпись Telegram не принята сервером. Проверьте, что API крутится с тем же <code>BOT_TOKEN</code>, что и бот.";
+    } else {
+      detail =
+        "UI открыт с сайта, а <b>/api/miniapp/me</b> там нет.<br><br>" +
+        "<b>Как должно быть:</b> BotFather → Menu Button URL = HTTPS адрес <b>Railway-бота</b> " +
+        "(там и статика Mini App, и API), либо на Pages задать " +
+        "<code>window.MINIAPP_API_BASE = \"https://….up.railway.app\"</code>.<br><br>" +
+        "Сейчас в меню, скорее всего, стоит только Pages без API — поэтому «нет доступа».";
+    }
+
+    screensEl.innerHTML = `<div class="error">${detail}</div>`;
   }
 
   function onScreen(s) {
@@ -147,9 +176,5 @@
 
   loadProfile()
     .then(render)
-    .catch(() => {
-      roleLine.textContent = "Не удалось войти";
-      screensEl.innerHTML =
-        '<div class="error">Откройте mini app из меню бота Telegram. Отзыв о смене по-прежнему только в боте.</div>';
-    });
+    .catch((e) => renderApiError((e && e.message) || "network"));
 })();
