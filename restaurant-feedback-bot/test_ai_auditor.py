@@ -35,6 +35,19 @@ def test_happiness_role_access(tmp_path, monkeypatch):
     assert not pulse_model.is_happiness_manager_only(d, 8)
 
 
+def test_audit_orgs_for_user():
+    d = pulse_model.default_data()
+    d["organizations"]["org_nomad"] = {"name": "Nomad"}
+    d["organizations"]["org_other"] = {"name": "Other"}
+    all_orgs = pulse_model.audit_orgs_for_user(d, 1, is_global_admin=True)
+    assert ("org_nomad", "Nomad") in all_orgs
+    pulse_model.set_manager_binding(
+        d, 9, "org_nomad", pulse_model.ROLE_NETWORK_ADMIN, None
+    )
+    net = pulse_model.audit_orgs_for_user(d, 9, is_global_admin=False)
+    assert net == [("org_nomad", "Nomad")]
+
+
 def test_assignable_happiness_role():
     d = pulse_model.default_data()
     opts = staff_assign.assignable_role_options(d, 1, is_global_admin=True)

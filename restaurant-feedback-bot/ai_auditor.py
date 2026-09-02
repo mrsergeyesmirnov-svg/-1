@@ -106,11 +106,19 @@ def get_active(user_id: int) -> dict[str, Any] | None:
     return sess if isinstance(sess, dict) else None
 
 
-def start_session(user_id: int, *, restaurant_id: str, restaurant_title: str) -> dict[str, Any]:
+def start_session(
+    user_id: int,
+    *,
+    restaurant_id: str,
+    restaurant_title: str,
+    organization_id: str | None = None,
+) -> dict[str, Any]:
     store = load_store()
+    oid = organization_id or restaurant_id
     sess = {
         "restaurant_id": str(restaurant_id),
         "restaurant_title": str(restaurant_title),
+        "organization_id": str(oid),
         "chunks": [],
         "started_at": datetime.now(timezone.utc).isoformat(),
     }
