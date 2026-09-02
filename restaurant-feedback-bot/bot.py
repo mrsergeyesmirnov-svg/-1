@@ -1943,15 +1943,15 @@ async def _user_can_ai_audit(uid: int, data: dict | None = None) -> bool:
     return pulse_model.has_ai_auditor_access(data, uid)
 
 
-def _audit_locations_keyboard(scope: list[tuple[str, str]]) -> InlineKeyboardMarkup:
+def _audit_orgs_keyboard(orgs: list[tuple[str, str]]) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
-    for cid, title in scope[:25]:
-        short = title[:40] + ("…" if len(title) > 40 else "")
+    for oid, name in orgs[:25]:
+        short = name[:40] + ("…" if len(name) > 40 else "")
         rows.append(
             [
                 InlineKeyboardButton(
-                    text=f"📍 {short}",
-                    callback_data=f"audit:pick:{cid}"[:64],
+                    text=f"🌐 {short}",
+                    callback_data=f"audit:org:{oid}"[:64],
                 )
             ]
         )
@@ -1961,23 +1961,29 @@ def _audit_locations_keyboard(scope: list[tuple[str, str]]) -> InlineKeyboardMar
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-async def _begin_audit_at_chat(message: Message, uid: int, chat_id: int) -> None:
+async def _begin_audit_for_org(message: Message, uid: int, org_id: str) -> None:
     data = await load_data()
     if not await _user_can_ai_audit(uid, data):
         await message.answer("ИИ-аудит доступен менеджеру по счастью и управляющему сети.")
         return
-    if not await _manager_can_access_chat(data, uid, chat_id):
-        await message.answer("Нет доступа к этой точке.")
+    ga = is_global_admin(uid)
+    allowed = {oid for oid, _ in pulse_model.audit_orgs_for_user(data, uid, is_global_admin=ga)}
+    if org_id not in allowed:
+        await message.answer("Нет доступа к этой организации.")
         return
-    rec = chat_record(data, chat_id) or {}
-    title = str(rec.get("title") or chat_id)
+    org = pulse_model.get_organization(data, org_id) or {}
+    title = str(org.get("name") or org_id)
     ai_auditor.start_session(
-        uid, restaurant_id=str(chat_id), restaurant_title=title
+        uid,
+        restaurant_id=org_id,
+        restaurant_title=title,
+        organization_id=org_id,
     )
     await message.answer(
         f"<b>🧠 ИИ-аудит</b> · {escape(title)}\n\n"
         "Пришлите <b>голосовые</b>, <b>аудио</b> или <b>файлы</b> кусками "
-        "(разговор с управляющим / заметки с точки).\n"
+        "(разговор с управляющим / baseline по сети или точке).\n"
+        "Группу ресторана подключать не обязательно — достаточно организации.\n"
         "Лимит одного файла ~20 МБ — длинное лучше нарезать.\n\n"
         f"Когда всё собрано — «{pulse_model.BTN_AUDIT_FINISH}».",
         parse_mode="HTML",
@@ -1996,20 +2002,22 @@ async def _offer_ai_audit(message: Message, uid: int) -> None:
             reply_markup=_manager_menu_markup(uid),
         )
         return
-    scope = await _ops_scope(data, uid)
-    if not scope:
+    orgs = pulse_model.audit_orgs_for_user(data, uid, is_global_admin=is_global_admin(uid))
+    if not orgs:
         await message.answer(
-            "Нет привязанных точек для аудита.",
+            "Нет организаций для аудита.\n"
+            "Создайте: <code>/create_org Название</code> — группу точки подключать не обязательно.",
+            parse_mode="HTML",
             reply_markup=_manager_menu_markup(uid),
         )
         return
-    if len(scope) == 1:
-        await _begin_audit_at_chat(message, uid, int(scope[0][0]))
+    if len(orgs) == 1:
+        await _begin_audit_for_org(message, uid, orgs[0][0])
         return
     await message.answer(
-        "<b>🧠 ИИ-аудит</b>\n\nВыберите точку:",
+        "<b>🧠 ИИ-аудит</b>\n\nВыберите организацию:",
         parse_mode="HTML",
-        reply_markup=_audit_locations_keyboard(scope),
+        reply_markup=_audit_orgs_keyboard(orgs),
     )
 
 
@@ -3267,7 +3275,8 @@ async def cmd_create_org(message: Message) -> None:
     await save_data(data)
     await message.answer(
         f"Создана организация <b>{escape(name)}</b>\n<code>{escape(oid)}</code>\n\n"
-        f"В группе точки выполните <code>/link_org {escape(oid)}</code> (от имени админа чата или вас).",
+        f"Можно сразу запустить <b>🧠 ИИ-аудит</b> — группу точки подключать не обязательно.\n"
+        f"Для опросов смены позже: <code>/link_org {escape(oid)}</code> в группе ресторана.",
         parse_mode="HTML",
     )
 
@@ -5126,13 +5135,11 @@ async def audit_callback_handler(callback: CallbackQuery) -> None:
             "Главное меню.", reply_markup=_manager_menu_markup(uid)
         )
         return
-    if action == "pick" and len(parts) > 2:
-        try:
-            chat_id = int(parts[2])
-        except ValueError:
-            await callback.answer()
-            return
-        if not await _manager_can_access_chat(data, uid, chat_id):
+    if action == "org" and len(parts) > 2:
+        org_id = parts[2]
+        ga = is_global_admin(uid)
+        allowed = {oid for oid, _ in pulse_model.audit_orgs_for_user(data, uid, is_global_admin=ga)}
+        if org_id not in allowed:
             await callback.answer("Нет доступа.", show_alert=True)
             return
         await callback.answer()
@@ -5140,7 +5147,7 @@ async def audit_callback_handler(callback: CallbackQuery) -> None:
             await callback.message.edit_reply_markup(reply_markup=None)
         except Exception:
             pass
-        await _begin_audit_at_chat(callback.message, uid, chat_id)
+        await _begin_audit_for_org(callback.message, uid, org_id)
         return
     await callback.answer()
 

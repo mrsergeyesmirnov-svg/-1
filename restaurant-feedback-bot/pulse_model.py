@@ -376,6 +376,36 @@ def has_ai_auditor_access(data: dict[str, Any], user_id: int) -> bool:
     )
 
 
+def audit_orgs_for_user(
+    data: dict[str, Any], user_id: int, *, is_global_admin: bool
+) -> list[tuple[str, str]]:
+    """(org_id, name) — для ИИ-аудита без привязки группы точки."""
+    orgs: dict[str, Any] = data.get("organizations") or {}
+    if not isinstance(orgs, dict):
+        return []
+    if is_global_admin:
+        return [
+            (oid, str((org or {}).get("name", oid)))
+            for oid, org in sorted(orgs.items())
+            if isinstance(org, dict)
+        ]
+    seen: set[str] = set()
+    out: list[tuple[str, str]] = []
+    for p in manager_profiles(data, user_id):
+        if not isinstance(p, dict):
+            continue
+        if p.get("role") not in AI_AUDITOR_ROLES:
+            continue
+        oid = p.get("organization_id")
+        if not oid or str(oid) in seen:
+            continue
+        seen.add(str(oid))
+        org = orgs.get(str(oid), {})
+        name = str(org.get("name", oid)) if isinstance(org, dict) else str(oid)
+        out.append((str(oid), name))
+    return sorted(out, key=lambda x: x[1].lower())
+
+
 def is_happiness_manager_only(data: dict[str, Any], user_id: int) -> bool:
     """Только менеджер по счастью — без опер. ролей точки/сети."""
     profiles = manager_profiles(data, user_id)
