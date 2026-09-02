@@ -304,7 +304,17 @@ def make_aiohttp_app(*, bot_token: str, load_data, is_global_admin_fn, bot_usern
     app.router.add_get("/api/miniapp/me", me)
     app.router.add_get("/api/miniapp/health", health)
     if os.path.isdir(miniapp_dir):
-        app.router.add_static("/", miniapp_dir, show_index=True)
+        index_path = os.path.join(miniapp_dir, "index.html")
+
+        async def serve_index(_request: web.Request) -> web.StreamResponse:
+            if not os.path.isfile(index_path):
+                return web.Response(text="Mini App index.html не найден", status=404)
+            return web.FileResponse(index_path)
+
+        # Сначала явный /, иначе aiohttp с show_index отдаёт «Index of /.»
+        app.router.add_get("/", serve_index)
+        app.router.add_get("/index.html", serve_index)
+        app.router.add_static("/", miniapp_dir, show_index=False)
     return app
 
 
