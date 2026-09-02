@@ -2891,9 +2891,8 @@ async def cmd_myid(message: Message) -> None:
     uid = message.from_user.id
     await message.answer(
         f"Ваш Telegram ID: <code>{uid}</code>\n\n"
-        "Если бот пишет «нет доступа» к /admin, добавьте эту строку в <code>.env</code>:\n"
-        f"<code>ADMIN_IDS={uid}</code>\n\n"
-        "(несколько id через запятую без пробела)",
+        "Отправьте это сообщение вашему руководителю или в поддержку "
+        "напрямую — с информацией о ресторане и роли.",
         parse_mode="HTML",
     )
 
@@ -3014,10 +3013,9 @@ async def cmd_admin(message: Message) -> None:
     if not is_global_admin(uid):
         await message.answer(
             "Нет доступа.\n\n"
-            f"Ваш Telegram ID: <code>{uid}</code>\n"
-            "Добавьте в файл <code>.env</code> рядом с ботом строку (можно несколько id через запятую):\n"
-            f"<code>ADMIN_IDS={uid}</code>\n"
-            "и перезапустите бота.",
+            f"Ваш Telegram ID: <code>{uid}</code>\n\n"
+            "Отправьте это сообщение вашему руководителю или в поддержку "
+            "напрямую — с информацией о ресторане и роли.",
             parse_mode="HTML",
         )
         return
