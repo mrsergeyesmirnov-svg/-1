@@ -162,7 +162,7 @@ namespace Pulse.IikoShiftSurvey
                          ("guests", "Гости"),
                          ("processes", "Процессы"),
                          ("self", "Моё состояние"),
-                         ("ok", "Нигде — всё прошло хорошо")
+                         ("ok", "Ничего, все прошло хорошо")
                      })
             {
                 var code = pair.Item1;

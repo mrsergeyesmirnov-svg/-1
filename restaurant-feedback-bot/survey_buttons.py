@@ -49,7 +49,7 @@ DEFAULT_BUTTONS: list[dict[str, Any]] = [
     },
     {
         "code": "ok",
-        "label": "✨ Нигде — всё прошло хорошо",
+        "label": "✨ Ничего, все прошло хорошо",
         "enabled": True,
         "builtin": True,
         "threshold": 99,

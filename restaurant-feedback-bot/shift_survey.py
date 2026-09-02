@@ -29,7 +29,7 @@ BLOCKER_BUTTONS: list[tuple[str, str]] = [
     ("guests", "🙋 Гости"),
     ("processes", "⚙️ Процессы"),
     ("self", "🧠 Моё состояние"),
-    ("ok", "✨ Нигде — всё прошло хорошо"),
+    ("ok", "✨ Ничего, все прошло хорошо"),
 ]
 
 BLOCKER_LABELS: dict[str, str] = {code: label for code, label in BLOCKER_BUTTONS}
@@ -53,7 +53,7 @@ def mood_keyboard() -> InlineKeyboardMarkup:
 
 def blocker_keyboard(*, positive: bool = False) -> InlineKeyboardMarkup:
     """
-    positive=True (смена заряжена): без кнопки «Нигде — всё прошло хорошо».
+    positive=True (смена заряжена): без кнопки «Ничего, все прошло хорошо».
     """
     rows = []
     for code, label in BLOCKER_BUTTONS:
