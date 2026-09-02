@@ -8624,6 +8624,7 @@ async def main() -> None:
                 load_data=load_data,
                 is_global_admin_fn=is_global_admin,
                 bot_username=me.username or "",
+                jsonl_path=FEEDBACK_LOG_PATH,
             )
         )
 
