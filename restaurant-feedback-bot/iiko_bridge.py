@@ -25,7 +25,7 @@ BLOCKERS = [
     {"code": "guests", "label": "🙋 Гости"},
     {"code": "processes", "label": "⚙️ Процессы"},
     {"code": "self", "label": "🧠 Моё состояние"},
-    {"code": "ok", "label": "✨ Нигде — всё прошло хорошо"},
+    {"code": "ok", "label": "✨ Ничего, все прошло хорошо"},
 ]
 
 

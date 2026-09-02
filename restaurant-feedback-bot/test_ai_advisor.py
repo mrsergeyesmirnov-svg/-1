@@ -253,7 +253,7 @@ def test_charged_blocker_keyboard_no_ok():
         for btn in row:
             texts.append(btn.text)
             assert btn.callback_data != "blocker_ok"
-    assert "✨ Нигде — всё прошло хорошо" not in texts
+    assert "✨ Ничего, все прошло хорошо" not in texts
     assert shift_survey.blocker_prompt(positive=True) == "Что сделало смену такой?"
     normal = shift_survey.blocker_keyboard(positive=False)
     ok_present = any(
