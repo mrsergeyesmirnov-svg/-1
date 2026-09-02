@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PulseTeam · рилс · мы про людей</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Unbounded:wght@600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #f6f1ea;
+      --muted: #a39b92;
+      --accent: #ff5a1f;
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: Manrope, ui-sans-serif, system-ui, sans-serif;
+      color: var(--ink);
+      background: #07080c;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    .reel {
+      width: min(100vw, 420px);
+      height: min(100vh, 747px);
+      margin: 0 auto;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 28px 22px 36px;
+      background:
+        radial-gradient(120% 70% at 50% -10%, rgba(255, 90, 31, 0.28), transparent 55%),
+        radial-gradient(90% 50% at 80% 90%, rgba(42, 171, 238, 0.1), transparent 50%),
+        linear-gradient(180deg, #10141c 0%, #07080c 55%, #050608 100%);
+      overflow: hidden;
+    }
+    .reel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: linear-gradient(180deg, transparent, #000 25%, #000 75%, transparent);
+      opacity: 0.35;
+      pointer-events: none;
+      animation: drift 18s linear infinite;
+    }
+    @keyframes drift {
+      from { transform: translateY(0); }
+      to { transform: translateY(42px); }
+    }
+    .brand {
+      position: absolute;
+      top: 28px;
+      left: 22px;
+      right: 22px;
+      font-family: Unbounded, Manrope, sans-serif;
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: -0.03em;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: 0.8s var(--ease);
+      z-index: 2;
+    }
+    .brand.on { opacity: 1; transform: none; }
+    .brand span { color: var(--accent); }
+    .kicker {
+      position: absolute;
+      top: 56px;
+      left: 22px;
+      font-size: 0.68rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+      opacity: 0;
+      transition: 0.7s var(--ease) 0.1s;
+      z-index: 2;
+    }
+    .kicker.on { opacity: 1; }
+    .slides {
+      position: relative;
+      min-height: 11.5rem;
+      z-index: 2;
+    }
+    .slide {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 0.55s var(--ease), transform 0.55s var(--ease);
+      pointer-events: none;
+    }
+    .slide.on {
+      opacity: 1;
+      transform: none;
+    }
+    .slide h1 {
+      margin: 0 0 12px;
+      font-family: Unbounded, Manrope, sans-serif;
+      font-weight: 700;
+      font-size: clamp(1.35rem, 6.2vw, 1.75rem);
+      line-height: 1.18;
+      letter-spacing: -0.035em;
+    }
+    .slide h1 em {
+      font-style: normal;
+      color: var(--accent);
+    }
+    .slide p {
+      margin: 0;
+      color: #d7d0c6;
+      font-size: 1.02rem;
+      line-height: 1.45;
+      font-weight: 500;
+      max-width: 22rem;
+    }
+    .progress {
+      display: flex;
+      gap: 5px;
+      margin-top: 22px;
+      z-index: 2;
+    }
+    .progress i {
+      flex: 1;
+      height: 3px;
+      border-radius: 99px;
+      background: rgba(255,255,255,0.12);
+      overflow: hidden;
+      position: relative;
+    }
+    .progress i::after {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), #ff8f5a);
+    }
+    .progress i.on::after { width: 100%; transition: none; }
+    .progress i.live::after {
+      animation: fill var(--dur, 3.2s) linear forwards;
+    }
+    @keyframes fill {
+      from { width: 0%; }
+      to { width: 100%; }
+    }
+    .cta {
+      margin-top: 14px;
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: 0.6s var(--ease);
+      z-index: 2;
+    }
+    .cta.on { opacity: 1; transform: none; }
+    .cta strong { color: var(--ink); font-weight: 700; }
+    .controls {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      z-index: 5;
+    }
+    .controls button {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 16px;
+      background: rgba(255,255,255,0.08);
+      color: var(--ink);
+      font: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .controls button:hover { background: rgba(255,90,31,0.25); }
+    @media (max-width: 480px) {
+      .controls { opacity: 0.35; }
+    }
+  </style>
+</head>
+<body>
+  <div class="reel" id="reel" aria-live="polite">
+    <div class="brand" id="brand">Pulse<span>Team</span></div>
+    <div class="kicker" id="kicker">не про таблицы · про людей</div>
+    <div class="slides" id="slides">
+      <div class="slide" data-i="0">
+        <h1>Такого <em>нет</em>.</h1>
+        <p>Мы про людей. Почувствовать. Не про деньги и экономику «так, с десятки».</p>
+      </div>
+      <div class="slide" data-i="1">
+        <h1>Мы о заботе и <em>гостеприимстве</em>.</h1>
+        <p>Скроллю ленту — и вижу одно и то же.</p>
+      </div>
+      <div class="slide" data-i="2">
+        <h1>Любой школьник с интернетом может сделать <em>такое</em>.</h1>
+        <p>Не хочется очередной аналог, который только дублирует и не продастся.</p>
+      </div>
+      <div class="slide" data-i="3">
+        <h1>Хочется вложить <em>душу</em>.</h1>
+        <p>Показать руководителям, как предотвратить ещё не случившееся.</p>
+      </div>
+      <div class="slide" data-i="4">
+        <h1>Как <em>предугадать</em> выгорание.</h1>
+        <p>Как дать команде не просто выдохнуть — а вдохнуть.</p>
+      </div>
+      <div class="slide" data-i="5">
+        <h1>Глотком воздуха на <em>тысячи</em> ваших гостей.</h1>
+        <p>Состояние смены — чтобы энергия команды дошла до зала.</p>
+      </div>
+    </div>
+    <div class="progress" id="progress">
+      <i></i><i></i><i></i><i></i><i></i><i></i>
+    </div>
+    <div class="cta" id="cta">PulseTeam · <strong>состояние смены</strong></div>
+  </div>
+  <div class="controls">
+    <button type="button" id="replay">↻ Ещё раз</button>
+  </div>
+  <script>
+    const slides = [...document.querySelectorAll(".slide")];
+    const bars = [...document.querySelectorAll("#progress i")];
+    const brand = document.getElementById("brand");
+    const kicker = document.getElementById("kicker");
+    const cta = document.getElementById("cta");
+    const DURS = [3200, 3400, 3800, 3600, 3600, 4200];
+    let timer = null;
+    let idx = 0;
+
+    function clearBars() {
+      bars.forEach((b) => {
+        b.classList.remove("on", "live");
+        b.style.removeProperty("--dur");
+      });
+    }
+
+    function show(i) {
+      idx = i;
+      slides.forEach((s, n) => s.classList.toggle("on", n === i));
+      clearBars();
+      bars.forEach((b, n) => {
+        if (n < i) b.classList.add("on");
+        if (n === i) {
+          b.style.setProperty("--dur", DURS[i] + "ms");
+          b.classList.add("live");
+        }
+      });
+      cta.classList.toggle("on", i === slides.length - 1);
+    }
+
+    function tick() {
+      show(idx);
+      timer = setTimeout(() => {
+        if (idx >= slides.length - 1) {
+          bars[idx].classList.remove("live");
+          bars[idx].classList.add("on");
+          return;
+        }
+        idx += 1;
+        tick();
+      }, DURS[idx]);
+    }
+
+    function start() {
+      clearTimeout(timer);
+      brand.classList.add("on");
+      kicker.classList.add("on");
+      idx = 0;
+      tick();
+    }
+
+    document.getElementById("replay").addEventListener("click", start);
+    start();
+  </script>
+</body>
+</html>
