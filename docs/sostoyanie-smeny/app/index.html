@@ -3,40 +3,42 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Состояние смены · Mini App</title>
+  <title>Состояние смены</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="app.css" />
-  <script>
-    /* API ролей: тот же origin, что и Mini App (Railway).
-       Если UI на Pages — укажите сюда HTTPS бота, например:
-       window.MINIAPP_API_BASE = "https://pulse-xxx.up.railway.app"; */
-    window.MINIAPP_API_BASE = window.MINIAPP_API_BASE || "";
-  </script>
+  <script>window.MINIAPP_API_BASE = window.MINIAPP_API_BASE || "";</script>
 </head>
 <body>
   <div id="app">
     <header class="top">
-      <p class="brand">Состояние <span>смены</span></p>
-      <p class="sub" id="roleLine">Загрузка…</p>
+      <div>
+        <p class="brand">Состояние <span>смены</span></p>
+        <p class="sub" id="roleLine">Загрузка…</p>
+      </div>
+      <button type="button" class="period" id="btnPeriod" hidden>Неделя</button>
     </header>
 
     <section class="note" id="feedbackNote" hidden>
-      <strong>Отзыв линейки — в боте.</strong>
-      <span>Оценка смены и комментарии остаются в Telegram-боте (кнопка из группы → личка). Здесь — обучение, отчёты и управление.</span>
+      <strong>Зародыш приложения</strong>
+      <span id="noteText">Собираем пульс точки здесь. Отзыв линейки пока пишут в боте.</span>
     </section>
 
-    <main id="screens" class="screens"></main>
+    <div class="loc-bar" id="locBar" hidden>
+      <label for="locSelect">Точка</label>
+      <select id="locSelect"></select>
+    </div>
 
-    <section class="locations" id="locations" hidden>
-      <h2>Ваши точки</h2>
-      <ul id="locList"></ul>
-    </section>
+    <nav class="tabs" id="tabs" hidden></nav>
+
+    <main id="view" class="view">
+      <p class="muted center">Открываем…</p>
+    </main>
 
     <footer class="foot">
-      <button type="button" class="ghost" id="btnBot">Открыть бота</button>
+      <button type="button" class="ghost" id="btnBot">Бот</button>
       <button type="button" class="primary" id="btnClose">Закрыть</button>
     </footer>
   </div>

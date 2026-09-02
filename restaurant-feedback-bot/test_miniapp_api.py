@@ -57,7 +57,8 @@ def test_resolve_roles():
     m = miniapp_api.resolve_miniapp_role(d, 8, is_global_admin=False)
     assert m["role"] == "manager"
     ids = {s["id"] for s in m["screens"]}
-    assert {"reports", "signals", "materials", "access"} <= ids
+    assert {"home", "reviews", "engagement", "signals", "ai"} <= ids
+    assert m.get("app_mode") == "embryo"
 
     staff = miniapp_api.resolve_miniapp_role(d, 99, is_global_admin=False)
     assert staff["role"] == "staff"

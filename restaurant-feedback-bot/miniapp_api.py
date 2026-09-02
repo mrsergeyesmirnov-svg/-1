@@ -1,7 +1,5 @@
 """
-Telegram Mini App API: проверка initData и профиль по роли.
-
-Эндпоинты рассчитаны на хостинг рядом с ботом (aiohttp) или отдельно.
+Telegram Mini App API: initData, роли, дашборд точки (зародыш приложения).
 """
 from __future__ import annotations
 
@@ -10,7 +8,8 @@ import hmac
 import json
 import os
 import time
-from typing import Any
+from pathlib import Path
+from typing import Any, Callable
 from urllib.parse import parse_qsl
 
 
@@ -70,7 +69,6 @@ def resolve_miniapp_role(
         label = pulse_model.role_label_ru(pulse_model.ROLE_HAPPINESS_MANAGER)
     elif pulse_model.has_manager_access(data, user_id):
         role = "manager"
-        # уточняем сеть vs точка
         profiles = pulse_model.manager_profiles(data, user_id)
         if any(p.get("role") == pulse_model.ROLE_NETWORK_ADMIN for p in profiles):
             role = "network"
@@ -92,106 +90,86 @@ def resolve_miniapp_role(
         "screens": screens,
         "locations": locations,
         "feedback_in_bot": True,
+        "app_mode": "embryo",
         "note": (
-            "Оценку и отзыв о смене линейка по-прежнему оставляет в боте "
-            "(кнопка из группы → личка)."
+            "Зародыш приложения: обзор, зал/кухня, вовлечённость, горящие и ИИ-намётки. "
+            "Линейка пока пишет отзыв в боте — здесь уже видна картина точки."
         ),
     }
 
 
 def _screens_for_role(role: str) -> list[dict[str, str]]:
     staff = [
-        {
-            "id": "tests",
-            "title": "Тесты",
-            "blurb": "Проверка знаний стандартов и SOP",
-            "status": "soon",
-        },
-        {
-            "id": "training",
-            "title": "Обучение",
-            "blurb": "Материалы и инструкции точки",
-            "status": "ready",
-        },
+        {"id": "home", "title": "Обзор", "blurb": "Что видно команде", "status": "ready"},
+        {"id": "training", "title": "Обучение", "blurb": "Материалы", "status": "ready"},
         {
             "id": "feedback_bot",
-            "title": "Отзыв о смене",
-            "blurb": "Только через бота — из группы «в личку»",
+            "title": "Написать отзыв",
+            "blurb": "Пока через бота — из группы",
             "status": "bot",
         },
     ]
     manager = [
         {
-            "id": "reports",
-            "title": "Отчёты",
-            "blurb": "Сводка смены, недели, месяца",
+            "id": "home",
+            "title": "Обзор точки",
+            "blurb": "Пульс, зал и кухня, вовлечённость",
+            "status": "ready",
+        },
+        {
+            "id": "reviews",
+            "title": "Отзывы",
+            "blurb": "Комментарии по залу / кухне",
+            "status": "ready",
+        },
+        {
+            "id": "engagement",
+            "title": "Вовлечённость",
+            "blurb": "Кто отвечает на опрос",
             "status": "ready",
         },
         {
             "id": "signals",
             "title": "Горящие вопросы",
-            "blurb": "Проблемы смены и статусы",
+            "blurb": "Активные сигналы",
             "status": "ready",
         },
         {
-            "id": "materials",
-            "title": "Материалы",
-            "blurb": "Загрузка файлов и папки обучения",
+            "id": "ai",
+            "title": "ИИ-советы",
+            "blurb": "Первые выводы по отзывам",
             "status": "ready",
         },
         {
             "id": "access",
             "title": "Доступы",
-            "blurb": "Подключить / отозвать роли",
-            "status": "ready",
+            "blurb": "Роли — пока в боте",
+            "status": "bot",
         },
     ]
     owner = [
+        {"id": "home", "title": "Обзор", "blurb": "Пульс точек", "status": "ready"},
+        {"id": "reviews", "title": "Отзывы", "blurb": "Зал / кухня", "status": "ready"},
+        {"id": "signals", "title": "Горящие", "blurb": "Сигналы", "status": "ready"},
+        {"id": "ai", "title": "ИИ-советы", "blurb": "Намётки", "status": "ready"},
         {
             "id": "ai_audit",
             "title": "ИИ-аудит",
-            "blurb": "Индекс здоровья точки по голосу и файлам",
-            "status": "ready",
+            "blurb": "Полный аудит — в боте",
+            "status": "bot",
         },
-        {
-            "id": "network_summary",
-            "title": "Сводка по точкам",
-            "blurb": "Все локации сети в одном экране",
-            "status": "ready",
-        },
-        {
-            "id": "billing",
-            "title": "Оплаты и тарифы",
-            "blurb": "Подписки, лимиты, статусы",
-            "status": "soon",
-        },
-        {
-            "id": "reports",
-            "title": "Отчёты",
-            "blurb": "Глубокая аналитика по запросу",
-            "status": "ready",
-        },
+        {"id": "billing", "title": "Оплаты", "blurb": "Скоро", "status": "soon"},
     ]
     if role == "staff":
         return staff
     if role == "chef":
         return [
-            {
-                "id": "training",
-                "title": "Обучение",
-                "blurb": "Материалы кухни",
-                "status": "ready",
-            },
-            {
-                "id": "stop",
-                "title": "Стоп-лист",
-                "blurb": "В боте: задать / дописать / посмотреть",
-                "status": "bot",
-            },
+            {"id": "home", "title": "Кухня · обзор", "blurb": "Сигналы кухни", "status": "ready"},
+            {"id": "reviews", "title": "Отзывы", "blurb": "Зал и кухня", "status": "ready"},
             {
                 "id": "feedback_bot",
-                "title": "Оценка смены кухни",
-                "blurb": "Через бота",
+                "title": "Оценить смену",
+                "blurb": "Пока через бота",
                 "status": "bot",
             },
         ]
@@ -199,36 +177,23 @@ def _screens_for_role(role: str) -> list[dict[str, str]]:
         base = list(manager)
         if role in ("network", "happiness"):
             base.insert(
-                0,
+                1,
                 {
                     "id": "ai_audit",
                     "title": "ИИ-аудит",
-                    "blurb": "Индекс операционного здоровья",
-                    "status": "ready",
-                },
-            )
-        if role == "network":
-            base.insert(
-                1,
-                {
-                    "id": "network_summary",
-                    "title": "Сводка по точкам",
-                    "blurb": "Все точки организации",
-                    "status": "ready",
+                    "blurb": "Полный аудит — в боте",
+                    "status": "bot",
                 },
             )
         return base
     if role == "owner":
-        return owner + [
-            s for s in manager if s["id"] not in {x["id"] for x in owner}
-        ]
+        return owner
     return staff
 
 
 def _locations_for_user(
     data: dict[str, Any], user_id: int, *, is_global_admin: bool
 ) -> list[dict[str, str]]:
-    import pulse_model
     import report_pulse
 
     scope = report_pulse.chat_scope_for_user(
@@ -237,12 +202,38 @@ def _locations_for_user(
     return [{"id": cid, "title": title} for cid, title in scope[:40]]
 
 
-def make_aiohttp_app(*, bot_token: str, load_data, is_global_admin_fn, bot_username: str = ""):
+def _auth_user(request: Any, bot_token: str) -> tuple[dict[str, Any] | None, Any]:
     from aiohttp import web
+
+    auth = request.headers.get("Authorization") or ""
+    init_data = ""
+    if auth.lower().startswith("tma "):
+        init_data = auth[4:].strip()
+    if not init_data:
+        init_data = request.query.get("initData") or ""
+    fields = validate_webapp_init_data(init_data, bot_token=bot_token)
+    if not fields:
+        return None, web.json_response({"ok": False, "error": "unauthorized"}, status=401)
+    user = parse_user(fields)
+    if not user or not user.get("id"):
+        return None, web.json_response({"ok": False, "error": "no_user"}, status=401)
+    return user, None
+
+
+def make_aiohttp_app(
+    *,
+    bot_token: str,
+    load_data: Callable,
+    is_global_admin_fn: Callable[[int], bool],
+    bot_username: str = "",
+    jsonl_path: Path | str | None = None,
+):
+    from aiohttp import web
+
+    import miniapp_dashboard
 
     miniapp_dir = os.getenv("MINIAPP_STATIC_DIR", "").strip()
     if not miniapp_dir:
-        # предпочтительно копия рядом с ботом (Railway)
         here = os.path.dirname(os.path.abspath(__file__))
         candidate_bot = os.path.join(here, "miniapp")
         root = os.path.dirname(here)
@@ -253,6 +244,8 @@ def make_aiohttp_app(*, bot_token: str, load_data, is_global_admin_fn, bot_usern
             miniapp_dir = candidate_docs
         else:
             miniapp_dir = candidate_bot
+
+    jpath = Path(jsonl_path) if jsonl_path else None
 
     @web.middleware
     async def cors_middleware(request: web.Request, handler):
@@ -266,18 +259,10 @@ def make_aiohttp_app(*, bot_token: str, load_data, is_global_admin_fn, bot_usern
         return resp
 
     async def me(request: web.Request) -> web.Response:
-        auth = request.headers.get("Authorization") or ""
-        init_data = ""
-        if auth.lower().startswith("tma "):
-            init_data = auth[4:].strip()
-        if not init_data:
-            init_data = request.query.get("initData") or ""
-        fields = validate_webapp_init_data(init_data, bot_token=bot_token)
-        if not fields:
-            return web.json_response({"ok": False, "error": "unauthorized"}, status=401)
-        user = parse_user(fields)
-        if not user or not user.get("id"):
-            return web.json_response({"ok": False, "error": "no_user"}, status=401)
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
         uid = int(user["id"])
         data = await load_data()
         profile = resolve_miniapp_role(
@@ -296,12 +281,51 @@ def make_aiohttp_app(*, bot_token: str, load_data, is_global_admin_fn, bot_usern
             }
         )
 
+    async def dashboard(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        uid = int(user["id"])
+        data = await load_data()
+        if not (
+            is_global_admin_fn(uid)
+            or __import__("pulse_model").has_manager_access(data, uid)
+            or __import__("pulse_model").has_chef_access(data, uid)
+            or __import__("pulse_model").has_ai_auditor_access(data, uid)
+        ):
+            return web.json_response(
+                {"ok": False, "error": "forbidden", "message": "Дашборд для управляющих"},
+                status=403,
+            )
+        chat_raw = request.query.get("chat_id") or ""
+        period = (request.query.get("period") or "week").strip()
+        chat_id = None
+        if chat_raw.strip():
+            try:
+                chat_id = int(chat_raw)
+            except ValueError:
+                return web.json_response(
+                    {"ok": False, "error": "bad_chat_id"}, status=400
+                )
+        payload = await miniapp_dashboard.build_dashboard(
+            data,
+            uid,
+            is_global_admin=is_global_admin_fn(uid),
+            chat_id=chat_id,
+            period=period,
+            jsonl_path=jpath,
+        )
+        return web.json_response(payload)
+
     async def health(_request: web.Request) -> web.Response:
         return web.json_response({"ok": True, "service": "miniapp"})
 
     app = web.Application(middlewares=[cors_middleware])
     app.router.add_route("OPTIONS", "/api/miniapp/me", health)
+    app.router.add_route("OPTIONS", "/api/miniapp/dashboard", health)
     app.router.add_get("/api/miniapp/me", me)
+    app.router.add_get("/api/miniapp/dashboard", dashboard)
     app.router.add_get("/api/miniapp/health", health)
     if os.path.isdir(miniapp_dir):
         index_path = os.path.join(miniapp_dir, "index.html")
@@ -311,7 +335,6 @@ def make_aiohttp_app(*, bot_token: str, load_data, is_global_admin_fn, bot_usern
                 return web.Response(text="Mini App index.html не найден", status=404)
             return web.FileResponse(index_path)
 
-        # Сначала явный /, иначе aiohttp с show_index отдаёт «Index of /.»
         app.router.add_get("/", serve_index)
         app.router.add_get("/index.html", serve_index)
         app.router.add_static("/", miniapp_dir, show_index=False)
@@ -321,11 +344,12 @@ def make_aiohttp_app(*, bot_token: str, load_data, is_global_admin_fn, bot_usern
 async def start_miniapp_server(
     *,
     bot_token: str,
-    load_data,
-    is_global_admin_fn,
+    load_data: Callable,
+    is_global_admin_fn: Callable[[int], bool],
     bot_username: str = "",
     host: str = "0.0.0.0",
     port: int | None = None,
+    jsonl_path: Path | str | None = None,
 ) -> None:
     from aiohttp import web
 
@@ -335,9 +359,10 @@ async def start_miniapp_server(
         load_data=load_data,
         is_global_admin_fn=is_global_admin_fn,
         bot_username=bot_username,
+        jsonl_path=jsonl_path,
     )
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, host, port)
     await site.start()
-    print(f"[miniapp-http] http://{host}:{port}/  (static + /api/miniapp/me)")
+    print(f"[miniapp-http] http://{host}:{port}/  (static + /api/miniapp/*)")
