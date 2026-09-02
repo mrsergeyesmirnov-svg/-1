@@ -454,7 +454,7 @@ def _location_ids_from_profiles(
 
 def allowed_chat_ids_for_manager(data: dict[str, Any], user_id: int) -> set[str]:
     """chat_id строками, по которым менеджеру можно смотреть аналитику."""
-    return _location_ids_from_profiles(
+    base = _location_ids_from_profiles(
         data,
         manager_profiles(data, user_id),
         roles=frozenset(
@@ -466,14 +466,31 @@ def allowed_chat_ids_for_manager(data: dict[str, Any], user_id: int) -> set[str]
             }
         ),
     )
+    # Зал+кухня одной точки: доступ к одному чату открывает парный
+    expanded: set[str] = set(base)
+    for cid in list(base):
+        try:
+            for sib in sibling_chat_ids_for_location(data, int(cid)):
+                expanded.add(str(sib))
+        except (TypeError, ValueError):
+            continue
+    return expanded
 
 
 def allowed_chat_ids_for_chef(data: dict[str, Any], user_id: int) -> set[str]:
-    return _location_ids_from_profiles(
+    base = _location_ids_from_profiles(
         data,
         manager_profiles(data, user_id),
         roles=frozenset({ROLE_CHEF}),
     )
+    expanded: set[str] = set(base)
+    for cid in list(base):
+        try:
+            for sib in sibling_chat_ids_for_location(data, int(cid)):
+                expanded.add(str(sib))
+        except (TypeError, ValueError):
+            continue
+    return expanded
 
 
 def allowed_chat_ids_for_ops_user(data: dict[str, Any], user_id: int) -> set[str]:
@@ -720,7 +737,151 @@ def format_tariff_history_line(entry: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
-def link_chat_to_organization(data: dict[str, Any], chat_id: int, org_id: str) -> bool:
+# Департамент группового чата точки: зал или кухня (опросы и отчёты).
+CHAT_DEPT_FLOOR = "floor"
+CHAT_DEPT_KITCHEN = "kitchen"
+CHAT_DEPT_ALIASES: dict[str, str] = {
+    "floor": CHAT_DEPT_FLOOR,
+    "hall": CHAT_DEPT_FLOOR,
+    "зал": CHAT_DEPT_FLOOR,
+    "зала": CHAT_DEPT_FLOOR,
+    "kitchen": CHAT_DEPT_KITCHEN,
+    "кухня": CHAT_DEPT_KITCHEN,
+    "кухни": CHAT_DEPT_KITCHEN,
+}
+
+
+def parse_chat_department(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    return CHAT_DEPT_ALIASES.get(str(raw).strip().lower())
+
+
+def chat_department(data: dict[str, Any], chat_id: int | None) -> str:
+    """Департамент чата для опросов; по умолчанию зал."""
+    if chat_id is None:
+        return CHAT_DEPT_FLOOR
+    rec = data.get("chats", {}).get(str(chat_id))
+    if not isinstance(rec, dict):
+        return CHAT_DEPT_FLOOR
+    dept = parse_chat_department(str(rec.get("department") or ""))
+    return dept or CHAT_DEPT_FLOOR
+
+
+def set_chat_department(data: dict[str, Any], chat_id: int, department: str) -> bool:
+    dept = parse_chat_department(department)
+    if dept is None:
+        return False
+    cid = str(chat_id)
+    chats = data.setdefault("chats", {})
+    if cid not in chats or not isinstance(chats[cid], dict):
+        return False
+    chats[cid]["department"] = dept
+    return True
+
+
+def department_title_ru(dept: str) -> str:
+    if dept == CHAT_DEPT_KITCHEN:
+        return "Кухня"
+    return "Зал"
+
+
+def new_location_id() -> str:
+    return "loc_" + secrets.token_hex(4)
+
+
+def ensure_chat_location_id(data: dict[str, Any], chat_id: int) -> str:
+    """У зала/одиночного чата — свой location_id (пара зал+кухня одной точки)."""
+    cid = str(chat_id)
+    chats = data.setdefault("chats", {})
+    rec = chats.get(cid)
+    if not isinstance(rec, dict):
+        return ""
+    lid = str(rec.get("location_id") or "").strip()
+    if lid:
+        return lid
+    lid = new_location_id()
+    rec["location_id"] = lid
+    return lid
+
+
+def pair_chats_same_location(
+    data: dict[str, Any], chat_id: int, peer_chat_id: int
+) -> str | None:
+    """Связать два чата (зал+кухня) одной локацией."""
+    chats = data.get("chats") or {}
+    a = chats.get(str(chat_id))
+    b = chats.get(str(peer_chat_id))
+    if not isinstance(a, dict) or not isinstance(b, dict):
+        return None
+    lid = (
+        str(a.get("location_id") or "").strip()
+        or str(b.get("location_id") or "").strip()
+        or new_location_id()
+    )
+    a["location_id"] = lid
+    b["location_id"] = lid
+    return lid
+
+
+def floor_chats_in_org(data: dict[str, Any], org_id: str) -> list[tuple[int, str]]:
+    """(chat_id, title) чатов зала в организации — для привязки кухни."""
+    out: list[tuple[int, str]] = []
+    for cid, rec in (data.get("chats") or {}).items():
+        if not isinstance(rec, dict):
+            continue
+        if rec.get("organization_id") != org_id:
+            continue
+        if rec.get("removed_at"):
+            continue
+        if chat_department(data, int(cid)) != CHAT_DEPT_FLOOR:
+            continue
+        try:
+            out.append((int(cid), str(rec.get("title") or cid)))
+        except (TypeError, ValueError):
+            continue
+    out.sort(key=lambda x: x[1].lower())
+    return out
+
+
+def sibling_chat_ids_for_location(
+    data: dict[str, Any], chat_id: int | None
+) -> list[int]:
+    """Все чаты той же точки (зал+кухня). Без location_id — только этот чат."""
+    if chat_id is None:
+        return []
+    try:
+        base = int(chat_id)
+    except (TypeError, ValueError):
+        return []
+    rec = data.get("chats", {}).get(str(base))
+    if not isinstance(rec, dict):
+        return [base]
+    lid = str(rec.get("location_id") or "").strip()
+    if not lid:
+        return [base]
+    out: list[int] = []
+    for cid, other in (data.get("chats") or {}).items():
+        if not isinstance(other, dict):
+            continue
+        if str(other.get("location_id") or "").strip() != lid:
+            continue
+        if other.get("removed_at"):
+            continue
+        try:
+            out.append(int(cid))
+        except (TypeError, ValueError):
+            continue
+    return sorted(set(out)) or [base]
+
+
+def link_chat_to_organization(
+    data: dict[str, Any],
+    chat_id: int,
+    org_id: str,
+    *,
+    department: str | None = None,
+) -> bool:
     if org_id not in data.get("organizations", {}):
         return False
     cid = str(chat_id)
@@ -728,6 +889,8 @@ def link_chat_to_organization(data: dict[str, Any], chat_id: int, org_id: str) -
     if cid not in chats:
         return False
     chats[cid]["organization_id"] = org_id
+    if department is not None:
+        set_chat_department(data, chat_id, department)
     return True
 
 
@@ -794,15 +957,18 @@ def text_connect_point(bot_username: str) -> str:
     un_e = escape(un)
     return (
         "<b>Как подключить точку</b>\n\n"
-        "1. Создайте групповой чат официантов/смены (лучше супергруппа).\n"
-        "2. Добавьте в чат бота.\n"
-        "3. Администратор Pulse привяжет чат к вашей <b>организации</b> командой <code>/link_org …</code> в этом чате "
-        "(или заранее через поддержку).\n"
-        "4. В чате или в личке: «⏰ Напоминания» — время опроса смены; "
+        "1. Создайте <b>два</b> групповых чата: зал и кухня (лучше супергруппы).\n"
+        "2. Добавьте бота в оба чата.\n"
+        "3. В каждом чате: <code>/link_org org_id</code> — затем выберите "
+        "<b>чат зала</b> или <b>чат кухни</b> (или сразу "
+        "<code>/link_org org_id floor</code> / <code>kitchen</code>).\n"
+        "Так отзывы зала и кухни в отчётах разделяются: зал не «говорит за кухню».\n"
+        "4. В каждом чате: «⏰ Напоминания» — время опроса; "
         "либо <code>/settime 22:00</code> и при необходимости "
         "<code>/timezone Europe/Moscow</code>.\n\n"
         f'<a href="https://t.me/{un_e}?startgroup=open">добавить @{un_e} в группу</a>\n\n'
-        "Оценки сотрудников идут <b>только в личку</b> по кнопке из группы — так ответ привязан к точке."
+        "Оценки идут <b>только в личку</b> по кнопке из своей группы — "
+        "ответ помечается как зал или кухня."
     )
 
 
@@ -1051,7 +1217,8 @@ def admin_commands_reference_chunks() -> list[str]:
             "· <b>Менеджер по счастью</b> — аналитика + ИИ-аудит здоровья точки\n"
             "· <b>Шеф</b> — стоп-лист и оценка смены кухни в личке\n\n"
             "<b>В группе точки</b>\n"
-            "<code>/link_org org_id</code> — привязать чат к организации"
+            "<code>/link_org org_id</code> — привязать чат → выбрать зал или кухню\n"
+            "<code>/link_org org_id floor</code> / <code>kitchen</code> — сразу указать департамент"
         ),
         (
             "<b>💳 Тарифы и подписка</b>\n"

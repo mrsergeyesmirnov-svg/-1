@@ -1349,8 +1349,15 @@ def teaser_learn_more_text() -> str:
 
 
 async def transcribe_voice(
-    file_bytes: bytes, *, filename: str = "voice.ogg"
+    file_bytes: bytes,
+    *,
+    filename: str = "voice.ogg",
+    language: str | None = "ru",
 ) -> str | None:
+    """
+    Whisper transcription.
+    language="ru" — подсказка для зала; None — автоопределение (кухня / другие языки).
+    """
     client = _client_or_none()
     if client is None:
         return None
@@ -1359,13 +1366,52 @@ async def transcribe_voice(
 
         buf = io.BytesIO(file_bytes)
         buf.name = filename
-        resp = await client.audio.transcriptions.create(
-            model="whisper-1",
-            file=buf,
-            language="ru",
-        )
+        kwargs: dict[str, Any] = {
+            "model": "whisper-1",
+            "file": buf,
+        }
+        if language:
+            kwargs["language"] = language
+        resp = await client.audio.transcriptions.create(**kwargs)
         text = (getattr(resp, "text", None) or str(resp) or "").strip()
         return text or None
     except Exception as e:
         print(f"[whisper] {e}")
         return None
+
+
+async def translate_to_russian(text: str) -> str | None:
+    """
+    Перевод отзыва в русский для отчётов.
+    Если текст уже по-русски — вернёт его же (или слегка нормализованный).
+    """
+    raw = (text or "").strip()
+    if not raw:
+        return None
+    client = _client_or_none()
+    if client is None:
+        return raw
+    try:
+        resp = await client.chat.completions.create(
+            model=os.getenv("OPENAI_ADVICE_MODEL", "gpt-4o-mini").strip()
+            or "gpt-4o-mini",
+            temperature=0,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Ты переводчик отзывов персонала ресторана. "
+                        "Переведи текст на русский язык для управленческого отчёта. "
+                        "Сохрани смысл, тон и конкретику. Не добавляй пояснений, кавычек "
+                        "и преамбулы. Если текст уже на русском — верни его без изменений "
+                        "(можно поправить только очевидные опечатки распознавания)."
+                    ),
+                },
+                {"role": "user", "content": raw},
+            ],
+        )
+        out = (resp.choices[0].message.content or "").strip()
+        return out or raw
+    except Exception as e:
+        print(f"[translate-ru] {e}")
+        return raw

@@ -1388,7 +1388,16 @@ async def build_reports_for_manager(
         if isinstance(rec, dict) and rec.get("timezone"):
             tz = str(rec["timezone"])
     start, end, prev_start, prev_end, plabel = period_window(period, tz)
-    chat_ids = [int(cid) for cid, _ in scope]
+    # Одна точка = зал + кухня (sibling chats с общим location_id)
+    chat_ids: list[int] = []
+    seen_cids: set[int] = set()
+    for cid, _ in scope:
+        for sib in pulse_model.sibling_chat_ids_for_location(data, int(cid)):
+            if sib not in seen_cids:
+                seen_cids.add(sib)
+                chat_ids.append(sib)
+    if not chat_ids:
+        chat_ids = [int(cid) for cid, _ in scope]
     import chef_survey
 
     try:
@@ -1413,8 +1422,10 @@ async def build_reports_for_manager(
     if not current and not (dept == chef_survey.DEPARTMENT_ALL and current_raw):
         if dept == chef_survey.DEPARTMENT_KITCHEN:
             hint = (
-                "Попросите шефа нажать «Оценить смену» в личке бота "
-                "(напоминания приходят утром и вечером)."
+                "Подключите групповой чат кухни (<code>/link_org … kitchen</code>) "
+                "и попросите поваров ответить из этой группы "
+                "(кнопка «Рассказать в личке»). "
+                "Шеф также может нажать «Оценить смену» в личке."
             )
         else:
             hint = (

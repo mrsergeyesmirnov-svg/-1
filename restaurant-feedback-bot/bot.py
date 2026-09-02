@@ -444,10 +444,14 @@ def decode_start_more(token: str) -> int | None:
 
 # user_id -> id группы, для которой сейчас проходит опрос в личке
 user_linked_chat: dict[int, int] = {}
+# департамент опроса (floor/kitchen) из чата группы
+user_linked_department: dict[int, str] = {}
 # slug из /start <slug> (для старых ссылок без привязки к чату)
 user_private_slug: dict[int, str] = {}
 # ждём текст комментария в личке (после «Опишите подробнее»)
 waiting_for_comment: set[int] = set()
+# голосовое: расшифровка ждёт подтверждения перед сохранением
+pending_voice_comment: dict[int, str] = {}
 # выбранная тема проблемы до «отправить так» / уточнения текстом
 user_pending_problem: dict[int, str] = {}
 # последняя тема смены — привязка комментария к кнопке для алертов менеджеру
@@ -715,7 +719,7 @@ GROUP_JOIN_WELCOME = (
             "• /deltime / /deltime2 — убрать время\n"
     "• /timezone Europe/Moscow — часовой пояс\n"
     "• /send или /send_now — отправить напоминание сейчас\n"
-    "• /link_org org_xxxx — привязать чат к организации (после <code>/create_org</code>)\n"
+    "• /link_org org_xxxx — привязать чат к организации (зал или кухня)\n"
     "• /smena_help — краткая справка по командам"
 )
 
@@ -871,13 +875,72 @@ def restaurant_label_for_log(data: dict, user_id: int) -> str:
     return slug or "неизвестно"
 
 
+def survey_department_for_user(data: dict, user_id: int) -> str:
+    """Департамент текущего опроса: из сессии или из карточки чата."""
+    cached = user_linked_department.get(user_id)
+    if cached in (pulse_model.CHAT_DEPT_FLOOR, pulse_model.CHAT_DEPT_KITCHEN):
+        return cached
+    cid = user_linked_chat.get(user_id)
+    return pulse_model.chat_department(data, cid)
+
+
+def bind_survey_chat(uid: int, chat_id: int, data: dict) -> str:
+    """Привязать опрос к чату и запомнить зал/кухню."""
+    user_linked_chat[uid] = chat_id
+    dept = pulse_model.chat_department(data, chat_id)
+    user_linked_department[uid] = dept
+    return dept
+
+
+def link_org_department_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🍽 Чат зала",
+                    callback_data="linkdept:floor",
+                ),
+                InlineKeyboardButton(
+                    text="👨‍🍳 Чат кухни",
+                    callback_data="linkdept:kitchen",
+                ),
+            ]
+        ]
+    )
+
+
+def voice_confirm_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✅ Отправить",
+                    callback_data="voice_c:ok",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔄 Записать снова",
+                    callback_data="voice_c:retry",
+                ),
+                InlineKeyboardButton(
+                    text="Пропустить",
+                    callback_data="voice_c:skip",
+                ),
+            ],
+        ]
+    )
+
+
 def finish_private_flow(user_id: int) -> None:
     user_linked_chat.pop(user_id, None)
+    user_linked_department.pop(user_id, None)
     user_private_slug.pop(user_id, None)
     user_pending_problem.pop(user_id, None)
     user_last_problem_code.pop(user_id, None)
     user_last_mood.pop(user_id, None)
     waiting_for_comment.discard(user_id)
+    pending_voice_comment.pop(user_id, None)
 
 
 async def is_chat_admin(chat_id: int, user_id: int) -> bool:
@@ -2742,9 +2805,11 @@ async def cmd_start(message: Message) -> None:
         arg = args[1].strip()
         more_chat = decode_start_more(arg)
         if more_chat is not None:
-            user_linked_chat[uid] = more_chat
+            data = await load_data()
+            bind_survey_chat(uid, more_chat, data)
             user_private_slug.pop(uid, None)
             waiting_for_comment.add(uid)
+            pending_voice_comment.pop(uid, None)
             await message.answer(
                 "Напишите, что случилось на смене — текстом или голосовым. "
                 "В чат ресторана это не попадёт.",
@@ -2759,9 +2824,9 @@ async def cmd_start(message: Message) -> None:
 
         linked = decode_start_chat(arg)
         if linked is not None:
-            user_linked_chat[uid] = linked
-            user_private_slug.pop(uid, None)
             data = await load_data()
+            bind_survey_chat(uid, linked, data)
+            user_private_slug.pop(uid, None)
             await message.answer(
                 "Здесь можно ответить анонимно — как прошла смена?",
                 reply_markup=pulse_model.support_only_reply_markup(),
@@ -2846,7 +2911,7 @@ async def cmd_help(message: Message) -> None:
             "/timezone Europe/Moscow — часовой пояс\n"
             "/send или /send_now — напоминание в группу сейчас (со ссылкой в личку)\n"
             "/set_ops morning 11:30 chef_stop 11:45 evening 00:00 — план, стоп, закрытие\n"
-            "/link_org org_xxxx — привязать этот чат к организации (глобальный админ или админ чата)\n"
+            "/link_org org_xxxx — привязать чат (зал/кухня; глобальный админ или админ чата)\n"
             "/start в этом чате — ваша личная ссылка в личку для оценки <b>этой</b> точки\n\n"
             "Оценка всегда <b>в личке с ботом</b>, чтобы ответ привязался к этой точке.",
             parse_mode="HTML",
@@ -3276,7 +3341,8 @@ async def cmd_create_org(message: Message) -> None:
     await message.answer(
         f"Создана организация <b>{escape(name)}</b>\n<code>{escape(oid)}</code>\n\n"
         f"Можно сразу запустить <b>🧠 ИИ-аудит</b> — группу точки подключать не обязательно.\n"
-        f"Для опросов смены позже: <code>/link_org {escape(oid)}</code> в группе ресторана.",
+        f"Для опросов смены: <code>/link_org {escape(oid)}</code> в группе зала "
+        f"и отдельно в группе кухни — выберите тип чата.",
         parse_mode="HTML",
     )
 
@@ -3372,14 +3438,25 @@ async def cmd_link_org(message: Message) -> None:
     if message.chat.type not in ("group", "supergroup"):
         await message.answer("Команду пишут в групповом чате точки.")
         return
-    parts = (message.text or "").split(maxsplit=1)
+    parts = (message.text or "").split()
     if len(parts) < 2 or not parts[1].strip():
         await message.answer(
-            "Например: <code>/link_org org_a1b2c3d4</code> (id из <code>/orgs</code> в личке у админа).",
+            "Например: <code>/link_org org_a1b2c3d4</code>\n"
+            "После привязки выберите <b>чат зала</b> или <b>чат кухни</b>.\n"
+            "Или сразу: <code>/link_org org_a1b2c3d4 floor</code> / "
+            "<code>kitchen</code> (зал / кухня).",
             parse_mode="HTML",
         )
         return
     org_id = parts[1].strip()
+    dept_arg = pulse_model.parse_chat_department(parts[2]) if len(parts) > 2 else None
+    if len(parts) > 2 and dept_arg is None:
+        await message.answer(
+            "Департамент: <code>floor</code> / <code>зал</code> или "
+            "<code>kitchen</code> / <code>кухня</code>.",
+            parse_mode="HTML",
+        )
+        return
     uid = message.from_user.id
     if not (is_global_admin(uid) or await is_chat_admin(message.chat.id, uid)):
         await message.answer("Эту команду могут выполнить админы чата или глобальный админ бота.")
@@ -3403,12 +3480,158 @@ async def cmd_link_org(message: Message) -> None:
             "active": True,
         }
     chats[cid]["organization_id"] = org_id
+    chats[cid]["title"] = message.chat.title or chats[cid].get("title") or cid
+    if dept_arg:
+        chats[cid]["department"] = dept_arg
+        if dept_arg == pulse_model.CHAT_DEPT_FLOOR:
+            pulse_model.ensure_chat_location_id(data, message.chat.id)
+            await save_data(data)
+            dept_ru = pulse_model.department_title_ru(dept_arg)
+            await message.answer(
+                f"Чат привязан к <code>{escape(org_id)}</code> как <b>{escape(dept_ru)}</b>.\n"
+                "Сотрудники из этой группы пишут отзывы в зал. "
+                "Отдельно подключите групповой чат кухни той же точки.",
+                parse_mode="HTML",
+            )
+            return
+        await save_data(data)
+        await _finish_kitchen_link(message, data, org_id, message.chat.id)
+        return
     await save_data(data)
     await message.answer(
-        f"Этот чат привязан к организации <code>{escape(org_id)}</code>. "
-        "Напоминания и отчёты пойдут в рамках этой сети.",
+        f"Чат привязан к организации <code>{escape(org_id)}</code>.\n"
+        "Выберите тип чата — от этого зависит, куда попадут отзывы в отчётах:",
+        parse_mode="HTML",
+        reply_markup=link_org_department_keyboard(),
+    )
+
+
+async def _finish_kitchen_link(
+    target: Message, data: dict, org_id: str, kitchen_chat_id: int
+) -> None:
+    """После выбора «кухня» — связать с чатом зала той же точки."""
+    floors = [
+        (cid, title)
+        for cid, title in pulse_model.floor_chats_in_org(data, org_id)
+        if cid != kitchen_chat_id
+    ]
+    if not floors:
+        pulse_model.ensure_chat_location_id(data, kitchen_chat_id)
+        await save_data(data)
+        await target.answer(
+            "Готово: это <b>чат кухни</b>.\n"
+            "Чата зала в этой организации пока нет — когда подключете зал, "
+            "привяжите кухню заново или напишите поддержке, чтобы связать точки.",
+            parse_mode="HTML",
+        )
+        return
+    if len(floors) == 1:
+        peer_id, peer_title = floors[0]
+        pulse_model.pair_chats_same_location(data, kitchen_chat_id, peer_id)
+        await save_data(data)
+        await target.answer(
+            f"Готово: <b>чат кухни</b>, связан с залом «{escape(peer_title)}».\n"
+            "Отзывы кухни и зала в отчётах одной точки — фильтр Зал / Кухня / Весь ресторан.",
+            parse_mode="HTML",
+        )
+        return
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=f"🍽 {title}"[:60],
+                callback_data=f"linkpair:{peer_id}"[:64],
+            )
+        ]
+        for peer_id, title in floors[:20]
+    ]
+    await target.answer(
+        "Это <b>чат кухни</b>. К какому залу этой сети его привязать?",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
+    )
+
+
+@dp.callback_query(F.data.startswith("linkdept:"))
+async def link_org_department_handler(callback: CallbackQuery) -> None:
+    if not callback.message or callback.message.chat.type not in ("group", "supergroup"):
+        await callback.answer()
+        return
+    parts = (callback.data or "").split(":")
+    dept = pulse_model.parse_chat_department(parts[1] if len(parts) > 1 else "")
+    if dept is None:
+        await callback.answer("Неизвестный тип.", show_alert=True)
+        return
+    uid = callback.from_user.id
+    chat_id = callback.message.chat.id
+    if not (is_global_admin(uid) or await is_chat_admin(chat_id, uid)):
+        await callback.answer("Только админ чата или глобальный админ.", show_alert=True)
+        return
+    data = await load_data()
+    rec = data.get("chats", {}).get(str(chat_id))
+    if not isinstance(rec, dict) or not rec.get("organization_id"):
+        await callback.answer("Сначала /link_org org_id", show_alert=True)
+        return
+    org_id = str(rec["organization_id"])
+    rec["department"] = dept
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    if dept == pulse_model.CHAT_DEPT_FLOOR:
+        pulse_model.ensure_chat_location_id(data, chat_id)
+        await save_data(data)
+        await callback.message.answer(
+            "Готово: это <b>чат зала</b>. "
+            "Отзывы из кнопки в этой группе попадут в отчёты по залу. "
+            "Подключите отдельно чат кухни той же точки.",
+            parse_mode="HTML",
+        )
+        await callback.answer("Чат: Зал")
+        return
+    await save_data(data)
+    await callback.answer("Чат: Кухня")
+    await _finish_kitchen_link(callback.message, data, org_id, chat_id)
+
+
+@dp.callback_query(F.data.startswith("linkpair:"))
+async def link_kitchen_pair_handler(callback: CallbackQuery) -> None:
+    if not callback.message or callback.message.chat.type not in ("group", "supergroup"):
+        await callback.answer()
+        return
+    parts = (callback.data or "").split(":")
+    try:
+        peer_id = int(parts[1])
+    except (IndexError, ValueError):
+        await callback.answer("Ошибка.", show_alert=True)
+        return
+    uid = callback.from_user.id
+    chat_id = callback.message.chat.id
+    if not (is_global_admin(uid) or await is_chat_admin(chat_id, uid)):
+        await callback.answer("Только админ чата или глобальный админ.", show_alert=True)
+        return
+    data = await load_data()
+    rec = data.get("chats", {}).get(str(chat_id))
+    peer = data.get("chats", {}).get(str(peer_id))
+    if not isinstance(rec, dict) or not isinstance(peer, dict):
+        await callback.answer("Чат не найден.", show_alert=True)
+        return
+    if rec.get("organization_id") != peer.get("organization_id"):
+        await callback.answer("Разные организации.", show_alert=True)
+        return
+    rec["department"] = pulse_model.CHAT_DEPT_KITCHEN
+    pulse_model.pair_chats_same_location(data, chat_id, peer_id)
+    await save_data(data)
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    peer_title = str(peer.get("title") or peer_id)
+    await callback.message.answer(
+        f"Готово: кухня связана с залом «{escape(peer_title)}». "
+        "В отчётах одной точки — Зал / Кухня / Весь ресторан.",
         parse_mode="HTML",
     )
+    await callback.answer("Связано")
 
 
 @dp.message(Command("set_subscription"))
@@ -4349,7 +4572,7 @@ async def mood_handler(callback: CallbackQuery) -> None:
             "organization_id": org_id_for_restaurant_chat(data, rest_chat),
             "rating": rating,
             "mood": code,
-            "department": chef_survey.DEPARTMENT_FLOOR,
+            "department": survey_department_for_user(data, user_id),
         }
     )
     await callback.message.edit_reply_markup(reply_markup=None)
@@ -4401,7 +4624,7 @@ async def blocker_handler(callback: CallbackQuery) -> None:
                 "restaurant_label": restaurant,
                 "organization_id": org_id,
                 "problem": action,
-                "department": chef_survey.DEPARTMENT_FLOOR,
+                "department": survey_department_for_user(data, user_id),
                 "mood": user_last_mood.get(user_id),
             }
         )
@@ -8170,10 +8393,17 @@ async def comment_handler(message: Message) -> None:
     if user_id not in waiting_for_comment:
         return
 
+    pending_voice_comment.pop(user_id, None)
     await _save_shift_comment(message, user_id, message.text or "")
 
 
-async def _save_shift_comment(message: Message, user_id: int, comment: str) -> None:
+async def _save_shift_comment(
+    message: Message,
+    user_id: int,
+    comment: str,
+    *,
+    comment_original: str | None = None,
+) -> None:
     data = await load_data()
     restaurant = restaurant_label_for_log(data, user_id)
     rest_chat = user_linked_chat.get(user_id)
@@ -8182,6 +8412,7 @@ async def _save_shift_comment(message: Message, user_id: int, comment: str) -> N
         user_id
     )
     user_pending_problem.pop(user_id, None)
+    dept = survey_department_for_user(data, user_id)
     entry: dict = {
         "event": "comment",
         "user_id": user_id,
@@ -8189,13 +8420,20 @@ async def _save_shift_comment(message: Message, user_id: int, comment: str) -> N
         "restaurant_label": restaurant,
         "organization_id": org_id,
         "comment": comment,
-        "department": chef_survey.DEPARTMENT_FLOOR,
+        "department": dept,
     }
+    if (
+        comment_original
+        and comment_original.strip()
+        and comment_original.strip() != comment.strip()
+    ):
+        entry["comment_original"] = comment_original.strip()
     if problem_code:
         entry["problem"] = problem_code
     await log_feedback_event(entry)
 
     waiting_for_comment.discard(user_id)
+    pending_voice_comment.pop(user_id, None)
     finish_private_flow(user_id)
     await answer_private_flow_end(message, user_id, "Спасибо за честную обратную связь ❤️")
 
@@ -8220,6 +8458,9 @@ async def private_voice_comment(message: Message) -> None:
         filename = "video_note.mp4"
     if not file_id:
         return
+    data = await load_data()
+    dept = survey_department_for_user(data, user_id)
+    kitchen = dept == pulse_model.CHAT_DEPT_KITCHEN
     await message.answer("🎧 Расшифровываю…")
     try:
         f = await bot.get_file(file_id)
@@ -8227,9 +8468,16 @@ async def private_voice_comment(message: Message) -> None:
         raw = buf.read()
     except Exception as e:
         print(f"[voice-download] {e}")
-        await message.answer("Не удалось скачать голосовое. Напишите текстом или попробуйте ещё раз.")
+        await message.answer(
+            "Не удалось скачать голосовое. Напишите текстом или попробуйте ещё раз."
+        )
         return
-    text = await ai_advisor.transcribe_voice(raw, filename=filename)
+    # Кухня: автоязык; зал — подсказка ru для Whisper
+    text = await ai_advisor.transcribe_voice(
+        raw,
+        filename=filename,
+        language=None if kitchen else "ru",
+    )
     if not text:
         if ai_advisor._client_or_none() is None:
             await message.answer(
@@ -8241,8 +8489,81 @@ async def private_voice_comment(message: Message) -> None:
                 "Не разобрал голосовое. Напишите текстом или нажмите «Пропустить»."
             )
         return
-    await message.answer(f"Распознали:\n<i>{escape(text)}</i>", parse_mode="HTML")
-    await _save_shift_comment(message, user_id, text)
+    pending_voice_comment[user_id] = text
+    hint = ""
+    if kitchen:
+        hint = (
+            "\n\nЕсли говорили не по-русски — после «Отправить» в отчёт уйдёт "
+            "русский перевод. Проверьте, что смысл верный."
+        )
+    await message.answer(
+        f"Распознали:\n<i>{escape(text)}</i>\n\n"
+        "Отправить в отзыв или записать снова?"
+        f"{hint}",
+        parse_mode="HTML",
+        reply_markup=voice_confirm_keyboard(),
+    )
+
+
+@dp.callback_query(F.data.startswith("voice_c:"), lambda c: c.message.chat.type == "private")
+async def voice_confirm_handler(callback: CallbackQuery) -> None:
+    user_id = callback.from_user.id
+    action = (callback.data or "").split(":", 1)[-1]
+    if user_id not in waiting_for_comment:
+        pending_voice_comment.pop(user_id, None)
+        await callback.answer()
+        return
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+
+    if action == "retry":
+        pending_voice_comment.pop(user_id, None)
+        await callback.answer()
+        await callback.message.answer(
+            "Запишите голосовое ещё раз или напишите текстом.",
+            reply_markup=final_comment_keyboard,
+        )
+        return
+
+    if action == "skip":
+        pending_voice_comment.pop(user_id, None)
+        await callback.answer()
+        waiting_for_comment.discard(user_id)
+        finish_private_flow(user_id)
+        await answer_private_flow_end(
+            callback.message, user_id, "Спасибо за честную обратную связь ❤️"
+        )
+        return
+
+    if action != "ok":
+        await callback.answer()
+        return
+
+    draft = pending_voice_comment.pop(user_id, None)
+    if not draft:
+        await callback.answer("Нет расшифровки — запишите голос ещё раз.", show_alert=True)
+        return
+    await callback.answer()
+    data = await load_data()
+    dept = survey_department_for_user(data, user_id)
+    comment = draft
+    original: str | None = None
+    if dept == pulse_model.CHAT_DEPT_KITCHEN:
+        await callback.message.answer("🇷🇺 Готовлю текст для отчёта…")
+        translated = await ai_advisor.translate_to_russian(draft)
+        if translated:
+            original = draft
+            comment = translated
+            if translated.strip() != draft.strip():
+                await callback.message.answer(
+                    f"В отчёт:\n<i>{escape(translated)}</i>",
+                    parse_mode="HTML",
+                )
+    await _save_shift_comment(
+        callback.message, user_id, comment, comment_original=original
+    )
 
 
 async def _configure_bot_profile(username: str) -> None:
