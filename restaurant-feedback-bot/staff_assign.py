@@ -1,8 +1,8 @@
 """
 Назначение ролей: точка → роль → Telegram ID.
 Иерархия:
-- глобальный админ — везде;
-- управляющий сети — все роли в своей организации;
+- глобальный админ — везде (включая менеджера по счастью);
+- управляющий сети — роли в своей организации, кроме менеджера по счастью;
 - старший менеджер — менеджер/старший/шеф на своих точках;
 - менеджер точки — шеф и менеджер на своих точках.
 """
@@ -127,22 +127,27 @@ def assignable_network_orgs(
 
 
 def _assigner_roles(data: dict[str, Any], user_id: int, *, is_global_admin: bool) -> set[str]:
+    """Менеджера по счастью назначает только глобальный админ Pulse."""
     if is_global_admin:
         return set(ROLE_CODES.values())
+    non_happiness = {
+        code
+        for code in ROLE_CODES.values()
+        if code != pulse_model.ROLE_HAPPINESS_MANAGER
+    }
     roles: set[str] = set()
     for p in pulse_model.manager_profiles(data, user_id):
         if not isinstance(p, dict):
             continue
         r = p.get("role")
         if r == pulse_model.ROLE_NETWORK_ADMIN:
-            roles.update(ROLE_CODES.values())
+            roles.update(non_happiness)
         elif r == pulse_model.ROLE_SENIOR_MANAGER:
             roles.update(
                 {
                     pulse_model.ROLE_SENIOR_MANAGER,
                     pulse_model.ROLE_LOCATION_ADMIN,
                     pulse_model.ROLE_CHEF,
-                    pulse_model.ROLE_HAPPINESS_MANAGER,
                 }
             )
         elif r == pulse_model.ROLE_LOCATION_ADMIN:
@@ -150,7 +155,6 @@ def _assigner_roles(data: dict[str, Any], user_id: int, *, is_global_admin: bool
                 {
                     pulse_model.ROLE_LOCATION_ADMIN,
                     pulse_model.ROLE_CHEF,
-                    pulse_model.ROLE_HAPPINESS_MANAGER,
                 }
             )
     return roles
@@ -218,6 +222,8 @@ def validate_assignment(
 ) -> tuple[bool, str | None]:
     if target_uid <= 0:
         return False, "Некорректный Telegram ID."
+    if role == pulse_model.ROLE_HAPPINESS_MANAGER and not is_global_admin:
+        return False, "Менеджера по счастью назначает только владелец Pulse."
     allowed_roles = _assigner_roles(data, assigner_uid, is_global_admin=is_global_admin)
     if role not in allowed_roles:
         return False, "Недостаточно прав для этой роли."

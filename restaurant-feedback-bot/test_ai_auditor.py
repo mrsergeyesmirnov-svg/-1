@@ -50,11 +50,44 @@ def test_audit_orgs_for_user():
 
 def test_assignable_happiness_role():
     d = pulse_model.default_data()
+    d["organizations"]["org_x"] = {"name": "X"}
+    d["chats"]["-10"] = {"title": "Hall", "organization_id": "org_x", "active": True}
     opts = staff_assign.assignable_role_options(d, 1, is_global_admin=True)
     codes = [c for c, _ in opts]
     assert "hm" in codes
     assert staff_assign.ROLE_CODES["hm"] == pulse_model.ROLE_HAPPINESS_MANAGER
 
+    pulse_model.set_manager_binding(
+        d, 5, "org_x", pulse_model.ROLE_NETWORK_ADMIN, None
+    )
+    net_opts = staff_assign.assignable_role_options(d, 5, is_global_admin=False)
+    assert "hm" not in [c for c, _ in net_opts]
+    pulse_model.set_manager_binding(
+        d, 6, "org_x", pulse_model.ROLE_LOCATION_ADMIN, ["-10"]
+    )
+    loc_opts = staff_assign.assignable_role_options(d, 6, is_global_admin=False)
+    assert "hm" not in [c for c, _ in loc_opts]
+    ok, err = staff_assign.validate_assignment(
+        d,
+        6,
+        is_global_admin=False,
+        target_uid=99,
+        org_id="org_x",
+        role=pulse_model.ROLE_HAPPINESS_MANAGER,
+        chat_id=-10,
+    )
+    assert ok is False
+    assert "счастью" in (err or "").lower() or "владелец" in (err or "").lower()
+    ok2, _ = staff_assign.validate_assignment(
+        d,
+        1,
+        is_global_admin=True,
+        target_uid=99,
+        org_id="org_x",
+        role=pulse_model.ROLE_HAPPINESS_MANAGER,
+        chat_id=-10,
+    )
+    assert ok2 is True
 
 def test_normalize_analysis_fills_blocks():
     raw = {
