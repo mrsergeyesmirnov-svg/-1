@@ -35,7 +35,6 @@
   let auditState = null;
   let lastAuditReport = null;
   let lastMentor = null;
-  let touchX = 0;
 
   function apiBase() {
     return (window.MINIAPP_API_BASE || "").replace(/\/$/, "");
@@ -760,24 +759,6 @@
     else if (kind === "forbidden") detail = "Этот раздел для управляющих.";
     viewEl.innerHTML = `<div class="error">${detail}</div>`;
   }
-
-  // swipe between primary tabs
-  viewEl.addEventListener("touchstart", (e) => {
-    touchX = e.changedTouches[0].screenX;
-  }, { passive: true });
-  viewEl.addEventListener("touchend", (e) => {
-    if (!managerLike()) return;
-    const dx = e.changedTouches[0].screenX - touchX;
-    if (Math.abs(dx) < 56) return;
-    const order = PRIMARY.filter((id) => hasScreen(id) || id === "home");
-    let idx = order.indexOf(tab);
-    if (idx < 0) idx = 0;
-    if (dx < 0 && idx < order.length - 1) tab = order[idx + 1];
-    else if (dx > 0 && idx > 0) tab = order[idx - 1];
-    else return;
-    renderTabbar();
-    renderView();
-  }, { passive: true });
 
   tabbar.querySelectorAll("button").forEach((b) => {
     b.addEventListener("click", () => {
