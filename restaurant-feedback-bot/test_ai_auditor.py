@@ -94,6 +94,27 @@ def test_session_chunks_and_text(tmp_path, monkeypatch):
     assert ai_auditor.get_active(11) is None
 
 
+def test_miniapp_upload_and_note(tmp_path, monkeypatch):
+    monkeypatch.setenv("PULSE_DATA_DIR", str(tmp_path))
+    import miniapp_audit
+
+    ai_auditor.start_session(
+        22, restaurant_id="org_1", restaurant_title="A", organization_id="org_1"
+    )
+    sess, err = ai_auditor.add_chunk_bytes(
+        22, kind="audio", raw=b"fake-audio", filename="clip.m4a", mime="audio/mp4"
+    )
+    assert err is None
+    assert sess["chunks"][-1].get("local_path")
+    assert Path(sess["chunks"][-1]["local_path"]).is_file()
+    sess2, err2 = ai_auditor.add_text_note(22, "гость ждёт блюда")
+    assert err2 is None
+    assert len(sess2["chunks"]) == 2
+    pub = miniapp_audit.session_public(sess2)
+    assert pub["chunk_count"] == 2
+    assert miniapp_audit.can_run_audit({}, 1, is_global_admin=True)
+
+
 def test_audit_pdf_bytes():
     a = ai_auditor.normalize_analysis(
         {

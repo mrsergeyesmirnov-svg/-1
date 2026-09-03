@@ -48,7 +48,8 @@ def test_resolve_roles():
     )
     p = miniapp_api.resolve_miniapp_role(d, 7, is_global_admin=False)
     assert p["role"] == "happiness"
-    assert any(s["id"] == "ai_audit" for s in p["screens"])
+    assert any(s["id"] == "ai_audit" and s["status"] == "ready" for s in p["screens"])
+    assert not any(s["id"] == "consulting" for s in p["screens"])
     assert p["feedback_in_bot"] is True
 
     pulse_model.set_manager_binding(
@@ -58,6 +59,8 @@ def test_resolve_roles():
     assert m["role"] == "manager"
     ids = {s["id"] for s in m["screens"]}
     assert {"home", "reviews", "engagement", "signals", "ai"} <= ids
+    assert "ai_audit" not in ids
+    assert "consulting" not in ids
     assert m.get("app_mode") == "app"
     assert any(s["id"] == "access" and s["status"] == "ready" for s in m["screens"])
 
@@ -67,6 +70,8 @@ def test_resolve_roles():
 
     owner = miniapp_api.resolve_miniapp_role(d, 1, is_global_admin=True)
     assert owner["role"] == "owner"
+    assert any(s["id"] == "ai_audit" and s["status"] == "ready" for s in owner["screens"])
+    assert any(s["id"] == "consulting" and s["status"] == "ready" for s in owner["screens"])
     assert any(s["id"] == "billing" for s in owner["screens"])
 
 
