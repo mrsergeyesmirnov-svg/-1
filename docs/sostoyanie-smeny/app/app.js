@@ -26,9 +26,14 @@
 
   let profile = null;
   let dash = null;
+  let accessOpts = null;
   let tab = "home";
   let period = "week";
   let chatId = "";
+  let accessRole = null;
+  let accessChatId = "";
+  let accessOrgId = "";
+  let lastInviteLink = "";
 
   function apiBase() {
     return (window.MINIAPP_API_BASE || "").replace(/\/$/, "");
@@ -42,27 +47,48 @@
       .replace(/"/g, "&quot;");
   }
 
-  async function apiGet(path) {
+  function authHeaders() {
     const initData = (tg && tg.initData) || "";
     if (!initData) throw new Error("no_telegram");
-    const url = `${apiBase()}${path}`;
-    const res = await fetch(url, {
-      headers: { Authorization: `tma ${initData}` },
-    });
+    return { Authorization: `tma ${initData}`, "Content-Type": "application/json" };
+  }
+
+  async function apiGet(path) {
+    const res = await fetch(`${apiBase()}${path}`, { headers: authHeaders() });
     if (res.status === 401) throw new Error("unauthorized");
     if (res.status === 403) throw new Error("forbidden");
     if (!res.ok) throw new Error(`http_${res.status}`);
     return res.json();
   }
 
+  async function apiPost(path, body) {
+    const res = await fetch(`${apiBase()}${path}`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(body || {}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) throw new Error("unauthorized");
+    if (!res.ok || data.ok === false) {
+      const err = new Error(data.error || `http_${res.status}`);
+      err.payload = data;
+      throw err;
+    }
+    return data;
+  }
+
   function managerLike() {
     return profile && ["owner", "manager", "network", "happiness", "chef"].includes(profile.role);
+  }
+
+  function canAccessTab() {
+    return profile && ["owner", "manager", "network"].includes(profile.role);
   }
 
   function renderTabs() {
     const screens = (profile && profile.screens) || [];
     const ids = screens.map((s) => s.id).filter((id) =>
-      ["home", "reviews", "engagement", "signals", "ai"].includes(id)
+      ["home", "reviews", "engagement", "signals", "ai", "access"].includes(id)
     );
     if (!ids.length) {
       tabsEl.hidden = true;
@@ -126,10 +152,7 @@
   }
 
   function renderReviews() {
-    if (!dash || dash.empty) {
-      renderHome();
-      return;
-    }
+    if (!dash || dash.empty) { renderHome(); return; }
     const blocks = [dash.floor, dash.kitchen].map((d) => {
       const comments = (d.comments || [])
         .map((c) => `<div class="item"><div class="m">${escapeHtml(c.text)}</div></div>`)
@@ -143,10 +166,7 @@
   }
 
   function renderEngagement() {
-    if (!dash || dash.empty) {
-      renderHome();
-      return;
-    }
+    if (!dash || dash.empty) { renderHome(); return; }
     const e = dash.engagement || {};
     viewEl.innerHTML = `
       <div class="metrics">
@@ -155,18 +175,12 @@
         ${metric("Доля", e.pct != null ? e.pct + "%" : "—", "вовлечённость")}
         ${metric("Оценок", String(e.ratings || 0), dash.period_label || "")}
       </div>
-      <div class="block">
-        <h2>Как читать</h2>
-        <p>Если доля низкая — напомните кнопку в группе зала и кухни. Отзыв пишут в боте, сводка уже здесь.</p>
-      </div>
+      <div class="block"><h2>Как читать</h2><p>Низкая доля — напомните кнопку в группах зала и кухни.</p></div>
     `;
   }
 
   function renderSignals() {
-    if (!dash || dash.empty) {
-      renderHome();
-      return;
-    }
+    if (!dash || dash.empty) { renderHome(); return; }
     const items = (dash.hot_problems || [])
       .map((p) => {
         const st = p.status === "new" ? "hot" : "ok";
@@ -175,38 +189,164 @@
       .join("");
     viewEl.innerHTML = items
       ? `<div class="list">${items}</div>`
-      : `<div class="block"><h2>Тихо</h2><p>Активных горящих вопросов нет. Так и должно быть в спокойную неделю.</p></div>`;
+      : `<div class="block"><h2>Тихо</h2><p>Активных горящих вопросов нет.</p></div>`;
   }
 
   function renderAi() {
-    if (!dash || dash.empty) {
-      renderHome();
-      return;
-    }
+    if (!dash || dash.empty) { renderHome(); return; }
     const tips = ((dash.ai && dash.ai.tips) || [])
       .map((t) => `<div class="tip">${escapeHtml(t)}</div>`)
       .join("");
     viewEl.innerHTML = `
-      <div class="block">
-        <h2>${escapeHtml((dash.ai && dash.ai.title) || "ИИ-советы")}</h2>
-        <p>${escapeHtml((dash.ai && dash.ai.blurb) || "")}</p>
-      </div>
+      <div class="block"><h2>${escapeHtml((dash.ai && dash.ai.title) || "ИИ-советы")}</h2><p>${escapeHtml((dash.ai && dash.ai.blurb) || "")}</p></div>
       <div class="tips">${tips}</div>
-      <div class="block"><p>Полный ИИ-аудит голосом и файлами — пока в боте на главном меню.</p></div>
     `;
   }
 
   function renderStaffHome() {
     viewEl.innerHTML = `
-      <div class="block">
-        <h2>Привет</h2>
-        <p>Здесь будет обучение и ваши материалы. Отзыв о смене — кнопка из рабочей группы в боте: так ответ привязан к залу или кухне.</p>
-      </div>
-      <div class="block">
-        <h2>Написать отзыв</h2>
-        <p>Откройте бота из группового чата своей смены.</p>
-      </div>
+      <div class="block"><h2>Привет</h2><p>Здесь обучение и материалы. Отзыв о смене — кнопка из рабочей группы в боте.</p></div>
     `;
+  }
+
+  async function ensureAccessOpts() {
+    if (accessOpts) return accessOpts;
+    accessOpts = await apiGet("/api/miniapp/access/options");
+    return accessOpts;
+  }
+
+  function renderAccess() {
+    if (!canAccessTab()) {
+      viewEl.innerHTML = `<div class="block"><p>Доступы выдаёт управляющий точки или сети.</p></div>`;
+      return;
+    }
+    viewEl.innerHTML = `<p class="muted center">Загрузка доступов…</p>`;
+    ensureAccessOpts()
+      .then((opts) => {
+        if (!opts.can_manage) {
+          viewEl.innerHTML = `<div class="block"><p>Нет прав выдавать доступы.</p></div>`;
+          return;
+        }
+        const locs = opts.locations || [];
+        if (!accessChatId && locs[0]) {
+          accessChatId = locs[0].id;
+          accessOrgId = locs[0].org_id;
+        }
+        const loc = locs.find((l) => l.id === accessChatId) || locs[0];
+        if (loc) {
+          accessChatId = loc.id;
+          accessOrgId = loc.org_id;
+        }
+        const roles = opts.roles || [];
+        if (!accessRole && roles[0]) accessRole = roles[0];
+
+        const locOptions = locs
+          .map((l) => `<option value="${escapeHtml(l.id)}" data-org="${escapeHtml(l.org_id)}" ${l.id === accessChatId ? "selected" : ""}>${escapeHtml(l.title)}</option>`)
+          .join("");
+        const roleBtns = roles
+          .map((r) => `<button type="button" data-code="${escapeHtml(r.code)}" class="${accessRole && accessRole.code === r.code ? "on" : ""}">${escapeHtml(r.label)}</button>`)
+          .join("");
+
+        viewEl.innerHTML = `
+          <div class="block">
+            <h2>Выдать доступ</h2>
+            <p>${escapeHtml(opts.hint || "")}</p>
+            <label class="muted" style="display:block;margin-top:10px;font-size:0.78rem;font-weight:700">ТОЧКА</label>
+            <select id="accessLoc" class="field">${locOptions}</select>
+            <label class="muted" style="display:block;margin-top:10px;font-size:0.78rem;font-weight:700">РОЛЬ</label>
+            <div class="role-grid" id="roleGrid">${roleBtns}</div>
+            <div class="actions">
+              <button type="button" id="btnScan">Сканировать QR Telegram</button>
+              <button type="button" class="secondary" id="btnInvite">Создать инвайт-QR / ссылку</button>
+            </div>
+            <input class="field" id="manualId" placeholder="@username или Telegram ID" />
+            <div class="actions"><button type="button" class="secondary" id="btnManual">Выдать по @ или ID</button></div>
+            <div id="inviteOut">${lastInviteLink ? `<div class="invite-box">${escapeHtml(lastInviteLink)}</div><p class="muted" style="margin-top:8px;font-size:0.82rem">Покажите QR этой ссылки или перешлите сотруднику. Он открывает — доступ сам.</p>` : ""}</div>
+          </div>
+        `;
+
+        document.getElementById("accessLoc").addEventListener("change", (e) => {
+          const opt = e.target.selectedOptions[0];
+          accessChatId = e.target.value;
+          accessOrgId = opt.getAttribute("data-org");
+        });
+        document.getElementById("roleGrid").querySelectorAll("button").forEach((b) => {
+          b.addEventListener("click", () => {
+            accessRole = roles.find((r) => r.code === b.getAttribute("data-code"));
+            renderAccess();
+          });
+        });
+        document.getElementById("btnScan").addEventListener("click", scanAndGrant);
+        document.getElementById("btnInvite").addEventListener("click", createInvite);
+        document.getElementById("btnManual").addEventListener("click", () => {
+          const v = document.getElementById("manualId").value.trim();
+          if (v) grantIdentity(v);
+        });
+      })
+      .catch((e) => {
+        viewEl.innerHTML = `<div class="error">${escapeHtml(e.message || "Ошибка")}</div>`;
+      });
+  }
+
+  function selectedAccessPayload() {
+    if (!accessRole) throw new Error("Выберите роль");
+    return {
+      role_code: accessRole.code,
+      chat_id: accessChatId,
+      org_id: accessOrgId,
+    };
+  }
+
+  async function grantIdentity(text) {
+    try {
+      const body = { ...selectedAccessPayload(), qr: text };
+      const res = await apiPost("/api/miniapp/access/grant", body);
+      if (tg && tg.showAlert) {
+        tg.showAlert(`Готово: ${res.role_label} · ${res.place}`);
+      } else {
+        alert(`Готово: ${res.role_label}`);
+      }
+    } catch (e) {
+      const msg = (e && e.message) || "Не удалось выдать";
+      if (tg && tg.showAlert) tg.showAlert(msg);
+      else alert(msg);
+    }
+  }
+
+  function scanAndGrant() {
+    if (!tg || !tg.showScanQrPopup) {
+      alert("Сканер QR доступен только внутри Telegram Mini App.");
+      return;
+    }
+    tg.showScanQrPopup({ text: "QR человека в Telegram" }, (code) => {
+      if (!code) return false;
+      try { tg.closeScanQrPopup(); } catch (_) {}
+      grantIdentity(code);
+      return true;
+    });
+  }
+
+  async function createInvite() {
+    try {
+      const body = selectedAccessPayload();
+      const res = await apiPost("/api/miniapp/access/invite", body);
+      lastInviteLink = res.link;
+      renderAccess();
+      if (tg && tg.openLink && navigator.share) {
+        /* keep link on screen */
+      }
+      if (tg && tg.showPopup) {
+        tg.showPopup({
+          title: "Инвайт готов",
+          message: "Перешлите ссылку сотруднику или покажите QR экрана. Он откроет приложение — доступ выдастся сам.",
+          buttons: [{ type: "close" }],
+        });
+      }
+    } catch (e) {
+      const msg = (e && e.message) || "Не удалось создать инвайт";
+      if (tg && tg.showAlert) tg.showAlert(msg);
+      else alert(msg);
+    }
   }
 
   function renderView() {
@@ -218,6 +358,7 @@
     else if (tab === "engagement") renderEngagement();
     else if (tab === "signals") renderSignals();
     else if (tab === "ai") renderAi();
+    else if (tab === "access") renderAccess();
     else renderHome();
   }
 
@@ -244,11 +385,27 @@
     btnPeriod.textContent = PERIODS.find((p) => p.id === period)?.label || "Неделя";
     const q = new URLSearchParams({ period });
     if (chatId) q.set("chat_id", chatId);
-    viewEl.innerHTML = `<p class="muted center">Собираем пульс…</p>`;
+    if (tab !== "access") {
+      viewEl.innerHTML = `<p class="muted center">Собираем пульс…</p>`;
+    }
     dash = await apiGet(`/api/miniapp/dashboard?${q}`);
     if (dash.chat_id) chatId = dash.chat_id;
     fillLocations();
     renderView();
+  }
+
+  async function redeemStartParam(token) {
+    if (!token || !String(token).startsWith("inv_")) return;
+    try {
+      const res = await apiPost("/api/miniapp/access/redeem", { token });
+      if (tg && tg.showAlert) {
+        tg.showAlert(`Доступ выдан: ${res.role_label}`);
+      }
+      profile = await apiGet("/api/miniapp/me");
+      renderTabs();
+    } catch (e) {
+      if (tg && tg.showAlert) tg.showAlert(e.message || "Инвайт не сработал");
+    }
   }
 
   function openBot() {
@@ -261,13 +418,9 @@
   function showError(kind) {
     noteEl.hidden = false;
     let detail = "Не удалось войти в приложение.";
-    if (kind === "no_telegram") {
-      detail = "Откройте Mini App из меню бота в Telegram.";
-    } else if (kind === "unauthorized") {
-      detail = "Подпись Telegram не принята. Проверьте BOT_TOKEN на Railway.";
-    } else if (kind === "forbidden") {
-      detail = "Дашборд пока для управляющих. Линейке — отзыв через бота.";
-    }
+    if (kind === "no_telegram") detail = "Откройте Mini App из меню бота в Telegram.";
+    else if (kind === "unauthorized") detail = "Подпись Telegram не принята. Проверьте BOT_TOKEN на Railway.";
+    else if (kind === "forbidden") detail = "Этот раздел для управляющих.";
     viewEl.innerHTML = `<div class="error">${detail}</div>`;
   }
 
@@ -289,13 +442,18 @@
   });
 
   apiGet("/api/miniapp/me")
-    .then((data) => {
+    .then(async (data) => {
       profile = data;
       const name = (data.user && data.user.first_name) || "";
       roleLine.textContent = `${data.role_label}${name ? " · " + name : ""}`;
       noteEl.hidden = false;
       if (data.note) noteText.textContent = data.note;
       if (data.locations && data.locations[0]) chatId = data.locations[0].id;
+      const start =
+        data.start_param ||
+        (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) ||
+        "";
+      if (start) await redeemStartParam(start);
       renderTabs();
       return loadDashboard();
     })
