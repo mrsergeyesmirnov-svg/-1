@@ -373,19 +373,20 @@
         return;
       }
       const locs = opts.locations || [];
-      if (!accessChatId && locs[0]) {
-        accessChatId = locs[0].id;
-        accessOrgId = locs[0].org_id;
-      }
-      const loc = locs.find((l) => l.id === accessChatId) || locs[0];
+      // одна точка — из верхнего селектора приложения
+      if (chatId) accessChatId = chatId;
+      if (!accessChatId && locs[0]) accessChatId = locs[0].id;
+      const loc = locs.find((l) => String(l.id) === String(accessChatId)) || locs[0];
       if (loc) {
         accessChatId = loc.id;
         accessOrgId = loc.org_id;
+        if (!chatId) chatId = loc.id;
       }
       const roles = opts.roles || [];
       if (!accessRole && roles[0]) accessRole = roles[0];
+      const placeTitle = (loc && loc.title) || accessChatId || "точка";
 
-      let staffHtml = `<div class="item"><div class="m">Выберите точку</div></div>`;
+      let staffHtml = `<div class="item"><div class="m">Выберите точку сверху</div></div>`;
       if (accessChatId) {
         const staff = await apiGet(`/api/miniapp/access/staff?chat_id=${encodeURIComponent(accessChatId)}`);
         staffHtml = (staff.staff || []).map((s) => `
@@ -406,13 +407,12 @@
 
       const unlinked = (orgsPack.unlinked_chats || []).map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.title)}</option>`).join("");
       const orgOpts = (orgsPack.orgs || []).map((o) => `<option value="${escapeHtml(o.id)}">${escapeHtml(o.name)}</option>`).join("");
-
-      const locOptions = locs.map((l) => `<option value="${escapeHtml(l.id)}" data-org="${escapeHtml(l.org_id)}" ${l.id === accessChatId ? "selected" : ""}>${escapeHtml(l.title)}</option>`).join("");
       const roleBtns = roles.map((r) => `<button type="button" data-code="${escapeHtml(r.code)}" class="${accessRole && accessRole.code === r.code ? "on" : ""}">${escapeHtml(r.label)}</button>`).join("");
 
       viewEl.innerHTML = `
-        <div class="block"><h2>Команда на точке</h2><p>Уже выданные доступы и новые через QR / инвайт.</p>
-          <select id="accessLoc" class="field">${locOptions}</select>
+        <div class="block">
+          <h2>Команда · ${escapeHtml(placeTitle)}</h2>
+          <p>Уже выданные доступы и новые через QR / инвайт. Точку меняйте селектором сверху.</p>
         </div>
         <div class="list">${staffHtml}</div>
         <div class="block">
@@ -453,12 +453,6 @@
         </div>` : ""}
       `;
 
-      document.getElementById("accessLoc").addEventListener("change", (e) => {
-        const opt = e.target.selectedOptions[0];
-        accessChatId = e.target.value;
-        accessOrgId = opt.getAttribute("data-org");
-        renderAccess();
-      });
       document.getElementById("roleGrid").querySelectorAll("button").forEach((b) => {
         b.addEventListener("click", () => {
           accessRole = roles.find((r) => r.code === b.getAttribute("data-code"));
