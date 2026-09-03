@@ -82,7 +82,7 @@
   }
 
   function canAccessTab() {
-    return profile && ["owner", "manager", "network"].includes(profile.role);
+    return profile && ["owner", "manager", "network", "happiness"].includes(profile.role);
   }
 
   function renderTabs() {
