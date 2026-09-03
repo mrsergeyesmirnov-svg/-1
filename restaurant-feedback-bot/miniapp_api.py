@@ -149,19 +149,10 @@ def _screens_for_role(role: str) -> list[dict[str, str]]:
     ]
     owner = [
         {"id": "home", "title": "Обзор", "blurb": "Пульс точек", "status": "ready"},
-        {"id": "reviews", "title": "Отзывы", "blurb": "Зал / кухня", "status": "ready"},
-        {"id": "signals", "title": "Горящие", "blurb": "Сигналы", "status": "ready"},
-        {"id": "ai", "title": "ИИ-советы", "blurb": "Намётки", "status": "ready"},
         {
             "id": "ai_audit",
             "title": "ИИ-аудит",
             "blurb": "Индекс здоровья точки",
-            "status": "ready",
-        },
-        {
-            "id": "consulting",
-            "title": "Консалтинг",
-            "blurb": "Платформа Академии · только вам",
             "status": "ready",
         },
         {
@@ -170,6 +161,15 @@ def _screens_for_role(role: str) -> list[dict[str, str]]:
             "blurb": "Роль + QR или инвайт",
             "status": "ready",
         },
+        {
+            "id": "consulting",
+            "title": "Консалтинг",
+            "blurb": "Платформа Академии · только вам",
+            "status": "ready",
+        },
+        {"id": "reviews", "title": "Отзывы", "blurb": "Зал / кухня", "status": "ready"},
+        {"id": "signals", "title": "Горящие", "blurb": "Сигналы", "status": "ready"},
+        {"id": "ai", "title": "ИИ-советы", "blurb": "Намётки", "status": "ready"},
         {"id": "billing", "title": "Оплаты", "blurb": "Скоро", "status": "soon"},
     ]
     if role == "staff":
