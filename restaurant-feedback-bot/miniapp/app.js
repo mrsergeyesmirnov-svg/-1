@@ -281,7 +281,7 @@
       document.getElementById("btnMentorP").addEventListener("click", () => {
         tab = "mentor";
         renderTabbar();
-        renderMentor(pid);
+        renderMentor(pid, { confirm: true });
       });
       document.getElementById("btnBackHot").addEventListener("click", () => renderSignals());
     } catch (e) {
@@ -289,7 +289,33 @@
     }
   }
 
-  async function renderMentor(problemId) {
+  function showMentorResult(data, problemId) {
+    const learn = data.learn
+      ? `<div class="learn"><b>${escapeHtml(data.learn.title || "Подробнее")}</b><br>${escapeHtml(data.learn.blurb || "")}</div>`
+      : "";
+    viewEl.innerHTML = `
+      <div class="mentor-card">
+        <h2>Отчёт наставника</h2>
+        <div class="muted" style="color:#a7f3d0;font-size:0.8rem;margin-bottom:8px">${escapeHtml(data.restaurant_title || "")} · ${escapeHtml(data.problem_title || "")}${data.template ? " · черновик" : ""}</div>
+        <div class="body">${escapeHtml(data.text || "")}</div>
+        ${learn}
+      </div>
+      <div class="actions">
+        <button type="button" id="btnMentorAgain">Спросить ещё раз</button>
+        <button type="button" class="secondary" id="btnToHot">К горящим</button>
+      </div>
+    `;
+    document.getElementById("btnMentorAgain").addEventListener("click", () =>
+      renderMentor(problemId, { confirm: true })
+    );
+    document.getElementById("btnToHot").addEventListener("click", () => {
+      tab = "signals";
+      renderTabbar();
+      renderSignals();
+    });
+  }
+
+  async function runMentor(problemId) {
     viewEl.innerHTML = `<p class="muted center">Наставник разбирает…</p>`;
     try {
       let data;
@@ -299,39 +325,58 @@
         data = await apiPost("/api/miniapp/mentor", { chat_id: chatId || undefined, period });
       }
       lastMentor = data;
-      const learn = data.learn
-        ? `<div class="learn"><b>${escapeHtml(data.learn.title || "Подробнее")}</b><br>${escapeHtml(data.learn.blurb || "")}</div>`
-        : "";
-      viewEl.innerHTML = `
-        <div class="mentor-card">
-          <h2>Отчёт наставника</h2>
-          <div class="muted" style="color:#a7f3d0;font-size:0.8rem;margin-bottom:8px">${escapeHtml(data.restaurant_title || "")} · ${escapeHtml(data.problem_title || "")}${data.template ? " · черновик" : ""}</div>
-          <div class="body">${escapeHtml(data.text || "")}</div>
-          ${learn}
-        </div>
-        <div class="actions">
-          <button type="button" id="btnMentorAgain">Ещё раз по точке</button>
-          <button type="button" class="secondary" id="btnToHot">К горящим</button>
-        </div>
-      `;
-      document.getElementById("btnMentorAgain").addEventListener("click", () => renderMentor());
-      document.getElementById("btnToHot").addEventListener("click", () => {
-        tab = "signals";
-        renderTabbar();
-        renderSignals();
-      });
+      showMentorResult(data, problemId);
     } catch (e) {
       viewEl.innerHTML = `
         <div class="block"><h2>Наставник</h2><p>${escapeHtml(e.message || "Нет совета")}</p></div>
-        <div class="actions"><button type="button" id="btnMentorRetry">Повторить</button><button type="button" class="secondary" id="btnToHot2">К горящим</button></div>
+        <div class="actions">
+          <button type="button" id="btnMentorRetry">Спросить наставника</button>
+          <button type="button" class="secondary" id="btnToHot2">К горящим</button>
+        </div>
       `;
-      document.getElementById("btnMentorRetry").addEventListener("click", () => renderMentor(problemId));
+      document.getElementById("btnMentorRetry").addEventListener("click", () => runMentor(problemId));
       document.getElementById("btnToHot2").addEventListener("click", () => {
         tab = "signals";
         renderTabbar();
         renderSignals();
       });
     }
+  }
+
+  async function renderMentor(problemId, opts = {}) {
+    const forceConfirm = opts.confirm === true || !opts.run;
+    if (forceConfirm && !opts.run) {
+      const place = (dash && dash.title) || chatId || "точки";
+      const about = problemId
+        ? "по выбранной горящей теме"
+        : `по точке «${place}» за период «${PERIODS.find((p) => p.id === period)?.label || period}»`;
+      const prev = lastMentor
+        ? `<div class="mentor-card" style="opacity:.92;margin-top:10px">
+            <h2>Последний отчёт</h2>
+            <div class="muted" style="color:#a7f3d0;font-size:0.8rem;margin-bottom:8px">${escapeHtml(lastMentor.restaurant_title || "")} · ${escapeHtml(lastMentor.problem_title || "")}</div>
+            <div class="body">${escapeHtml((lastMentor.text || "").slice(0, 500))}${(lastMentor.text || "").length > 500 ? "…" : ""}</div>
+          </div>`
+        : "";
+      viewEl.innerHTML = `
+        <div class="block">
+          <h2>Наставник</h2>
+          <p>Разбор запускается только по вашей команде — это тратит OpenAI. Спросить совет ${escapeHtml(about)}?</p>
+          <div class="actions">
+            <button type="button" id="btnAskMentor">Спросить наставника</button>
+            <button type="button" class="secondary" id="btnMentorHot">Выбрать горящую тему</button>
+          </div>
+        </div>
+        ${prev}
+      `;
+      document.getElementById("btnAskMentor").addEventListener("click", () => runMentor(problemId));
+      document.getElementById("btnMentorHot").addEventListener("click", () => {
+        tab = "signals";
+        renderTabbar();
+        renderSignals();
+      });
+      return;
+    }
+    await runMentor(problemId);
   }
 
   async function renderReport() {
