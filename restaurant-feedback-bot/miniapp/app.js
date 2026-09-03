@@ -173,7 +173,7 @@
         ${metric("Горящие", String(dash.hot_count || 0), "активных")}
       </div>
       <div class="split">${deptPanel(dash.floor)}${deptPanel(dash.kitchen)}</div>
-      <div class="block"><h2>Горящие сейчас</h2><p>Свайпните на «Горящие» или откройте карточку — там статус и совет наставника.</p></div>
+      <div class="block"><h2>Горящие сейчас</h2><p>Откройте вкладку «Горящие» или карточку — там статус и совет наставника.</p></div>
       <div class="list">${hot || `<div class="item"><div class="m">Тихо — активных тем нет</div></div>`}</div>
     `;
     viewEl.querySelectorAll("[data-pid]").forEach((el) => {
