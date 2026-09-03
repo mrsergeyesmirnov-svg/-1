@@ -220,6 +220,19 @@ async def load_data() -> dict:
         return data
 
 
+async def _resolve_telegram_username(username: str) -> int | None:
+    """@username → telegram id через Bot API getChat."""
+    un = (username or "").strip().lstrip("@")
+    if not un:
+        return None
+    try:
+        chat = await bot.get_chat(f"@{un}")
+        return int(chat.id)
+    except Exception as e:
+        print(f"[resolve-username] @{un}: {e}")
+        return None
+
+
 async def save_data(data: dict) -> None:
     async with DATA_LOCK:
         DATA_PATH.write_text(
@@ -8625,6 +8638,8 @@ async def main() -> None:
                 is_global_admin_fn=is_global_admin,
                 bot_username=me.username or "",
                 jsonl_path=FEEDBACK_LOG_PATH,
+                save_data=save_data,
+                resolve_username=_resolve_telegram_username,
             )
         )
 
