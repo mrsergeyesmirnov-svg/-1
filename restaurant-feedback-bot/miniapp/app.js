@@ -408,6 +408,11 @@
       const unlinked = (orgsPack.unlinked_chats || []).map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.title)}</option>`).join("");
       const orgOpts = (orgsPack.orgs || []).map((o) => `<option value="${escapeHtml(o.id)}">${escapeHtml(o.name)}</option>`).join("");
       const roleBtns = roles.map((r) => `<button type="button" data-code="${escapeHtml(r.code)}" class="${accessRole && accessRole.code === r.code ? "on" : ""}">${escapeHtml(r.label)}</button>`).join("");
+      const cmdHtml = (orgsPack.commands || []).map((c) => `
+        <div class="item">
+          <div class="t">${escapeHtml(c.name)}</div>
+          <div class="m"><code>${escapeHtml(c.floor)}</code><br><code>${escapeHtml(c.kitchen)}</code></div>
+        </div>`).join("");
 
       viewEl.innerHTML = `
         <div class="block">
@@ -426,30 +431,35 @@
           <div class="actions"><button type="button" class="secondary" id="btnManual">Выдать по @ или ID</button></div>
           <div id="inviteOut">${lastInviteLink ? `<div class="invite-box">${escapeHtml(lastInviteLink)}</div>` : ""}</div>
         </div>
-        <div class="block"><h2>Организации</h2><p>Существующие сети и точки.</p></div>
+        <div class="block"><h2>Организации</h2><p>Сети и уже привязанные чаты зала/кухни.</p></div>
         <div class="list">${orgList}</div>
-        ${orgsPack.can_create ? `
+        ${orgsPack.can_link ? `
         <div class="block">
-          <h2>Новая организация</h2>
-          <p>Создать и сразу привязать чат, куда уже добавлен бот.</p>
-          <input class="field" id="orgName" placeholder="Название сети / точки" />
-          <select id="linkChat" class="field"><option value="">Без чата пока</option>${unlinked}</select>
-          <select id="linkDept" class="field">
-            <option value="">Департамент не задан</option>
-            <option value="floor">Зал</option>
-            <option value="kitchen">Кухня</option>
-          </select>
-          <div class="actions"><button type="button" id="btnCreateOrg">Создать</button></div>
-        </div>
-        <div class="block">
-          <h2>Привязать чат к организации</h2>
-          <select id="existOrg" class="field">${orgOpts}</select>
-          <select id="existChat" class="field">${unlinked || '<option value="">Нет свободных чатов</option>'}</select>
+          <h2>Подключить чат · зал / кухня</h2>
+          <p>1) Добавьте бота в группу. 2) Выберите организацию, чат и тип. Кухня сама свяжется с залом сети, если он один.</p>
+          ${orgsPack.add_bot_url ? `<div class="actions"><a class="btn secondary" href="${escapeHtml(orgsPack.add_bot_url)}" target="_blank" rel="noopener">Добавить бота в группу</a></div>` : ""}
+          <select id="existOrg" class="field">${orgOpts || '<option value="">Нет организации</option>'}</select>
+          <select id="existChat" class="field">${unlinked || '<option value="">Нет свободных чатов — сначала добавьте бота в группу</option>'}</select>
           <select id="existDept" class="field">
             <option value="floor">Зал</option>
             <option value="kitchen">Кухня</option>
           </select>
-          <div class="actions"><button type="button" class="secondary" id="btnLinkChat">Привязать</button></div>
+          <div class="actions"><button type="button" id="btnLinkChat">Привязать</button></div>
+        </div>
+        <div class="block"><h2>Команды в группу</h2><p>Можно вставить в чат вручную:</p></div>
+        <div class="list">${cmdHtml || `<div class="item"><div class="m">Нет организаций в доступе</div></div>`}</div>
+        ` : ""}
+        ${orgsPack.can_create ? `
+        <div class="block">
+          <h2>Новая организация</h2>
+          <p>Только владелец Pulse. Можно сразу привязать чат.</p>
+          <input class="field" id="orgName" placeholder="Название сети / точки" />
+          <select id="linkChat" class="field"><option value="">Без чата пока</option>${unlinked}</select>
+          <select id="linkDept" class="field">
+            <option value="floor">Зал</option>
+            <option value="kitchen">Кухня</option>
+          </select>
+          <div class="actions"><button type="button" id="btnCreateOrg">Создать</button></div>
         </div>` : ""}
       `;
 
@@ -501,11 +511,12 @@
       if (linkBtn) {
         linkBtn.addEventListener("click", async () => {
           try {
-            await apiPost("/api/miniapp/orgs/link", {
+            const res = await apiPost("/api/miniapp/orgs/link", {
               org_id: document.getElementById("existOrg").value,
               chat_id: document.getElementById("existChat").value,
               department: document.getElementById("existDept").value,
             });
+            alert(res.note || `Готово: ${res.title} · ${res.department === "kitchen" ? "кухня" : "зал"}`);
             accessOpts = null;
             renderAccess();
           } catch (e) {

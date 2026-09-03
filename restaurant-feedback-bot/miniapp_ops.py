@@ -387,6 +387,35 @@ def orgs_list(data: dict[str, Any], *, is_global_admin: bool, user_id: int) -> l
     return out
 
 
+def manager_org_ids(data: dict[str, Any], user_id: int) -> set[str]:
+    out: set[str] = set()
+    for p in pulse_model.manager_profiles(data, user_id):
+        if isinstance(p, dict) and p.get("organization_id"):
+            role = p.get("role")
+            if role in (
+                pulse_model.ROLE_NETWORK_ADMIN,
+                pulse_model.ROLE_SENIOR_MANAGER,
+                pulse_model.ROLE_LOCATION_ADMIN,
+                pulse_model.ROLE_HAPPINESS_MANAGER,
+            ):
+                out.add(str(p["organization_id"]))
+    return out
+
+
+def can_link_org_chats(
+    data: dict[str, Any], user_id: int, *, is_global_admin: bool, org_id: str | None = None
+) -> bool:
+    import staff_assign
+
+    if is_global_admin:
+        return True
+    if not staff_assign.can_manage_staff(data, user_id, is_global_admin=False):
+        return False
+    if org_id is None:
+        return bool(manager_org_ids(data, user_id))
+    return str(org_id) in manager_org_ids(data, user_id)
+
+
 def unlinked_chats(data: dict[str, Any]) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for cid, rec in (data.get("chats") or {}).items():
@@ -412,10 +441,13 @@ def create_org_and_maybe_link(
         return {"ok": False, "error": "Укажите название организации"}
     oid = pulse_model.create_organization(data, name)
     linked = False
+    note = None
     if chat_id is not None:
-        linked = pulse_model.link_chat_to_organization(
-            data, chat_id, oid, department=department
+        result = link_existing_chat(
+            data, org_id=oid, chat_id=chat_id, department=department
         )
+        linked = bool(result.get("ok"))
+        note = result.get("note") or result.get("warning")
         if not linked:
             return {
                 "ok": True,
@@ -424,7 +456,7 @@ def create_org_and_maybe_link(
                 "linked": False,
                 "warning": "Организация создана, но чат не найден в базе (добавьте бота в группу).",
             }
-    return {"ok": True, "org_id": oid, "name": name, "linked": linked}
+    return {"ok": True, "org_id": oid, "name": name, "linked": linked, "note": note}
 
 
 def link_existing_chat(
@@ -433,24 +465,91 @@ def link_existing_chat(
     org_id: str,
     chat_id: int,
     department: str | None = None,
+    peer_floor_chat_id: int | None = None,
 ) -> dict[str, Any]:
     if org_id not in (data.get("organizations") or {}):
         return {"ok": False, "error": "Организация не найдена"}
+    dept = pulse_model.parse_chat_department(department) if department else None
     ok = pulse_model.link_chat_to_organization(
-        data, chat_id, org_id, department=department
+        data, chat_id, org_id, department=dept
     )
     if not ok:
         return {
             "ok": False,
             "error": "Чат не найден. Сначала добавьте бота в группу точки.",
         }
+    note = None
+    if dept == pulse_model.CHAT_DEPT_FLOOR or dept is None:
+        pulse_model.ensure_chat_location_id(data, chat_id)
+        if dept is None:
+            note = "Департамент не указан — по умолчанию зал. Можно сменить на кухню."
+    elif dept == pulse_model.CHAT_DEPT_KITCHEN:
+        floors = [
+            (cid, title)
+            for cid, title in pulse_model.floor_chats_in_org(data, org_id)
+            if cid != chat_id
+        ]
+        if peer_floor_chat_id is not None:
+            pulse_model.pair_chats_same_location(data, chat_id, peer_floor_chat_id)
+            note = "Кухня связана с выбранным залом."
+        elif len(floors) == 1:
+            pulse_model.pair_chats_same_location(data, chat_id, floors[0][0])
+            note = f"Кухня связана с залом «{floors[0][1]}»."
+        elif not floors:
+            pulse_model.ensure_chat_location_id(data, chat_id)
+            note = "Чата зала пока нет — подключите зал, потом кухню привяжем к нему."
+        else:
+            note = "Несколько залов в сети — укажите peer_floor_chat_id или привяжите в группе."
     rec = data.get("chats", {}).get(str(chat_id)) or {}
     return {
         "ok": True,
         "org_id": org_id,
         "chat_id": str(chat_id),
         "title": str(rec.get("title") or chat_id),
-        "department": department or pulse_model.chat_department(data, chat_id),
+        "department": dept or pulse_model.chat_department(data, chat_id),
+        "note": note,
+        "floor_options": [
+            {"id": str(cid), "title": title}
+            for cid, title in pulse_model.floor_chats_in_org(data, org_id)
+            if cid != chat_id
+        ]
+        if dept == pulse_model.CHAT_DEPT_KITCHEN
+        else [],
+    }
+
+
+def connect_guide(
+    data: dict[str, Any], user_id: int, *, is_global_admin: bool, bot_username: str = ""
+) -> dict[str, Any]:
+    orgs = orgs_list(data, is_global_admin=is_global_admin, user_id=user_id)
+    can_link = can_link_org_chats(data, user_id, is_global_admin=is_global_admin)
+    steps = [
+        "Создайте два групповых чата точки: зал и кухня.",
+        "Добавьте бота в оба чата (достаточно один раз).",
+        "В Mini App: Доступы → «Подключить чат» — выберите организацию, чат и Зал/Кухня.",
+        "Либо в группе напишите /link_org org_id floor или /link_org org_id kitchen.",
+    ]
+    commands = []
+    for o in orgs:
+        oid = o["id"]
+        commands.append(
+            {
+                "org_id": oid,
+                "name": o["name"],
+                "floor": f"/link_org {oid} floor",
+                "kitchen": f"/link_org {oid} kitchen",
+            }
+        )
+    un = (bot_username or "").lstrip("@")
+    return {
+        "ok": True,
+        "can_link": can_link,
+        "can_create": is_global_admin,
+        "steps": steps,
+        "orgs": orgs,
+        "commands": commands,
+        "unlinked_chats": unlinked_chats(data) if can_link else [],
+        "add_bot_url": f"https://t.me/{un}?startgroup=open" if un else "",
     }
 
 
