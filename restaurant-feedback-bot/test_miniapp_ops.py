@@ -7,6 +7,27 @@ import pulse_model
 import staff_assign
 
 
+def test_manager_can_link_own_org_not_others():
+    d = pulse_model.default_data()
+    d["organizations"]["org_a"] = {"name": "A"}
+    d["organizations"]["org_b"] = {"name": "B"}
+    d["chats"]["-1"] = {"title": "Free", "active": True}
+    pulse_model.set_manager_binding(
+        d, 9, "org_a", pulse_model.ROLE_LOCATION_ADMIN, ["-10"]
+    )
+    d["chats"]["-10"] = {"title": "Hall", "organization_id": "org_a", "active": True}
+    assert miniapp_ops.can_link_org_chats(d, 9, is_global_admin=False, org_id="org_a")
+    assert not miniapp_ops.can_link_org_chats(d, 9, is_global_admin=False, org_id="org_b")
+    linked = miniapp_ops.link_existing_chat(
+        d, org_id="org_a", chat_id=-1, department="kitchen"
+    )
+    assert linked["ok"] is True
+    assert linked["department"] == "kitchen"
+    guide = miniapp_ops.connect_guide(d, 9, is_global_admin=False, bot_username="bot")
+    assert guide["can_link"] is True
+    assert any(c["org_id"] == "org_a" for c in guide["commands"])
+
+
 def test_create_org_and_link_chat():
     d = pulse_model.default_data()
     d["chats"]["-1001"] = {"title": "Nomad Зал", "active": True}

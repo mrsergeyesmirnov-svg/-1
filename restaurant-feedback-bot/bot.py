@@ -3459,6 +3459,8 @@ async def cmd_link_org(message: Message) -> None:
             parse_mode="HTML",
         )
         return
+    uid = message.from_user.id
+    data = await load_data()
     org_id = parts[1].strip()
     dept_arg = pulse_model.parse_chat_department(parts[2]) if len(parts) > 2 else None
     if len(parts) > 2 and dept_arg is None:
@@ -3468,11 +3470,18 @@ async def cmd_link_org(message: Message) -> None:
             parse_mode="HTML",
         )
         return
-    uid = message.from_user.id
-    if not (is_global_admin(uid) or await is_chat_admin(message.chat.id, uid)):
-        await message.answer("Эту команду могут выполнить админы чата или глобальный админ бота.")
+    is_tg_admin = await is_chat_admin(message.chat.id, uid)
+    import miniapp_ops as _mops
+
+    can_pulse = _mops.can_link_org_chats(
+        data, uid, is_global_admin=is_global_admin(uid), org_id=org_id
+    )
+    if not (is_tg_admin or can_pulse):
+        await message.answer(
+            "Эту команду могут выполнить: админ чата Telegram, "
+            "управляющий точки/сети в Pulse или глобальный админ бота."
+        )
         return
-    data = await load_data()
     if org_id not in data.get("organizations", {}):
         await message.answer(
             "Нет такой организации. Проверьте id или создайте <code>/create_org</code>.",
@@ -7125,8 +7134,19 @@ async def manager_menu_handler(message: Message) -> None:
             reply_markup=pulse_model.manager_menu_reply_markup(),
         )
     elif t == pulse_model.BTN_CONNECT:
+        data = await load_data()
+        import miniapp_ops as _mops
+
+        guide = _mops.connect_guide(
+            data,
+            uid,
+            is_global_admin=is_global_admin(uid),
+            bot_username=me.username or "",
+        )
         await message.answer(
-            pulse_model.text_connect_point(me.username),
+            pulse_model.text_connect_point(
+                me.username, org_commands=guide.get("commands") or []
+            ),
             parse_mode="HTML",
             reply_markup=pulse_model.manager_menu_reply_markup(),
             disable_web_page_preview=True,

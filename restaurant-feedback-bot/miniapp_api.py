@@ -953,12 +953,19 @@ def make_aiohttp_app(
         uid = int(user["id"])
         data = await load_data()
         ga = is_global_admin_fn(uid)
+        guide = miniapp_ops.connect_guide(
+            data, uid, is_global_admin=ga, bot_username=bot_username
+        )
         return web.json_response(
             {
                 "ok": True,
-                "orgs": miniapp_ops.orgs_list(data, is_global_admin=ga, user_id=uid),
-                "unlinked_chats": miniapp_ops.unlinked_chats(data) if ga else [],
-                "can_create": ga,
+                "orgs": guide["orgs"],
+                "unlinked_chats": guide["unlinked_chats"],
+                "can_create": guide["can_create"],
+                "can_link": guide["can_link"],
+                "commands": guide["commands"],
+                "steps": guide["steps"],
+                "add_bot_url": guide["add_bot_url"],
             }
         )
 
@@ -1001,19 +1008,39 @@ def make_aiohttp_app(
         if save_data is None:
             return web.json_response({"ok": False, "error": "readonly"}, status=503)
         uid = int(user["id"])
-        if not is_global_admin_fn(uid):
-            return web.json_response({"ok": False, "error": "forbidden"}, status=403)
         body = await _read_json(request)
+        org_id = str(body.get("org_id") or "").strip()
         try:
             chat_id = int(body.get("chat_id"))
         except (TypeError, ValueError):
             return web.json_response({"ok": False, "error": "bad_chat_id"}, status=400)
+        peer = body.get("peer_floor_chat_id")
+        peer_id = None
+        if peer is not None and str(peer).strip() != "":
+            try:
+                peer_id = int(peer)
+            except (TypeError, ValueError):
+                return web.json_response(
+                    {"ok": False, "error": "bad_peer_floor_chat_id"}, status=400
+                )
         data = await load_data()
+        ga = is_global_admin_fn(uid)
+        if not miniapp_ops.can_link_org_chats(
+            data, uid, is_global_admin=ga, org_id=org_id
+        ):
+            return web.json_response(
+                {
+                    "ok": False,
+                    "error": "Нет прав привязать чат к этой организации",
+                },
+                status=403,
+            )
         payload = miniapp_ops.link_existing_chat(
             data,
-            org_id=str(body.get("org_id") or "").strip(),
+            org_id=org_id,
             chat_id=chat_id,
             department=str(body["department"]) if body.get("department") else None,
+            peer_floor_chat_id=peer_id,
         )
         if payload.get("ok"):
             await save_data(data)

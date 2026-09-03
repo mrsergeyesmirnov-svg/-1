@@ -952,24 +952,38 @@ def text_support(support_username: str | None) -> str:
     )
 
 
-def text_connect_point(bot_username: str) -> str:
+def text_connect_point(bot_username: str, *, org_commands: list[dict] | None = None) -> str:
     un = bot_username.lstrip("@")
     un_e = escape(un)
-    return (
-        "<b>Как подключить точку</b>\n\n"
-        "1. Создайте <b>два</b> групповых чата: зал и кухня (лучше супергруппы).\n"
-        "2. Добавьте бота в оба чата.\n"
-        "3. В каждом чате: <code>/link_org org_id</code> — затем выберите "
-        "<b>чат зала</b> или <b>чат кухни</b> (или сразу "
-        "<code>/link_org org_id floor</code> / <code>kitchen</code>).\n"
-        "Так отзывы зала и кухни в отчётах разделяются: зал не «говорит за кухню».\n"
-        "4. В каждом чате: «⏰ Напоминания» — время опроса; "
-        "либо <code>/settime 22:00</code> и при необходимости "
-        "<code>/timezone Europe/Moscow</code>.\n\n"
+    lines = [
+        "<b>Как подключить точку</b>\n",
+        "1. Два групповых чата: <b>зал</b> и <b>кухня</b>.",
+        "2. Добавьте бота в оба чата.",
+        "3. Привяжите каждый чат к организации как зал или кухню "
+        "(в Mini App → Доступы → «Подключить чат», или командой ниже).",
+        "4. В каждом чате настройте «⏰ Напоминания».\n",
+    ]
+    if org_commands:
+        lines.append("<b>Ваши организации — команды в группу:</b>")
+        for c in org_commands[:8]:
+            lines.append(
+                f"• <b>{escape(str(c.get('name') or c.get('org_id')))}</b> "
+                f"(<code>{escape(str(c['org_id']))}</code>)\n"
+                f"  зал: <code>{escape(c['floor'])}</code>\n"
+                f"  кухня: <code>{escape(c['kitchen'])}</code>"
+            )
+        lines.append("")
+    else:
+        lines.append(
+            "3. В чате: <code>/link_org org_id</code> → выберите зал или кухню "
+            "(или сразу <code>/link_org org_id floor</code> / <code>kitchen</code>).\n"
+        )
+    lines.append(
         f'<a href="https://t.me/{un_e}?startgroup=open">добавить @{un_e} в группу</a>\n\n'
         "Оценки идут <b>только в личку</b> по кнопке из своей группы — "
         "ответ помечается как зал или кухня."
     )
+    return "\n".join(lines)
 
 
 def manager_menu_root_markup(
