@@ -8,40 +8,36 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="app.css?v=47" />
+  <link rel="stylesheet" href="app.css?v=49" />
   <script>window.MINIAPP_API_BASE = window.MINIAPP_API_BASE || "";</script>
 </head>
 <body>
-  <div id="app">
+  <div id="app" class="shell">
     <header class="top">
-      <div>
+      <div class="top-text">
         <p class="brand">Состояние <span>смены</span></p>
         <p class="sub" id="roleLine">Загрузка…</p>
       </div>
       <button type="button" class="period" id="btnPeriod" hidden>Неделя</button>
     </header>
 
-    <section class="note" id="feedbackNote" hidden>
-      <strong>Состояние смены</strong>
-      <span id="noteText">Пульс точки, отзывы и доступы — здесь.</span>
-    </section>
-
     <div class="loc-bar" id="locBar" hidden>
       <label for="locSelect">Точка</label>
       <select id="locSelect"></select>
     </div>
 
-    <nav class="tabs" id="tabs" hidden></nav>
-
-    <main id="view" class="view">
+    <main id="view" class="view" aria-live="polite">
       <p class="muted center">Открываем…</p>
     </main>
 
-    <footer class="foot">
-      <button type="button" class="ghost" id="btnBot">Бот</button>
-      <button type="button" class="primary" id="btnClose">Закрыть</button>
-    </footer>
+    <nav class="tabbar" id="tabbar" hidden>
+      <button type="button" data-tab="home" class="on"><span class="ico">⌂</span><span>Обзор</span></button>
+      <button type="button" data-tab="signals"><span class="ico">●</span><span>Горящие</span></button>
+      <button type="button" data-tab="mentor"><span class="ico">✦</span><span>Наставник</span></button>
+      <button type="button" data-tab="report"><span class="ico">☰</span><span>Отчёт</span></button>
+      <button type="button" data-tab="more"><span class="ico">⋯</span><span>Ещё</span></button>
+    </nav>
   </div>
-  <script src="app.js?v=47"></script>
+  <script src="app.js?v=49"></script>
 </body>
 </html>
