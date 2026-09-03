@@ -58,7 +58,7 @@ def test_resolve_roles():
     m = miniapp_api.resolve_miniapp_role(d, 8, is_global_admin=False)
     assert m["role"] == "manager"
     ids = {s["id"] for s in m["screens"]}
-    assert {"home", "reviews", "engagement", "signals", "ai"} <= ids
+    assert {"home", "reviews", "engagement", "signals", "mentor", "report", "access"} <= ids
     assert "ai_audit" not in ids
     assert "consulting" not in ids
     assert m.get("app_mode") == "app"
@@ -72,7 +72,10 @@ def test_resolve_roles():
     assert owner["role"] == "owner"
     assert any(s["id"] == "ai_audit" and s["status"] == "ready" for s in owner["screens"])
     assert any(s["id"] == "consulting" and s["status"] == "ready" for s in owner["screens"])
-    assert any(s["id"] == "billing" for s in owner["screens"])
+    assert any(s["id"] == "mentor" for s in owner["screens"])
+    assert any(s["id"] == "report" for s in owner["screens"])
+    assert owner["screens"][-1]["id"] == "consulting"
+    assert "billing" not in {s["id"] for s in owner["screens"]}
 
 
 def test_bot_description_mentions_miniapp_and_bot_feedback():

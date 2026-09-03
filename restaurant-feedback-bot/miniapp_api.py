@@ -112,8 +112,26 @@ def _screens_for_role(role: str) -> list[dict[str, str]]:
     manager = [
         {
             "id": "home",
-            "title": "Обзор точки",
+            "title": "Обзор",
             "blurb": "Пульс, зал и кухня, вовлечённость",
+            "status": "ready",
+        },
+        {
+            "id": "signals",
+            "title": "Горящие",
+            "blurb": "Сигналы и статусы",
+            "status": "ready",
+        },
+        {
+            "id": "mentor",
+            "title": "Наставник",
+            "blurb": "Совет по теме",
+            "status": "ready",
+        },
+        {
+            "id": "report",
+            "title": "Отчёт",
+            "blurb": "Как в боте / PDF",
             "status": "ready",
         },
         {
@@ -129,48 +147,51 @@ def _screens_for_role(role: str) -> list[dict[str, str]]:
             "status": "ready",
         },
         {
-            "id": "signals",
-            "title": "Горящие вопросы",
-            "blurb": "Активные сигналы",
-            "status": "ready",
-        },
-        {
-            "id": "ai",
-            "title": "ИИ-советы",
-            "blurb": "Первые выводы по отзывам",
-            "status": "ready",
-        },
-        {
             "id": "access",
             "title": "Доступы",
-            "blurb": "Роль + QR или инвайт-ссылка",
+            "blurb": "Команда, QR, организации",
             "status": "ready",
         },
     ]
     owner = [
         {"id": "home", "title": "Обзор", "blurb": "Пульс точек", "status": "ready"},
         {
-            "id": "ai_audit",
-            "title": "ИИ-аудит",
-            "blurb": "Индекс здоровья точки",
+            "id": "signals",
+            "title": "Горящие",
+            "blurb": "Сигналы и статусы",
+            "status": "ready",
+        },
+        {
+            "id": "mentor",
+            "title": "Наставник",
+            "blurb": "Совет по теме",
+            "status": "ready",
+        },
+        {
+            "id": "report",
+            "title": "Отчёт",
+            "blurb": "Как в боте / PDF",
             "status": "ready",
         },
         {
             "id": "access",
             "title": "Доступы",
-            "blurb": "Роль + QR или инвайт",
+            "blurb": "Команда, QR, организации",
             "status": "ready",
         },
         {
-            "id": "consulting",
-            "title": "Консалтинг",
-            "blurb": "Платформа Академии · только вам",
+            "id": "ai_audit",
+            "title": "ИИ-аудит",
+            "blurb": "Индекс здоровья точки",
             "status": "ready",
         },
         {"id": "reviews", "title": "Отзывы", "blurb": "Зал / кухня", "status": "ready"},
-        {"id": "signals", "title": "Горящие", "blurb": "Сигналы", "status": "ready"},
-        {"id": "ai", "title": "ИИ-советы", "blurb": "Намётки", "status": "ready"},
-        {"id": "billing", "title": "Оплаты", "blurb": "Скоро", "status": "soon"},
+        {
+            "id": "consulting",
+            "title": "Консалтинг",
+            "blurb": "Платформа Академии",
+            "status": "ready",
+        },
     ]
     if role == "staff":
         return staff
@@ -188,8 +209,12 @@ def _screens_for_role(role: str) -> list[dict[str, str]]:
     if role in ("manager", "network", "happiness"):
         base = list(manager)
         if role in ("network", "happiness"):
+            # перед доступы: ИИ-аудит; консалтинг только у owner
+            insert_at = next(
+                (i for i, s in enumerate(base) if s["id"] == "access"), len(base)
+            )
             base.insert(
-                4,
+                insert_at,
                 {
                     "id": "ai_audit",
                     "title": "ИИ-аудит",
@@ -776,6 +801,274 @@ def make_aiohttp_app(
             return web.json_response({"ok": False}, status=401)
         return web.json_response({"ok": True})
 
+    # --- Горящие / наставник / отчёт / организации ---
+    import miniapp_ops
+
+    def _manager_guard(uid: int, data: dict) -> str | None:
+        pm = __import__("pulse_model")
+        if (
+            is_global_admin_fn(uid)
+            or pm.has_manager_access(data, uid)
+            or pm.has_chef_access(data, uid)
+            or pm.has_ai_auditor_access(data, uid)
+        ):
+            return None
+        return "forbidden"
+
+    async def _chat_from_query(request: web.Request) -> int | None:
+        raw = (request.query.get("chat_id") or "").strip()
+        if not raw:
+            return None
+        try:
+            return int(raw)
+        except ValueError:
+            return None
+
+    async def problems_list(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        uid = int(user["id"])
+        data = await load_data()
+        if _manager_guard(uid, data):
+            return web.json_response({"ok": False, "error": "forbidden"}, status=403)
+        chat_id = await _chat_from_query(request)
+        if chat_id is None:
+            scope = __import__("report_pulse").chat_scope_for_user(
+                data, uid, is_global_admin=is_global_admin_fn(uid)
+            )
+            if not scope:
+                return web.json_response({"ok": True, "problems": [], "empty": True})
+            chat_id = int(scope[0][0])
+        view = (request.query.get("view") or "active").strip()
+        sync = (request.query.get("sync") or "1").strip() not in ("0", "false", "no")
+        payload = await miniapp_ops.list_hot_problems(
+            data, chat_id, view=view, sync=sync, jsonl_path=jpath
+        )
+        if sync and save_data is not None:
+            await save_data(data)
+        return web.json_response(payload)
+
+    async def problems_status(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        if save_data is None:
+            return web.json_response({"ok": False, "error": "readonly"}, status=503)
+        uid = int(user["id"])
+        data = await load_data()
+        if _manager_guard(uid, data):
+            return web.json_response({"ok": False, "error": "forbidden"}, status=403)
+        body = await _read_json(request)
+        pid = str(body.get("problem_id") or request.match_info.get("pid") or "").strip()
+        status = str(body.get("status") or "").strip()
+        comment = body.get("comment")
+        prob = await __import__("problems_pulse").get_problem(data, pid)
+        if not prob:
+            return web.json_response({"ok": False, "error": "not_found"}, status=404)
+        # доступ к чату проблемы
+        scope_ids = {
+            str(c)
+            for c, _ in __import__("report_pulse").chat_scope_for_user(
+                data, uid, is_global_admin=is_global_admin_fn(uid)
+            )
+        }
+        if not is_global_admin_fn(uid) and str(prob.restaurant_chat_id) not in scope_ids:
+            return web.json_response({"ok": False, "error": "forbidden"}, status=403)
+        payload = await miniapp_ops.set_problem_status(
+            data, pid, status, comment=str(comment) if comment else None
+        )
+        if payload.get("ok"):
+            await save_data(data)
+        return web.json_response(payload, status=200 if payload.get("ok") else 400)
+
+    async def mentor_advice(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        uid = int(user["id"])
+        data = await load_data()
+        if _manager_guard(uid, data):
+            return web.json_response({"ok": False, "error": "forbidden"}, status=403)
+        body = await _read_json(request) if request.method == "POST" else {}
+        pid = str(body.get("problem_id") or request.query.get("problem_id") or "").strip()
+        chat_raw = body.get("chat_id") or request.query.get("chat_id")
+        if pid:
+            payload = await miniapp_ops.mentor_for_problem(
+                data, pid, jsonl_path=jpath
+            )
+        else:
+            try:
+                chat_id = int(chat_raw) if chat_raw not in (None, "") else None
+            except (TypeError, ValueError):
+                return web.json_response({"ok": False, "error": "bad_chat_id"}, status=400)
+            if chat_id is None:
+                scope = __import__("report_pulse").chat_scope_for_user(
+                    data, uid, is_global_admin=is_global_admin_fn(uid)
+                )
+                if not scope:
+                    return web.json_response(
+                        {"ok": False, "error": "Нет точек"}, status=400
+                    )
+                chat_id = int(scope[0][0])
+            period = str(body.get("period") or request.query.get("period") or "week")
+            payload = await miniapp_ops.mentor_for_chat(
+                data, chat_id, period=period, jsonl_path=jpath
+            )
+            if save_data is not None:
+                await save_data(data)
+        return web.json_response(payload, status=200 if payload.get("ok") else 400)
+
+    async def report_get(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        uid = int(user["id"])
+        data = await load_data()
+        if _manager_guard(uid, data):
+            return web.json_response({"ok": False, "error": "forbidden"}, status=403)
+        chat_id = await _chat_from_query(request)
+        period = (request.query.get("period") or "week").strip()
+        dept = (request.query.get("department") or "all").strip()
+        payload = await miniapp_ops.report_payload(
+            data,
+            uid,
+            is_global_admin=is_global_admin_fn(uid),
+            chat_id=chat_id,
+            period=period,
+            department=dept,
+            jsonl_path=jpath,
+        )
+        return web.json_response(payload)
+
+    async def orgs_get(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        uid = int(user["id"])
+        data = await load_data()
+        ga = is_global_admin_fn(uid)
+        return web.json_response(
+            {
+                "ok": True,
+                "orgs": miniapp_ops.orgs_list(data, is_global_admin=ga, user_id=uid),
+                "unlinked_chats": miniapp_ops.unlinked_chats(data) if ga else [],
+                "can_create": ga,
+            }
+        )
+
+    async def orgs_create(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        if save_data is None:
+            return web.json_response({"ok": False, "error": "readonly"}, status=503)
+        uid = int(user["id"])
+        if not is_global_admin_fn(uid):
+            return web.json_response({"ok": False, "error": "forbidden"}, status=403)
+        body = await _read_json(request)
+        chat_id = body.get("chat_id")
+        if chat_id is not None and str(chat_id).strip() != "":
+            try:
+                chat_id = int(chat_id)
+            except (TypeError, ValueError):
+                return web.json_response({"ok": False, "error": "bad_chat_id"}, status=400)
+        else:
+            chat_id = None
+        dept = body.get("department")
+        data = await load_data()
+        payload = miniapp_ops.create_org_and_maybe_link(
+            data,
+            name=str(body.get("name") or ""),
+            chat_id=chat_id,
+            department=str(dept) if dept else None,
+        )
+        if payload.get("ok"):
+            await save_data(data)
+        return web.json_response(payload, status=200 if payload.get("ok") else 400)
+
+    async def orgs_link(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        if save_data is None:
+            return web.json_response({"ok": False, "error": "readonly"}, status=503)
+        uid = int(user["id"])
+        if not is_global_admin_fn(uid):
+            return web.json_response({"ok": False, "error": "forbidden"}, status=403)
+        body = await _read_json(request)
+        try:
+            chat_id = int(body.get("chat_id"))
+        except (TypeError, ValueError):
+            return web.json_response({"ok": False, "error": "bad_chat_id"}, status=400)
+        data = await load_data()
+        payload = miniapp_ops.link_existing_chat(
+            data,
+            org_id=str(body.get("org_id") or "").strip(),
+            chat_id=chat_id,
+            department=str(body["department"]) if body.get("department") else None,
+        )
+        if payload.get("ok"):
+            await save_data(data)
+        return web.json_response(payload, status=200 if payload.get("ok") else 400)
+
+    async def access_staff(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        uid = int(user["id"])
+        data = await load_data()
+        if _manager_guard(uid, data):
+            return web.json_response({"ok": False, "error": "forbidden"}, status=403)
+        chat_id = await _chat_from_query(request)
+        if chat_id is None:
+            return web.json_response({"ok": False, "error": "bad_chat_id"}, status=400)
+        return web.json_response(miniapp_ops.staff_at_chat(data, chat_id))
+
+    async def access_remove(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        if save_data is None:
+            return web.json_response({"ok": False, "error": "readonly"}, status=503)
+        uid = int(user["id"])
+        data = await load_data()
+        ga = is_global_admin_fn(uid)
+        if not staff_assign.can_manage_staff(data, uid, is_global_admin=ga):
+            return web.json_response({"ok": False, "error": "forbidden"}, status=403)
+        body = await _read_json(request)
+        try:
+            target_uid = int(body.get("user_id"))
+        except (TypeError, ValueError):
+            return web.json_response({"ok": False, "error": "bad_user_id"}, status=400)
+        role_code = str(body.get("role_code") or body.get("role") or "").strip()
+        role = staff_assign.ROLE_CODES.get(role_code) or role_code
+        org_id = str(body.get("org_id") or "").strip()
+        chat_id = body.get("chat_id")
+        if chat_id is not None and str(chat_id).strip() != "":
+            try:
+                chat_id = int(chat_id)
+            except (TypeError, ValueError):
+                return web.json_response({"ok": False, "error": "bad_chat_id"}, status=400)
+        else:
+            chat_id = None
+        ok = staff_assign.apply_removal(
+            data, target_uid=target_uid, org_id=org_id, role=role, chat_id=chat_id
+        )
+        if not ok:
+            return web.json_response({"ok": False, "error": "not_found"}, status=404)
+        await save_data(data)
+        return web.json_response({"ok": True})
+
     async def health(_request: web.Request) -> web.Response:
         return web.json_response({"ok": True, "service": "miniapp"})
 
@@ -787,6 +1080,8 @@ def make_aiohttp_app(
         "/api/miniapp/access/invite",
         "/api/miniapp/access/grant",
         "/api/miniapp/access/redeem",
+        "/api/miniapp/access/staff",
+        "/api/miniapp/access/remove",
         "/api/miniapp/audit/orgs",
         "/api/miniapp/audit/start",
         "/api/miniapp/audit/session",
@@ -796,6 +1091,13 @@ def make_aiohttp_app(
         "/api/miniapp/audit/finish",
         "/api/miniapp/consulting/token",
         "/api/miniapp/consulting/unlock",
+        "/api/miniapp/problems",
+        "/api/miniapp/problems/status",
+        "/api/miniapp/mentor",
+        "/api/miniapp/report",
+        "/api/miniapp/orgs",
+        "/api/miniapp/orgs/create",
+        "/api/miniapp/orgs/link",
     ):
         app.router.add_route("OPTIONS", path, health)
     app.router.add_get("/api/miniapp/me", me)
@@ -804,6 +1106,8 @@ def make_aiohttp_app(
     app.router.add_post("/api/miniapp/access/invite", access_invite)
     app.router.add_post("/api/miniapp/access/grant", access_grant)
     app.router.add_post("/api/miniapp/access/redeem", access_redeem)
+    app.router.add_get("/api/miniapp/access/staff", access_staff)
+    app.router.add_post("/api/miniapp/access/remove", access_remove)
     app.router.add_get("/api/miniapp/audit/orgs", audit_orgs)
     app.router.add_post("/api/miniapp/audit/start", audit_start)
     app.router.add_get("/api/miniapp/audit/session", audit_session)
@@ -814,6 +1118,14 @@ def make_aiohttp_app(
     app.router.add_get("/api/miniapp/audit/pdf/{name}", audit_pdf)
     app.router.add_get("/api/miniapp/consulting/token", consulting_token)
     app.router.add_get("/api/miniapp/consulting/unlock", consulting_unlock)
+    app.router.add_get("/api/miniapp/problems", problems_list)
+    app.router.add_post("/api/miniapp/problems/status", problems_status)
+    app.router.add_get("/api/miniapp/mentor", mentor_advice)
+    app.router.add_post("/api/miniapp/mentor", mentor_advice)
+    app.router.add_get("/api/miniapp/report", report_get)
+    app.router.add_get("/api/miniapp/orgs", orgs_get)
+    app.router.add_post("/api/miniapp/orgs/create", orgs_create)
+    app.router.add_post("/api/miniapp/orgs/link", orgs_link)
     app.router.add_get("/api/miniapp/health", health)
 
     consulting_dir = os.path.join(miniapp_dir, "consulting") if miniapp_dir else ""
