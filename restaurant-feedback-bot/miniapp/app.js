@@ -88,7 +88,7 @@
   function renderTabs() {
     const screens = (profile && profile.screens) || [];
     const ids = screens.map((s) => s.id).filter((id) =>
-      ["home", "reviews", "engagement", "signals", "ai", "access"].includes(id)
+      ["home", "reviews", "engagement", "signals", "ai", "ai_audit", "access", "consulting"].includes(id)
     );
     if (!ids.length) {
       tabsEl.hidden = true;
@@ -201,6 +201,173 @@
       <div class="block"><h2>${escapeHtml((dash.ai && dash.ai.title) || "ИИ-советы")}</h2><p>${escapeHtml((dash.ai && dash.ai.blurb) || "")}</p></div>
       <div class="tips">${tips}</div>
     `;
+  }
+
+  let auditState = null;
+  let lastAuditReport = null;
+
+  async function loadAudit() {
+    auditState = await apiGet("/api/miniapp/audit/orgs");
+    return auditState;
+  }
+
+  function renderAudit() {
+    viewEl.innerHTML = `<p class="muted center">ИИ-аудит…</p>`;
+    loadAudit()
+      .then((st) => {
+        const sess = st.session;
+        const orgs = st.orgs || [];
+        if (lastAuditReport) {
+          const a = lastAuditReport;
+          const blocks = Object.entries((a.analysis && a.analysis.blocks) || {})
+            .map(([k, b]) => {
+              const title = { people: "Люди", processes: "Процессы", guest: "Гость", finance_ops: "Финансы" }[k] || k;
+              return `<div class="item"><div class="t">${title} · ${b.score}</div><div class="m">${escapeHtml((b.findings || []).slice(0, 2).join(" · "))}</div></div>`;
+            })
+            .join("");
+          viewEl.innerHTML = `
+            <div class="block">
+              <h2>Индекс ${a.overall_index} · ${escapeHtml(a.index_label || "")}</h2>
+              <p>${escapeHtml(a.summary || "")}</p>
+            </div>
+            <div class="list">${blocks}</div>
+            <div class="actions">
+              ${a.pdf_name ? `<button type="button" id="btnPdf">Скачать PDF</button>` : ""}
+              <button type="button" class="secondary" id="btnAuditNew">Новый аудит</button>
+            </div>
+          `;
+          const pdfBtn = document.getElementById("btnPdf");
+          if (pdfBtn && a.pdf_name) {
+            pdfBtn.addEventListener("click", () => downloadAuditPdf(a.pdf_name));
+          }
+          document.getElementById("btnAuditNew").addEventListener("click", () => {
+            lastAuditReport = null;
+            renderAudit();
+          });
+          return;
+        }
+        if (sess) {
+          viewEl.innerHTML = `
+            <div class="block">
+              <h2>${escapeHtml(sess.restaurant_title || "Аудит")}</h2>
+              <p>Фрагментов: <b>${sess.chunk_count || 0}</b>. Добавьте голос/аудио/файл или текстовую заметку, затем завершите.</p>
+              <input type="file" id="auditFile" accept="audio/*,video/*,.ogg,.mp3,.m4a,.wav,.pdf,.doc,.docx" class="field" />
+              <textarea id="auditNote" class="field" rows="3" placeholder="Текстовая заметка к аудиту"></textarea>
+              <div class="actions">
+                <button type="button" id="btnAuditUpload">Загрузить файл</button>
+                <button type="button" class="secondary" id="btnAuditNote">Добавить заметку</button>
+                <button type="button" id="btnAuditFinish">Завершить анализ</button>
+                <button type="button" class="secondary" id="btnAuditCancel">Отменить</button>
+              </div>
+            </div>
+          `;
+          document.getElementById("btnAuditUpload").addEventListener("click", uploadAuditFile);
+          document.getElementById("btnAuditNote").addEventListener("click", async () => {
+            const text = document.getElementById("auditNote").value;
+            try {
+              await apiPost("/api/miniapp/audit/note", { text });
+              renderAudit();
+            } catch (e) {
+              alert(e.message || "Ошибка");
+            }
+          });
+          document.getElementById("btnAuditFinish").addEventListener("click", finishAudit);
+          document.getElementById("btnAuditCancel").addEventListener("click", async () => {
+            await apiPost("/api/miniapp/audit/cancel", {});
+            renderAudit();
+          });
+          return;
+        }
+        if (!orgs.length) {
+          viewEl.innerHTML = `<div class="block"><h2>ИИ-аудит</h2><p>Нет организаций. Создайте через /create_org.</p></div>`;
+          return;
+        }
+        const opts = orgs.map((o) => `<option value="${escapeHtml(o.id)}">${escapeHtml(o.title)}</option>`).join("");
+        viewEl.innerHTML = `
+          <div class="block">
+            <h2>ИИ-аудит</h2>
+            <p>Запишите разговор с управляющим голосом или файлами — получите индекс 0–100 и PDF.</p>
+            <select id="auditOrg" class="field">${opts}</select>
+            <div class="actions"><button type="button" id="btnAuditStart">Начать сессию</button></div>
+          </div>
+        `;
+        document.getElementById("btnAuditStart").addEventListener("click", async () => {
+          const org_id = document.getElementById("auditOrg").value;
+          try {
+            await apiPost("/api/miniapp/audit/start", { org_id });
+            renderAudit();
+          } catch (e) {
+            alert(e.message || "Не удалось начать");
+          }
+        });
+      })
+      .catch((e) => {
+        viewEl.innerHTML = `<div class="error">${escapeHtml(e.message || "Нет доступа к аудиту")}</div>`;
+      });
+  }
+
+  async function uploadAuditFile() {
+    const input = document.getElementById("auditFile");
+    const file = input && input.files && input.files[0];
+    if (!file) {
+      alert("Выберите файл");
+      return;
+    }
+    const fd = new FormData();
+    fd.append("file", file, file.name);
+    const initData = (tg && tg.initData) || "";
+    viewEl.innerHTML = `<p class="muted center">Загружаем…</p>`;
+    try {
+      const res = await fetch(`${apiBase()}/api/miniapp/audit/chunk`, {
+        method: "POST",
+        headers: { Authorization: `tma ${initData}` },
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || "upload_fail");
+      renderAudit();
+    } catch (e) {
+      alert(e.message || "Ошибка загрузки");
+      renderAudit();
+    }
+  }
+
+  async function finishAudit() {
+    viewEl.innerHTML = `<p class="muted center">Анализируем (Whisper + GPT)…</p>`;
+    try {
+      const data = await apiPost("/api/miniapp/audit/finish", {});
+      lastAuditReport = data.report;
+      renderAudit();
+    } catch (e) {
+      alert(e.message || "Не удалось завершить");
+      renderAudit();
+    }
+  }
+
+  async function downloadAuditPdf(name) {
+    const initData = (tg && tg.initData) || "";
+    const res = await fetch(`${apiBase()}/api/miniapp/audit/pdf/${encodeURIComponent(name)}`, {
+      headers: { Authorization: `tma ${initData}` },
+    });
+    if (!res.ok) {
+      alert("PDF недоступен");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    if (tg && tg.openLink) tg.openLink(url);
+    else window.open(url, "_blank");
+  }
+
+  async function openConsulting() {
+    viewEl.innerHTML = `<p class="muted center">Открываем платформу…</p>`;
+    try {
+      const data = await apiGet("/api/miniapp/consulting/token");
+      const url = data.url || `/consulting/?pulse_token=${data.token}`;
+      location.href = url;
+    } catch (e) {
+      viewEl.innerHTML = `<div class="error">Консалтинг только для владельца Pulse.<br>${escapeHtml(e.message || "")}</div>`;
+    }
   }
 
   function renderStaffHome() {
@@ -358,6 +525,8 @@
     else if (tab === "engagement") renderEngagement();
     else if (tab === "signals") renderSignals();
     else if (tab === "ai") renderAi();
+    else if (tab === "ai_audit") renderAudit();
+    else if (tab === "consulting") openConsulting();
     else if (tab === "access") renderAccess();
     else renderHome();
   }
@@ -385,7 +554,7 @@
     btnPeriod.textContent = PERIODS.find((p) => p.id === period)?.label || "Неделя";
     const q = new URLSearchParams({ period });
     if (chatId) q.set("chat_id", chatId);
-    if (tab !== "access") {
+    if (!["access", "ai_audit", "consulting"].includes(tab)) {
       viewEl.innerHTML = `<p class="muted center">Собираем пульс…</p>`;
     }
     dash = await apiGet(`/api/miniapp/dashboard?${q}`);

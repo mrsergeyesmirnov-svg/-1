@@ -1,0 +1,53 @@
+.platform-lead {
+  margin: -4px 0 20px;
+  color: #78716c;
+  font-size: 0.98rem;
+  max-width: 36em;
+  line-height: 1.5;
+}
+.platform-grid {
+  display: grid;
+  gap: 12px;
+}
+@media (min-width: 720px) {
+  .platform-grid { grid-template-columns: 1fr 1fr; }
+}
+a.platform-card {
+  text-decoration: none !important;
+  color: inherit;
+  display: block;
+}
+a.platform-card .door-go {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #ff5a1f;
+}
+.platform-foot-note {
+  margin-top: 22px;
+  font-size: 0.8rem;
+  color: #a8a29e;
+}
+.soon-box {
+  background: #fff;
+  border-radius: 18px;
+  padding: 28px 22px;
+  box-shadow: 0 8px 24px rgba(28, 25, 23, 0.04);
+}
+.soon-box h2 {
+  margin: 0 0 10px;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+}
+.soon-box ul {
+  margin: 12px 0 0;
+  padding-left: 1.1em;
+  color: #57534e;
+}
+.soon-box li { margin-bottom: 6px; }
+.footer-quiet {
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  color: #a8a29e !important;
+  text-decoration: none !important;
+}
+.footer-quiet:hover { color: #78716c !important; text-decoration: underline !important; }

@@ -153,16 +153,22 @@ def _screens_for_role(role: str) -> list[dict[str, str]]:
         {"id": "signals", "title": "Горящие", "blurb": "Сигналы", "status": "ready"},
         {"id": "ai", "title": "ИИ-советы", "blurb": "Намётки", "status": "ready"},
         {
+            "id": "ai_audit",
+            "title": "ИИ-аудит",
+            "blurb": "Индекс здоровья точки",
+            "status": "ready",
+        },
+        {
+            "id": "consulting",
+            "title": "Консалтинг",
+            "blurb": "Платформа Академии · только вам",
+            "status": "ready",
+        },
+        {
             "id": "access",
             "title": "Доступы",
             "blurb": "Роль + QR или инвайт",
             "status": "ready",
-        },
-        {
-            "id": "ai_audit",
-            "title": "ИИ-аудит",
-            "blurb": "Полный аудит — в боте",
-            "status": "bot",
         },
         {"id": "billing", "title": "Оплаты", "blurb": "Скоро", "status": "soon"},
     ]
@@ -183,12 +189,12 @@ def _screens_for_role(role: str) -> list[dict[str, str]]:
         base = list(manager)
         if role in ("network", "happiness"):
             base.insert(
-                1,
+                4,
                 {
                     "id": "ai_audit",
                     "title": "ИИ-аудит",
-                    "blurb": "Полный аудит — в боте",
-                    "status": "bot",
+                    "blurb": "Голос и файлы → индекс здоровья",
+                    "status": "ready",
                 },
             )
         return base
@@ -237,6 +243,8 @@ def make_aiohttp_app(
     resolve_username: Callable | None = None,
 ):
     from aiohttp import web
+
+    import re
 
     import miniapp_access
     import miniapp_dashboard
@@ -548,6 +556,226 @@ def make_aiohttp_app(
             }
         )
 
+    # --- ИИ-аудит ---
+    import ai_auditor
+    import miniapp_audit
+    import secrets as _secrets
+    import time as _time
+
+    _consult_tokens: dict[str, dict[str, Any]] = {}
+
+    def _audit_guard(uid: int, data: dict) -> str | None:
+        if not miniapp_audit.can_run_audit(
+            data, uid, is_global_admin=is_global_admin_fn(uid)
+        ):
+            return "Нет доступа к ИИ-аудиту"
+        return None
+
+    async def audit_orgs(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        uid = int(user["id"])
+        data = await load_data()
+        denied = _audit_guard(uid, data)
+        if denied:
+            return web.json_response({"ok": False, "error": denied}, status=403)
+        return web.json_response(
+            {
+                "ok": True,
+                "orgs": miniapp_audit.orgs_payload(
+                    data, uid, is_global_admin=is_global_admin_fn(uid)
+                ),
+                "session": miniapp_audit.session_public(ai_auditor.get_active(uid)),
+            }
+        )
+
+    async def audit_start(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        uid = int(user["id"])
+        data = await load_data()
+        denied = _audit_guard(uid, data)
+        if denied:
+            return web.json_response({"ok": False, "error": denied}, status=403)
+        body = await _read_json(request)
+        org_id = str(body.get("org_id") or "").strip()
+        orgs = {o["id"]: o["title"] for o in miniapp_audit.orgs_payload(
+            data, uid, is_global_admin=is_global_admin_fn(uid)
+        )}
+        if org_id not in orgs:
+            return web.json_response({"ok": False, "error": "Организация не найдена"}, status=400)
+        sess = ai_auditor.start_session(
+            uid,
+            restaurant_id=org_id,
+            restaurant_title=orgs[org_id],
+            organization_id=org_id,
+        )
+        return web.json_response(
+            {"ok": True, "session": miniapp_audit.session_public(sess)}
+        )
+
+    async def audit_session(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        uid = int(user["id"])
+        return web.json_response(
+            {"ok": True, "session": miniapp_audit.session_public(ai_auditor.get_active(uid))}
+        )
+
+    async def audit_cancel(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        uid = int(user["id"])
+        ai_auditor.cancel_session(uid)
+        return web.json_response({"ok": True})
+
+    async def audit_note(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        uid = int(user["id"])
+        data = await load_data()
+        denied = _audit_guard(uid, data)
+        if denied:
+            return web.json_response({"ok": False, "error": denied}, status=403)
+        body = await _read_json(request)
+        sess, err_msg = ai_auditor.add_text_note(uid, str(body.get("text") or ""))
+        if err_msg and sess is None:
+            return web.json_response({"ok": False, "error": err_msg}, status=400)
+        if err_msg:
+            return web.json_response({"ok": False, "error": err_msg}, status=400)
+        return web.json_response(
+            {"ok": True, "session": miniapp_audit.session_public(sess)}
+        )
+
+    async def audit_chunk(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        uid = int(user["id"])
+        data = await load_data()
+        denied = _audit_guard(uid, data)
+        if denied:
+            return web.json_response({"ok": False, "error": denied}, status=403)
+        if not ai_auditor.get_active(uid):
+            return web.json_response({"ok": False, "error": "Нет активной сессии"}, status=400)
+        reader = await request.multipart()
+        raw = b""
+        filename = "voice.ogg"
+        mime = "audio/ogg"
+        async for part in reader:
+            if part.name == "file":
+                filename = part.filename or filename
+                mime = part.headers.get("Content-Type", mime)
+                raw = await part.read(decode=False)
+        if not raw:
+            return web.json_response({"ok": False, "error": "Нет файла"}, status=400)
+        kind = "voice"
+        if filename.lower().endswith((".mp3", ".m4a", ".wav", ".aac")):
+            kind = "audio"
+        elif filename.lower().endswith((".mp4", ".mov", ".webm")):
+            kind = "video"
+        elif not filename.lower().endswith((".ogg", ".oga", ".opus")):
+            kind = "file"
+        sess, err_msg = ai_auditor.add_chunk_bytes(
+            uid, kind=kind, raw=raw, filename=filename, mime=mime
+        )
+        if err_msg:
+            return web.json_response({"ok": False, "error": err_msg}, status=400)
+        return web.json_response(
+            {"ok": True, "session": miniapp_audit.session_public(sess)}
+        )
+
+    async def audit_finish(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        uid = int(user["id"])
+        data = await load_data()
+        denied = _audit_guard(uid, data)
+        if denied:
+            return web.json_response({"ok": False, "error": denied}, status=403)
+
+        async def _noop_download(_fid: str) -> bytes:
+            raise RuntimeError("telegram file_id not used in miniapp finish")
+
+        record, err_msg = await ai_auditor.process_session(
+            uid, download_bytes=_noop_download
+        )
+        if err_msg or not record:
+            return web.json_response(
+                {"ok": False, "error": err_msg or "fail"}, status=400
+            )
+        return web.json_response(
+            {"ok": True, "report": miniapp_audit.record_public(record)}
+        )
+
+    async def audit_pdf(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        uid = int(user["id"])
+        data = await load_data()
+        denied = _audit_guard(uid, data)
+        if denied:
+            return web.json_response({"ok": False, "error": denied}, status=403)
+        name = str(request.match_info.get("name") or "").strip()
+        if not re.fullmatch(r"aud_[a-f0-9]+\.pdf", name):
+            return web.json_response({"ok": False, "error": "bad_name"}, status=400)
+        path = ai_auditor.reports_dir() / name
+        if not path.is_file():
+            return web.json_response({"ok": False, "error": "not_found"}, status=404)
+        # только свои отчёты (или глобальный админ)
+        store = ai_auditor.load_store()
+        owned = False
+        for rec in store.get("history") or []:
+            if isinstance(rec, dict) and rec.get("id") == name.replace(".pdf", ""):
+                if int(rec.get("user_id") or 0) == uid or is_global_admin_fn(uid):
+                    owned = True
+                break
+        if not owned and not is_global_admin_fn(uid):
+            return web.json_response({"ok": False, "error": "forbidden"}, status=403)
+        return web.FileResponse(path)
+
+    # --- Консалтинг (только global admin) ---
+    async def consulting_token(request: web.Request) -> web.Response:
+        user, err = _auth_user(request, bot_token)
+        if err:
+            return err
+        assert user is not None
+        uid = int(user["id"])
+        if not is_global_admin_fn(uid):
+            return web.json_response({"ok": False, "error": "forbidden"}, status=403)
+        tok = _secrets.token_urlsafe(18)
+        _consult_tokens[tok] = {"uid": uid, "exp": _time.time() + 3600}
+        # cleanup
+        now = _time.time()
+        for k, v in list(_consult_tokens.items()):
+            if float(v.get("exp") or 0) < now:
+                _consult_tokens.pop(k, None)
+        return web.json_response(
+            {"ok": True, "token": tok, "url": f"/consulting/?pulse_token={tok}"}
+        )
+
+    async def consulting_unlock(request: web.Request) -> web.Response:
+        tok = (request.query.get("token") or "").strip()
+        rec = _consult_tokens.get(tok)
+        if not rec or float(rec.get("exp") or 0) < _time.time():
+            return web.json_response({"ok": False}, status=401)
+        return web.json_response({"ok": True})
+
     async def health(_request: web.Request) -> web.Response:
         return web.json_response({"ok": True, "service": "miniapp"})
 
@@ -559,6 +787,15 @@ def make_aiohttp_app(
         "/api/miniapp/access/invite",
         "/api/miniapp/access/grant",
         "/api/miniapp/access/redeem",
+        "/api/miniapp/audit/orgs",
+        "/api/miniapp/audit/start",
+        "/api/miniapp/audit/session",
+        "/api/miniapp/audit/cancel",
+        "/api/miniapp/audit/note",
+        "/api/miniapp/audit/chunk",
+        "/api/miniapp/audit/finish",
+        "/api/miniapp/consulting/token",
+        "/api/miniapp/consulting/unlock",
     ):
         app.router.add_route("OPTIONS", path, health)
     app.router.add_get("/api/miniapp/me", me)
@@ -567,7 +804,27 @@ def make_aiohttp_app(
     app.router.add_post("/api/miniapp/access/invite", access_invite)
     app.router.add_post("/api/miniapp/access/grant", access_grant)
     app.router.add_post("/api/miniapp/access/redeem", access_redeem)
+    app.router.add_get("/api/miniapp/audit/orgs", audit_orgs)
+    app.router.add_post("/api/miniapp/audit/start", audit_start)
+    app.router.add_get("/api/miniapp/audit/session", audit_session)
+    app.router.add_post("/api/miniapp/audit/cancel", audit_cancel)
+    app.router.add_post("/api/miniapp/audit/note", audit_note)
+    app.router.add_post("/api/miniapp/audit/chunk", audit_chunk)
+    app.router.add_post("/api/miniapp/audit/finish", audit_finish)
+    app.router.add_get("/api/miniapp/audit/pdf/{name}", audit_pdf)
+    app.router.add_get("/api/miniapp/consulting/token", consulting_token)
+    app.router.add_get("/api/miniapp/consulting/unlock", consulting_unlock)
     app.router.add_get("/api/miniapp/health", health)
+
+    consulting_dir = os.path.join(miniapp_dir, "consulting") if miniapp_dir else ""
+    if consulting_dir and os.path.isdir(consulting_dir):
+        async def consulting_index(request: web.Request) -> web.StreamResponse:
+            return web.FileResponse(os.path.join(consulting_dir, "index.html"))
+
+        app.router.add_get("/consulting", consulting_index)
+        app.router.add_get("/consulting/", consulting_index)
+        app.router.add_static("/consulting/", consulting_dir, show_index=False)
+
     if os.path.isdir(miniapp_dir):
         index_path = os.path.join(miniapp_dir, "index.html")
 

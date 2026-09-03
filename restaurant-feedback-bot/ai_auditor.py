@@ -145,6 +145,8 @@ def add_chunk(
     filename: str = "",
     mime: str = "",
     size: int | None = None,
+    text: str | None = None,
+    local_path: str | None = None,
 ) -> tuple[dict[str, Any] | None, str | None]:
     store = load_store()
     sess = store.get("active", {}).get(str(user_id))
@@ -161,20 +163,69 @@ def add_chunk(
             f"Файл слишком большой ({size // (1024 * 1024)} МБ). "
             "Лимит Whisper ~25 МБ — пришлите кусками поменьше."
         )
-    chunks.append(
-        {
-            "kind": kind,
-            "file_id": file_id,
-            "file_unique_id": file_unique_id,
-            "filename": filename or f"{kind}.bin",
-            "mime": mime or "",
-            "size": size,
-            "added_at": datetime.now(timezone.utc).isoformat(),
-        }
-    )
+    entry: dict[str, Any] = {
+        "kind": kind,
+        "file_id": file_id or "",
+        "file_unique_id": file_unique_id,
+        "filename": filename or f"{kind}.bin",
+        "mime": mime or "",
+        "size": size,
+        "added_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if text is not None:
+        entry["text"] = str(text)
+    if local_path:
+        entry["local_path"] = str(local_path)
+    chunks.append(entry)
     store["active"][str(user_id)] = sess
     save_store(store)
     return sess, None
+
+
+def add_chunk_bytes(
+    user_id: int,
+    *,
+    kind: str,
+    raw: bytes,
+    filename: str = "",
+    mime: str = "",
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Фрагмент из Mini App / HTTP upload — байты на диск, не Telegram file_id."""
+    if not raw:
+        return get_active(user_id), "Пустой файл."
+    if len(raw) > MAX_FILE_BYTES:
+        return get_active(user_id), (
+            f"Файл слишком большой ({len(raw) // (1024 * 1024)} МБ)."
+        )
+    upload_dir = reports_dir().parent / "audit_uploads" / str(user_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    safe = re.sub(r"[^\w.\-]+", "_", filename or f"{kind}.bin")[:80]
+    path = upload_dir / f"{secrets.token_hex(4)}_{safe}"
+    path.write_bytes(raw)
+    return add_chunk(
+        user_id,
+        kind=kind,
+        file_id="",
+        filename=safe,
+        mime=mime,
+        size=len(raw),
+        local_path=str(path),
+    )
+
+
+def add_text_note(user_id: int, text: str) -> tuple[dict[str, Any] | None, str | None]:
+    note = (text or "").strip()
+    if not note:
+        return get_active(user_id), "Пустая заметка."
+    return add_chunk(
+        user_id,
+        kind="text",
+        file_id="",
+        filename="note.txt",
+        mime="text/plain",
+        size=len(note.encode("utf-8")),
+        text=note,
+    )
 
 
 def _clamp_score(v: Any, default: int = 50) -> int:
@@ -302,15 +353,24 @@ async def process_session(
             if note:
                 transcripts.append(f"[Заметка {i}]\n{note}")
             continue
-        fid = ch.get("file_id")
-        if not fid:
-            continue
         filename = str(ch.get("filename") or f"chunk_{i}.ogg")
-        try:
-            raw = await download_bytes(str(fid))
-        except Exception as e:
-            print(f"[ai-auditor] download chunk {i}: {e}")
-            return None, f"Не удалось скачать фрагмент {i}. Попробуйте ещё раз."
+        raw: bytes | None = None
+        local = ch.get("local_path")
+        if local:
+            try:
+                raw = Path(str(local)).read_bytes()
+            except OSError as e:
+                print(f"[ai-auditor] local chunk {i}: {e}")
+                return None, f"Не удалось прочитать фрагмент {i}."
+        else:
+            fid = ch.get("file_id")
+            if not fid:
+                continue
+            try:
+                raw = await download_bytes(str(fid))
+            except Exception as e:
+                print(f"[ai-auditor] download chunk {i}: {e}")
+                return None, f"Не удалось скачать фрагмент {i}. Попробуйте ещё раз."
         if not raw:
             return None, f"Пустой файл в фрагменте {i}."
         if len(raw) > MAX_FILE_BYTES:
