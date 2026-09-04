@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Казна · Деньги</title>
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <div class="app" id="app" hidden>
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <button class="btn ghost sm" type="button" id="logoutBtn">Выйти</button>
+    </div>
+    <nav class="nav">
+      <a href="/home.html">Обзор</a>
+      <a class="on" href="/money.html">Деньги</a>
+      <a href="/calendar.html">Календарь</a>
+      <a href="/requests.html">Заявки</a>
+      <a href="/import.html">Импорт</a>
+      <a href="/people.html">Люди</a>
+    </nav>
+    <div class="badge">Р/с и кассы</div>
+    <h1>Деньги сети</h1>
+    <p class="sub">
+      Расчётные счета по организациям — для кассового разрыва.
+      Кассы — отдельно по точкам (остаток вручную / Excel; из iiko Cloud живой кассы нет).
+    </p>
+
+    <div class="panel">
+      <h2>Добавить</h2>
+      <form id="accForm" class="form-grid">
+        <div class="field">
+          <label for="aName">Название</label>
+          <input id="aName" required placeholder="Р/с Альфа · ООО Север / Касса Невский" />
+        </div>
+        <div class="field">
+          <label for="aOrg">Юрлицо / организация</label>
+          <input id="aOrg" placeholder="ООО Север / ИП …" />
+        </div>
+        <div class="field">
+          <label for="aKind">Тип</label>
+          <select id="aKind">
+            <option value="р/с">р/с</option>
+            <option value="юрлицо">юрлицо</option>
+            <option value="ИП">ИП</option>
+            <option value="касса">касса</option>
+          </select>
+        </div>
+        <div class="field" id="siteField" hidden>
+          <label for="aSite">Точка</label>
+          <input id="aSite" placeholder="Невский" />
+        </div>
+        <div class="field">
+          <label for="aBal">Остаток</label>
+          <input id="aBal" type="number" step="0.01" value="0" />
+        </div>
+        <div class="full">
+          <button class="btn accent" type="submit">Добавить</button>
+        </div>
+      </form>
+      <p id="msg" class="muted" style="margin-top:10px;"></p>
+    </div>
+
+    <div class="panel">
+      <h2>Расчётные счета</h2>
+      <div id="bankList"><p class="muted">Загрузка…</p></div>
+    </div>
+
+    <div class="panel">
+      <h2>Кассы точек</h2>
+      <div id="cashList"><p class="muted">Загрузка…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script>
+    (function () {
+      function esc(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+
+      function isCash(a) {
+        return a.isCashDesk || String(a.kind || "").toLowerCase().indexOf("касс") >= 0;
+      }
+
+      function syncSiteField() {
+        var cash = document.getElementById("aKind").value === "касса";
+        document.getElementById("siteField").hidden = !cash;
+        document.getElementById("aSite").required = cash;
+      }
+
+      function card(a, cash) {
+        return (
+          '<div class="person-card">' +
+          '<div class="person-head"><strong>' + esc(a.name) + '</strong>' +
+          '<span class="amount">' + esc(a.balanceLabel) + "</span></div>" +
+          '<div class="muted" style="margin-bottom:10px;">' +
+          esc(a.kind || (cash ? "касса" : "р/с")) +
+          (a.org ? " · " + esc(a.org) : "") +
+          (cash ? " · точка: " + esc(a.site || "—") : "") +
+          " · #" + a.id +
+          "</div>" +
+          '<div class="form-grid">' +
+          '<div class="field"><label>Остаток</label><input type="number" step="0.01" data-bal="' + a.id + '" value="' + a.balance + '" /></div>' +
+          (cash
+            ? '<div class="field"><label>Точка</label><input data-site="' + a.id + '" value="' + esc(a.site || "") + '" /></div>'
+            : '<div class="field"><label>Юрлицо</label><input data-org="' + a.id + '" value="' + esc(a.org || "") + '" /></div>') +
+          '<div class="full"><button class="btn sm accent" type="button" data-save="' + a.id + '" data-cash="' + (cash ? "1" : "0") + '">Сохранить</button></div>' +
+          "</div></div>"
+        );
+      }
+
+      function bindSaves(root) {
+        root.querySelectorAll("[data-save]").forEach(function (btn) {
+          btn.onclick = async function () {
+            var id = Number(btn.getAttribute("data-save"));
+            var cash = btn.getAttribute("data-cash") === "1";
+            var msg = document.getElementById("msg");
+            msg.textContent = "Сохраняю…";
+            try {
+              var payload = {
+                balance: Number(root.querySelector('input[data-bal="' + id + '"]').value || 0)
+              };
+              if (cash) {
+                payload.site = root.querySelector('input[data-site="' + id + '"]').value || null;
+              } else {
+                payload.org = root.querySelector('input[data-org="' + id + '"]').value || null;
+              }
+              await KaznaAPI.patchAccount(id, payload);
+              msg.textContent = "Сохранено.";
+              await reload();
+            } catch (ex) {
+              msg.textContent = ex.message;
+            }
+          };
+        });
+      }
+
+      async function reload() {
+        var rows = await KaznaAPI.accounts();
+        var banks = rows.filter(function (a) { return !isCash(a); });
+        var cash = rows.filter(isCash);
+        var bankEl = document.getElementById("bankList");
+        var cashEl = document.getElementById("cashList");
+
+        if (!banks.length) {
+          bankEl.innerHTML = '<p class="muted">Р/с нет. Добавьте или загрузите остатки / синк iiko.</p>';
+        } else {
+          bankEl.innerHTML = banks.map(function (a) { return card(a, false); }).join("");
+          bindSaves(bankEl);
+        }
+
+        if (!cash.length) {
+          cashEl.innerHTML = '<p class="muted">Касс нет. Добавьте тип «касса» и укажите точку.</p>';
+        } else {
+          cashEl.innerHTML = cash.map(function (a) { return card(a, true); }).join("");
+          bindSaves(cashEl);
+        }
+      }
+
+      KaznaAPI.me().then(async function (user) {
+        if (user.role === "manager") { location.href = "/manager.html"; return; }
+        document.getElementById("app").hidden = false;
+        if (user.role !== "fin_director") {
+          document.querySelectorAll('a[href="/people.html"], a[href="/import.html"]').forEach(function (a) {
+            a.hidden = true;
+          });
+        }
+        document.getElementById("logoutBtn").onclick = async function () {
+          await KaznaAPI.logout(); location.href = "/";
+        };
+
+        document.getElementById("aKind").onchange = syncSiteField;
+        syncSiteField();
+
+        document.getElementById("accForm").onsubmit = async function (e) {
+          e.preventDefault();
+          var msg = document.getElementById("msg");
+          msg.textContent = "Добавляю…";
+          try {
+            var kind = document.getElementById("aKind").value;
+            await KaznaAPI.createAccount({
+              name: document.getElementById("aName").value,
+              org: document.getElementById("aOrg").value || null,
+              kind: kind,
+              site: kind === "касса" ? (document.getElementById("aSite").value || null) : null,
+              balance: Number(document.getElementById("aBal").value || 0)
+            });
+            msg.textContent = "Добавлено.";
+            e.target.reset();
+            document.getElementById("aKind").value = "р/с";
+            document.getElementById("aBal").value = "0";
+            syncSiteField();
+            await reload();
+          } catch (ex) {
+            msg.textContent = ex.message;
+          }
+        };
+
+        await reload();
+      }).catch(function () { location.href = "/"; });
+    })();
+  </script>
+</body>
+</html>

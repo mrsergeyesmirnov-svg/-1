@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Казна · Люди</title>
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <div class="app" id="app" hidden>
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <button class="btn ghost sm" type="button" id="logoutBtn">Выйти</button>
+    </div>
+    <nav class="nav">
+      <a href="/home.html">Обзор</a>
+      <a href="/money.html">Деньги</a>
+      <a href="/calendar.html">Календарь</a>
+      <a href="/requests.html">Заявки</a>
+      <a href="/import.html">Импорт</a>
+      <a class="on" href="/people.html">Люди</a>
+    </nav>
+    <div class="badge">Доступы</div>
+    <h1>Роли и счета</h1>
+    <p class="sub">Финдир назначает роль, точку и какие юрлица/р/с видит человек.</p>
+
+    <div class="panel">
+      <h2>Новый человек</h2>
+      <form id="createForm" class="form-grid">
+        <div class="field">
+          <label for="cName">Имя</label>
+          <input id="cName" required maxlength="255" placeholder="Игорь Управляющий" />
+        </div>
+        <div class="field">
+          <label for="cEmail">Email</label>
+          <input id="cEmail" type="email" required placeholder="igor@site.ru" />
+        </div>
+        <div class="field">
+          <label for="cPass">Пароль</label>
+          <input id="cPass" type="text" required minlength="6" placeholder="минимум 6 символов" />
+        </div>
+        <div class="field">
+          <label for="cRole">Роль</label>
+          <select id="cRole"></select>
+        </div>
+        <div class="field">
+          <label for="cSite">Точка / площадка</label>
+          <input id="cSite" placeholder="Невский" />
+        </div>
+        <div class="field full">
+          <label>Счета / юрлица</label>
+          <div id="cAccounts" class="check-grid"></div>
+        </div>
+        <div class="full">
+          <button class="btn accent" type="submit">Добавить</button>
+        </div>
+      </form>
+      <p id="createMsg" class="muted" style="margin-top:10px;"></p>
+    </div>
+
+    <div class="panel">
+      <h2>Счета сети</h2>
+      <p class="muted" style="margin:0 0 10px;">Чтобы назначить доступ — сначала заведите юрлицо/р/с здесь или через Импорт остатков.</p>
+      <form id="accForm" class="form-grid">
+        <div class="field">
+          <label for="aName">Название</label>
+          <input id="aName" required placeholder="ООО Казна Север / р/с" />
+        </div>
+        <div class="field">
+          <label for="aOrg">Юрлицо</label>
+          <input id="aOrg" placeholder="ООО Казна Север" />
+        </div>
+        <div class="field">
+          <label for="aKind">Тип</label>
+          <input id="aKind" value="юрлицо / р/с" />
+        </div>
+        <div class="field">
+          <label for="aBal">Остаток</label>
+          <input id="aBal" type="number" step="0.01" value="0" />
+        </div>
+        <div class="full">
+          <button class="btn" type="submit">Добавить счёт</button>
+        </div>
+      </form>
+      <p id="accMsg" class="muted" style="margin-top:10px;"></p>
+      <div id="accList" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Люди</h2>
+      <div id="list"><p class="muted">Загрузка…</p></div>
+      <p id="listMsg" class="muted" style="margin-top:10px;"></p>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script>
+    (function () {
+      var roles = [];
+      var accounts = [];
+
+      function esc(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+
+      function accountChecks(containerId, selected) {
+        var sel = selected || [];
+        var el = document.getElementById(containerId);
+        if (!accounts.length) {
+          el.innerHTML = '<span class="muted">Счетов пока нет — добавьте ниже или через Импорт.</span>';
+          return;
+        }
+        el.innerHTML = accounts.map(function (a) {
+          var on = sel.indexOf(a.id) >= 0;
+          return '<label class="check">' +
+            '<input type="checkbox" value="' + a.id + '"' + (on ? " checked" : "") + " /> " +
+            esc(a.name) + (a.org && a.org !== a.name ? ' <span class="muted">(' + esc(a.org) + ")</span>" : "") +
+            "</label>";
+        }).join("");
+      }
+
+      function readChecks(containerId) {
+        return Array.prototype.slice
+          .call(document.querySelectorAll("#" + containerId + ' input[type="checkbox"]:checked'))
+          .map(function (x) { return Number(x.value); });
+      }
+
+      function fillRoleSelect(sel, value) {
+        sel.innerHTML = roles.map(function (r) {
+          return '<option value="' + r.id + '"' + (r.id === value ? " selected" : "") + ">" +
+            esc(r.label) + "</option>";
+        }).join("");
+      }
+
+      function renderAccounts() {
+        var el = document.getElementById("accList");
+        el.innerHTML = accounts.length
+          ? accounts.map(function (a) {
+              return '<div class="row pay"><div><strong>' + esc(a.name) + '</strong><div class="muted">' +
+                esc(a.kind) + (a.org ? " · " + esc(a.org) : "") +
+                '</div></div><div class="amount">' + esc(a.balanceLabel) +
+                '</div><div class="muted">#' + a.id + '</div><div></div><div></div></div>';
+            }).join("")
+          : '<p class="muted">Пока пусто.</p>';
+        accountChecks("cAccounts", []);
+      }
+
+      function renderPeople(rows) {
+        var el = document.getElementById("list");
+        if (!rows.length) {
+          el.innerHTML = '<p class="muted">Никого нет.</p>';
+          return;
+        }
+        el.innerHTML = rows.map(function (u) {
+          var accBox = accounts.length
+            ? accounts.map(function (a) {
+                var on = (u.accountIds || []).indexOf(a.id) >= 0;
+                return '<label class="check"><input type="checkbox" data-acc="' + u.id + '" value="' + a.id + '"' +
+                  (on ? " checked" : "") + " /> " + esc(a.name) + "</label>";
+              }).join("")
+            : '<span class="muted">нет счетов</span>';
+
+          return (
+            '<div class="person-card" data-id="' + u.id + '">' +
+            '<div class="person-head"><strong>' + esc(u.name) + '</strong>' +
+            '<span class="status ' + (u.active ? "ok" : "rejected") + '">' +
+            (u.active ? "активен" : "выкл") + "</span></div>" +
+            '<div class="muted" style="margin-bottom:10px;">' + esc(u.email) + "</div>" +
+            '<div class="form-grid">' +
+            '<div class="field"><label>Роль</label><select data-role="' + u.id + '"></select></div>' +
+            '<div class="field"><label>Точка</label><input data-site="' + u.id + '" value="' + esc(u.site || "") + '" placeholder="точка" /></div>' +
+            '<div class="field"><label>Новый пароль</label><input data-pass="' + u.id + '" type="text" placeholder="не менять" /></div>' +
+            '<div class="field"><label>Статус</label><select data-active="' + u.id + '">' +
+            '<option value="1"' + (u.active ? " selected" : "") + ">активен</option>" +
+            '<option value="0"' + (!u.active ? " selected" : "") + ">выключен</option>" +
+            "</select></div>" +
+            '<div class="field full"><label>Счета / юрлица</label><div class="check-grid">' + accBox + "</div></div>" +
+            '<div class="full"><button class="btn sm accent" type="button" data-save="' + u.id + '">Сохранить</button></div>' +
+            "</div></div>"
+          );
+        }).join("");
+
+        rows.forEach(function (u) {
+          var sel = el.querySelector('select[data-role="' + u.id + '"]');
+          if (sel) fillRoleSelect(sel, u.role);
+        });
+
+        el.querySelectorAll("[data-save]").forEach(function (btn) {
+          btn.onclick = async function () {
+            var id = Number(btn.getAttribute("data-save"));
+            var msg = document.getElementById("listMsg");
+            msg.textContent = "Сохраняю…";
+            try {
+              var patch = {
+                role: el.querySelector('select[data-role="' + id + '"]').value,
+                site: el.querySelector('input[data-site="' + id + '"]').value,
+                active: el.querySelector('select[data-active="' + id + '"]').value === "1",
+                account_ids: Array.prototype.slice
+                  .call(el.querySelectorAll('input[data-acc="' + id + '"]:checked'))
+                  .map(function (x) { return Number(x.value); })
+              };
+              var pass = el.querySelector('input[data-pass="' + id + '"]').value;
+              if (pass) patch.password = pass;
+              await KaznaAPI.patchPerson(id, patch);
+              msg.textContent = "Сохранено.";
+              await reload();
+            } catch (ex) {
+              msg.textContent = ex.message;
+            }
+          };
+        });
+      }
+
+      async function reload() {
+        accounts = await KaznaAPI.accounts();
+        roles = await KaznaAPI.roles();
+        fillRoleSelect(document.getElementById("cRole"), "manager");
+        renderAccounts();
+        renderPeople(await KaznaAPI.people());
+      }
+
+      KaznaAPI.me().then(async function (user) {
+        if (user.role !== "fin_director") {
+          location.href = user.role === "manager" ? "/manager.html" : "/home.html";
+          return;
+        }
+        document.getElementById("app").hidden = false;
+        document.getElementById("logoutBtn").onclick = async function () {
+          await KaznaAPI.logout(); location.href = "/";
+        };
+
+        document.getElementById("createForm").onsubmit = async function (e) {
+          e.preventDefault();
+          var msg = document.getElementById("createMsg");
+          msg.textContent = "Создаю…";
+          try {
+            await KaznaAPI.createPerson({
+              name: document.getElementById("cName").value,
+              email: document.getElementById("cEmail").value,
+              password: document.getElementById("cPass").value,
+              role: document.getElementById("cRole").value,
+              site: document.getElementById("cSite").value || null,
+              account_ids: readChecks("cAccounts")
+            });
+            msg.textContent = "Человек добавлен.";
+            e.target.reset();
+            await reload();
+          } catch (ex) {
+            msg.textContent = ex.message;
+          }
+        };
+
+        document.getElementById("accForm").onsubmit = async function (e) {
+          e.preventDefault();
+          var msg = document.getElementById("accMsg");
+          msg.textContent = "Добавляю…";
+          try {
+            await KaznaAPI.createAccount({
+              name: document.getElementById("aName").value,
+              org: document.getElementById("aOrg").value || null,
+              kind: document.getElementById("aKind").value || "юрлицо / р/с",
+              balance: Number(document.getElementById("aBal").value || 0)
+            });
+            msg.textContent = "Счёт добавлен.";
+            e.target.reset();
+            document.getElementById("aKind").value = "юрлицо / р/с";
+            document.getElementById("aBal").value = "0";
+            await reload();
+          } catch (ex) {
+            msg.textContent = ex.message;
+          }
+        };
+
+        await reload();
+      }).catch(function () { location.href = "/"; });
+    })();
+  </script>
+</body>
+</html>
