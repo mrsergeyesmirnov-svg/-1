@@ -8484,9 +8484,10 @@ async def _save_shift_comment(
 @dp.message(F.voice | F.audio | F.video_note, F.chat.type == "private")
 async def private_voice_comment(message: Message) -> None:
     user_id = message.from_user.id
-    if await _audit_ingest_media(message, user_id):
-        return
+    # Отзыв о смене важнее «зависшей» сессии аудита — иначе голос уезжает в ИИ-аудит
     if user_id not in waiting_for_comment:
+        if await _audit_ingest_media(message, user_id):
+            return
         return
     file_id = None
     filename = "voice.ogg"
@@ -8501,9 +8502,6 @@ async def private_voice_comment(message: Message) -> None:
         filename = "video_note.mp4"
     if not file_id:
         return
-    data = await load_data()
-    dept = survey_department_for_user(data, user_id)
-    kitchen = dept == pulse_model.CHAT_DEPT_KITCHEN
     await message.answer("🎧 Расшифровываю…")
     try:
         f = await bot.get_file(file_id)
@@ -8515,11 +8513,11 @@ async def private_voice_comment(message: Message) -> None:
             "Не удалось скачать голосовое. Напишите текстом или попробуйте ещё раз."
         )
         return
-    # Кухня: автоязык; зал — подсказка ru для Whisper
+    # Автоязык: узбекский / русский / смесь (не форсируем ru — ломает uz)
     text = await ai_advisor.transcribe_voice(
         raw,
         filename=filename,
-        language=None if kitchen else "ru",
+        language=None,
     )
     if not text:
         if ai_advisor._client_or_none() is None:
@@ -8533,12 +8531,10 @@ async def private_voice_comment(message: Message) -> None:
             )
         return
     pending_voice_comment[user_id] = text
-    hint = ""
-    if kitchen:
-        hint = (
-            "\n\nЕсли говорили не по-русски — после «Отправить» в отчёт уйдёт "
-            "русский перевод. Проверьте, что смысл верный."
-        )
+    hint = (
+        "\n\nМожно говорить на узбекском, русском или смеси. "
+        "После «Отправить» в отчёт уйдёт русский перевод — проверьте смысл."
+    )
     await message.answer(
         f"Распознали:\n<i>{escape(text)}</i>\n\n"
         "Отправить в отзыв или записать снова?"
@@ -8589,21 +8585,19 @@ async def voice_confirm_handler(callback: CallbackQuery) -> None:
         await callback.answer("Нет расшифровки — запишите голос ещё раз.", show_alert=True)
         return
     await callback.answer()
-    data = await load_data()
-    dept = survey_department_for_user(data, user_id)
     comment = draft
     original: str | None = None
-    if dept == pulse_model.CHAT_DEPT_KITCHEN:
-        await callback.message.answer("🇷🇺 Готовлю текст для отчёта…")
-        translated = await ai_advisor.translate_to_russian(draft)
-        if translated:
-            original = draft
-            comment = translated
-            if translated.strip() != draft.strip():
-                await callback.message.answer(
-                    f"В отчёт:\n<i>{escape(translated)}</i>",
-                    parse_mode="HTML",
-                )
+    # Всегда нормализуем в русский для отчётов (uz/ru/смесь); оригинал сохраняем
+    await callback.message.answer("🇷🇺 Готовлю текст для отчёта…")
+    translated = await ai_advisor.translate_to_russian(draft)
+    if translated:
+        original = draft
+        comment = translated
+        if translated.strip() != draft.strip():
+            await callback.message.answer(
+                f"В отчёт:\n<i>{escape(translated)}</i>",
+                parse_mode="HTML",
+            )
     await _save_shift_comment(
         callback.message, user_id, comment, comment_original=original
     )
