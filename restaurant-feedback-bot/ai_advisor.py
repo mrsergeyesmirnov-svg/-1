@@ -1348,15 +1348,82 @@ def teaser_learn_more_text() -> str:
     )
 
 
+# Подсказка Whisper: смены часто на узбекском / русском / смеси.
+_DEFAULT_WHISPER_PROMPT = (
+    "Отзыв сотрудника ресторана о смене. "
+    "Речь может быть на русском, узбекском (o'zbekcha / ўзбекча), "
+    "таджикском, казахском или смеси с заимствованиями. "
+    "Restoran smenasi haqida xodim fikri. "
+    "Команда, гости, кухня, зал, стоп-лист, выручка, усталость."
+)
+
+
+def whisper_language_hint(explicit: str | None = None) -> str | None:
+    """
+    Язык для STT.
+    None / auto / empty — автоопределение (нужно для узбекского и смеси).
+    WHISPER_LANGUAGE=ru — принудительно, если очень нужно.
+    """
+    if explicit is not None:
+        val = explicit.strip().lower()
+        if not val or val in ("auto", "none", "detect"):
+            return None
+        return val
+    env = os.getenv("WHISPER_LANGUAGE", "").strip().lower()
+    if not env or env in ("auto", "none", "detect"):
+        return None
+    return env
+
+
+def whisper_prompt_text() -> str:
+    custom = os.getenv("WHISPER_PROMPT", "").strip()
+    return custom or _DEFAULT_WHISPER_PROMPT
+
+
+def looks_non_russian(text: str) -> bool:
+    """Грубая эвристика: латиница / смешанный текст → вероятно не русский."""
+    raw = (text or "").strip()
+    if not raw:
+        return False
+    letters = [c for c in raw if c.isalpha()]
+    if not letters:
+        return False
+    cyr = sum(
+        1
+        for c in letters
+        if ("а" <= c.lower() <= "я") or c.lower() in "ёўқғҳӣҝңөүһ"
+    )
+    lat = sum(1 for c in letters if "a" <= c.lower() <= "z")
+    if lat >= 8 and lat >= cyr:
+        return True
+    low = raw.lower()
+    for marker in (
+        "juda ",
+        "yo'q",
+        "yaxshi",
+        "smena",
+        "oshpaz",
+        "mijoz",
+        "kechirasiz",
+        "unfortunately",
+        "lekin ",
+        "bugun ",
+    ):
+        if marker in low:
+            return True
+    return False
+
+
 async def transcribe_voice(
     file_bytes: bytes,
     *,
     filename: str = "voice.ogg",
-    language: str | None = "ru",
+    language: str | None = None,
 ) -> str | None:
     """
-    Whisper transcription.
-    language="ru" — подсказка для зала; None — автоопределение (кухня / другие языки).
+    Speech-to-text (Whisper / gpt-4o-*-transcribe).
+    По умолчанию язык не фиксируем — автоопределение (uz/ru/смесь).
+    language="ru" только если явно передали или WHISPER_LANGUAGE=ru.
     """
     client = _client_or_none()
     if client is None:
@@ -1366,12 +1433,17 @@ async def transcribe_voice(
 
         buf = io.BytesIO(file_bytes)
         buf.name = filename
+        model = os.getenv("OPENAI_TRANSCRIBE_MODEL", "").strip() or "whisper-1"
+        lang = whisper_language_hint(language)
         kwargs: dict[str, Any] = {
-            "model": "whisper-1",
+            "model": model,
             "file": buf,
         }
-        if language:
-            kwargs["language"] = language
+        if lang:
+            kwargs["language"] = lang
+        prompt = whisper_prompt_text()
+        if prompt and model.startswith("whisper"):
+            kwargs["prompt"] = prompt[:800]
         resp = await client.audio.transcriptions.create(**kwargs)
         text = (getattr(resp, "text", None) or str(resp) or "").strip()
         return text or None
@@ -1401,7 +1473,9 @@ async def translate_to_russian(text: str) -> str | None:
                     "role": "system",
                     "content": (
                         "Ты переводчик отзывов персонала ресторана. "
-                        "Переведи текст на русский язык для управленческого отчёта. "
+                        "Исходный язык часто узбекский (латиница или кириллица), "
+                        "таджикский, казахский, русский или смесь. "
+                        "Переведи на русский для управленческого отчёта. "
                         "Сохрани смысл, тон и конкретику. Не добавляй пояснений, кавычек "
                         "и преамбулы. Если текст уже на русском — верни его без изменений "
                         "(можно поправить только очевидные опечатки распознавания)."
