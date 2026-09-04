@@ -112,6 +112,18 @@ if not ADMIN_IDS:
         "напишите @userinfobot в Telegram). Пример: ADMIN_IDS=5274130715"
     )
 
+
+def _env_flag(name: str, *, default: bool = False) -> bool:
+    raw = os.getenv(name, "").strip().lower()
+    if not raw:
+        return default
+    return raw in ("1", "true", "yes", "on")
+
+
+# Автопуши в запасе: включить OPS_STOP_LIST_NUDGES=1 / OPS_UNOPENED_ALERTS=1
+OPS_STOP_LIST_NUDGES = _env_flag("OPS_STOP_LIST_NUDGES", default=False)
+OPS_UNOPENED_ALERTS = _env_flag("OPS_UNOPENED_ALERTS", default=False)
+
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
@@ -4313,7 +4325,7 @@ async def scheduler_loop() -> None:
                     sched["chef_stop_deadline"], ops_day.CHEF_STOP_REMINDER_MINUTES
                 )
 
-                if hm == chef_stop_nudge:
+                if OPS_STOP_LIST_NUDGES and hm == chef_stop_nudge:
                     cskey = f"{cid}|ops_csr|{morning_day}"
                     if not sent_map.get(cskey):
                         rec_cs = chat_record(data, int(cid)) or {}
@@ -4331,7 +4343,7 @@ async def scheduler_loop() -> None:
                             except Exception as e:
                                 print(f"[ops-chef-stop-nudge-fail] {cid}: {e}")
 
-                if hm == sched["chef_stop_deadline"]:
+                if OPS_STOP_LIST_NUDGES and hm == sched["chef_stop_deadline"]:
                     csokey = f"{cid}|ops_cso|{morning_day}"
                     if not sent_map.get(csokey):
                         rec_cso = chat_record(data, int(cid)) or {}
@@ -4453,7 +4465,7 @@ async def scheduler_loop() -> None:
                         except Exception as e:
                             print(f"[ops-evening-auto-fail] {cid}: {e}")
 
-                if hm == "10:00":
+                if OPS_UNOPENED_ALERTS and hm == "10:00":
                     ukey = f"{cid}|unopened3|{today}"
                     if not sent_map.get(ukey):
                         rec_u = chat_record(data, int(cid)) or info
