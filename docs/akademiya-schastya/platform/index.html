@@ -11,33 +11,33 @@
   <link rel="stylesheet" href="site.css" />
   <link rel="stylesheet" href="crm.css" />
   <link rel="stylesheet" href="platform.css" />
+  <style>
+    .auth-shell{max-width:430px;margin:10vh auto 0;padding:0 16px}.auth-card{background:#fff;border:1px solid #e7e5e4;border-radius:20px;padding:20px;box-shadow:0 12px 35px rgba(28,25,23,.07)}.auth-card h1{margin:0 0 6px;font-size:1.8rem}.auth-card p{color:#78716c}.auth-card .field{margin-top:10px}.auth-card .err{display:none;background:#fff1f2;border:1px solid #fecdd3;color:#9f1239;border-radius:12px;padding:10px 12px;margin-top:10px}.auth-card .err.on{display:block}.platform-user{font-size:.8rem;color:#78716c;margin-top:3px}
+  </style>
 </head>
 <body class="crm-page">
   <header>
     <div class="wrap header-inner">
       <a class="logo" href="../index.html">Академия<span>счастья</span><small>платформа</small></a>
       <ul class="nav-links">
-        <li><a href="crm.html">CRM</a></li>
         <li><a href="restaurant-audit.html">Master Audit</a></li>
-        <li><a href="audit.html">Калькулятор</a></li>
+        <li><a href="crm.html">CRM</a></li>
         <li><a href="finance.html">Финансы</a></li>
-        <li><a href="../index.html">На сайт</a></li>
       </ul>
       <button class="header-cta" type="button" id="logoutBtn" hidden>Выйти</button>
     </div>
   </header>
 
-  <div class="gate" id="gate">
-    <div class="gate-card">
-      <h1>Платформа для консультантов</h1>
-      <p>Рабочий контур Академии: клиенты, диагностика, расчёты, финансы, туры. Не публичная витрина.</p>
-      <p class="err" id="gateErr"></p>
+  <div id="gate" class="auth-shell">
+    <div class="auth-card">
+      <p style="margin-top:0">Академия счастья · внутренний контур</p>
+      <h1>Вход консультанта</h1>
+      <p>Логин и пароль. Без Google Authenticator и кодов подтверждения.</p>
+      <div class="err" id="gateErr"></div>
       <form id="gateForm">
-        <div class="field">
-          <label for="pwd">Пароль команды</label>
-          <input id="pwd" type="password" autocomplete="current-password" required />
-        </div>
-        <button class="btn btn-primary" type="submit" style="width:100%">Войти</button>
+        <div class="field"><label for="login">Логин</label><input id="login" autocomplete="username" required /></div>
+        <div class="field"><label for="pwd">Пароль</label><input id="pwd" type="password" autocomplete="current-password" required /></div>
+        <button class="btn btn-primary" type="submit" style="width:100%;margin-top:14px">Войти</button>
       </form>
     </div>
   </div>
@@ -45,90 +45,33 @@
   <main id="app" hidden>
     <div class="crm-shell">
       <div class="crm-top">
-        <div>
-          <p class="hero-kicker" style="margin:0 0 6px">внутренний контур</p>
-          <h1>Платформа</h1>
-        </div>
+        <div><p class="hero-kicker" style="margin:0 0 6px">внутренний контур</p><h1>Платформа</h1><div id="userLine" class="platform-user"></div></div>
         <a class="btn btn-ghost btn-sm" href="../index.html">← Академия</a>
       </div>
-      <p class="platform-lead">
-        Основная CRM и операционка консультантов: клиенты и статусы воронки,
-        мобильный Master Audit, счета и акты из калькулятора, учёт денег, план туров.
-      </p>
+      <p class="platform-lead">Рабочий контур консультанта: аудит, CRM, расчёт проекта, финансы и контроль результата.</p>
       <div class="sticker-list platform-grid">
-        <a class="sticker platform-card" href="crm.html">
-          <div class="sticker-title">Клиенты · CRM</div>
-          <p class="sticker-sub">Стикеры, статусы воронки, комментарии</p>
-          <p class="sticker-meta">Счета и акты сами приклеиваются из калькулятора. Это ядро платформы.</p>
-          <div class="sticker-foot"><span class="status-pill change">живо</span><span class="door-go">Открыть →</span></div>
-        </a>
-        <a class="sticker platform-card" href="restaurant-audit.html">
-          <div class="sticker-title">Master Audit · 150 стандартов</div>
-          <p class="sticker-sub">Day 0 / 30 / 60 · мобильный ввод · автосохранение</p>
-          <p class="sticker-meta">Оценки 0/1/2/N/A, Red Flags, сравнение до/после, запись итога в CRM и экспорт в Excel.</p>
-          <div class="sticker-foot"><span class="status-pill change">beta</span><span class="door-go">Начать аудит →</span></div>
-        </a>
-        <a class="sticker platform-card" href="audit.html">
-          <div class="sticker-title">Калькулятор проекта</div>
-          <p class="sticker-sub">Часы × сложность → цена, счёт, акт</p>
-          <p class="sticker-meta">Печать документа сразу пишет его в карточку клиента.</p>
-          <div class="sticker-foot"><span class="status-pill change">живо</span><span class="door-go">Считать →</span></div>
-        </a>
-        <a class="sticker platform-card" href="finance.html">
-          <div class="sticker-title">Финансы</div>
-          <p class="sticker-sub">Доходы, расходы, сметы, календарь, PDF</p>
-          <p class="sticker-meta">Полный учёт: операции, комментарии, бюджет/баланс, документы и факт распределяемой прибыли — без 50/50.</p>
-          <div class="sticker-foot"><span class="status-pill change">живо</span><span class="door-go">Открыть →</span></div>
-        </a>
-        <a class="sticker platform-card" href="tours-plan.html">
-          <div class="sticker-title">Планирование туров</div>
-          <p class="sticker-sub">Потоки, даты, ведущие, набор</p>
-          <p class="sticker-meta">Календарь выездов и мастер-классов для команды, не публичная афиша.</p>
-          <div class="sticker-foot"><span class="status-pill">скоро</span><span class="door-go">Заготовка →</span></div>
-        </a>
+        <a class="sticker platform-card" href="restaurant-audit.html"><div class="sticker-title">Master Audit · 150 стандартов</div><p class="sticker-sub">Day 0 / 30 / 60 · баллы · Red Flags · Healthy Baseline</p><p class="sticker-meta">Заполнение с телефона. Ответы сразу сохраняются в Railway Postgres и экспортируются в Excel.</p><div class="sticker-foot"><span class="status-pill change">живо</span><span class="door-go">Открыть →</span></div></a>
+        <a class="sticker platform-card" href="crm.html"><div class="sticker-title">Клиенты · CRM</div><p class="sticker-sub">Стикеры, статусы воронки, комментарии</p><p class="sticker-meta">Карточки клиентов, документы и история работы.</p><div class="sticker-foot"><span class="status-pill change">живо</span><span class="door-go">Открыть →</span></div></a>
+        <a class="sticker platform-card" href="audit.html"><div class="sticker-title">Калькулятор проекта</div><p class="sticker-sub">Часы × сложность → цена, счёт, акт</p><p class="sticker-meta">Старый калькулятор стоимости остаётся отдельным от Master Audit.</p><div class="sticker-foot"><span class="status-pill change">живо</span><span class="door-go">Считать →</span></div></a>
+        <a class="sticker platform-card" href="finance.html"><div class="sticker-title">Финансы</div><p class="sticker-sub">Доходы, расходы, сметы, календарь</p><p class="sticker-meta">Учёт денег и документов Академии.</p><div class="sticker-foot"><span class="status-pill change">живо</span><span class="door-go">Открыть →</span></div></a>
+        <a class="sticker platform-card" href="tours-plan.html"><div class="sticker-title">Планирование туров</div><p class="sticker-sub">Потоки, даты, ведущие, набор</p><p class="sticker-meta">Рабочая заготовка выездов и мастер-классов.</p><div class="sticker-foot"><span class="status-pill">скоро</span><span class="door-go">Открыть →</span></div></a>
       </div>
-      <p class="platform-foot-note">
-        Пароль тот же, что у аудита. CRM и Master Audit в этой версии сохраняются в браузере устройства (localStorage); итог аудита можно записать комментарием в карточку клиента и выгрузить в Excel.
-      </p>
     </div>
   </main>
 
   <script>
-    (function () {
-      var EXPECT = null;
-      async function sha256(text) {
-        var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-        return Array.from(new Uint8Array(buf)).map(function (b) {
-          return b.toString(16).padStart(2, "0");
-        }).join("");
-      }
-      function showApp() {
-        document.getElementById("gate").hidden = true;
-        document.getElementById("app").hidden = false;
-        document.getElementById("logoutBtn").hidden = false;
-      }
-      async function init() {
-        EXPECT = await sha256("smena2026");
-        if (sessionStorage.getItem("ss_audit_ok") === "1") showApp();
-      }
-      document.getElementById("gateForm").onsubmit = async function (e) {
-        e.preventDefault();
-        var err = document.getElementById("gateErr");
-        err.classList.remove("on");
-        if ((await sha256(document.getElementById("pwd").value)) !== EXPECT) {
-          err.textContent = "Неверный пароль";
-          err.classList.add("on");
-          return;
-        }
-        sessionStorage.setItem("ss_audit_ok", "1");
-        showApp();
-      };
-      document.getElementById("logoutBtn").onclick = function () {
-        sessionStorage.removeItem("ss_audit_ok");
-        location.reload();
-      };
-      init();
-    })();
+  (()=>{
+    const API=window.AH_API_BASE||(location.hostname==='api.pulseteam.online'?location.origin:'https://api.pulseteam.online');
+    const KEY='ah_platform_token_v1'; let token=localStorage.getItem(KEY)||'';
+    const gate=document.getElementById('gate'),app=document.getElementById('app'),err=document.getElementById('gateErr'),logout=document.getElementById('logoutBtn');
+    function showGate(msg=''){gate.hidden=false;app.hidden=true;logout.hidden=true;err.textContent=msg;err.classList.toggle('on',!!msg)}
+    function showApp(user){gate.hidden=true;app.hidden=false;logout.hidden=false;document.getElementById('userLine').textContent=(user.display_name||user.username)+' · '+user.role;sessionStorage.setItem('ss_audit_ok','1')}
+    async function req(path,opt={}){let h=Object.assign({'Content-Type':'application/json'},opt.headers||{});if(token)h.Authorization='Bearer '+token;let r=await fetch(API+path,Object.assign({},opt,{headers:h}));let d={};try{d=await r.json()}catch(_){}if(!r.ok||d.ok===false)throw new Error(d.error||'Ошибка');return d}
+    async function init(){if(!token)return showGate();try{let d=await req('/api/platform/me');showApp(d.user)}catch(e){localStorage.removeItem(KEY);token='';showGate('Сессия истекла. Войдите снова.')}}
+    document.getElementById('gateForm').onsubmit=async e=>{e.preventDefault();err.classList.remove('on');try{let r=await fetch(API+'/api/platform/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('login').value.trim(),password:document.getElementById('pwd').value})});let d=await r.json();if(!r.ok)throw new Error(d.error||'Не удалось войти');token=d.token;localStorage.setItem(KEY,token);showApp(d.user)}catch(e){showGate(e.message)}};
+    logout.onclick=async()=>{try{await req('/api/platform/logout',{method:'POST',body:'{}'})}catch(_){}localStorage.removeItem(KEY);sessionStorage.removeItem('ss_audit_ok');token='';showGate()};
+    init();
+  })();
   </script>
 </body>
 </html>
