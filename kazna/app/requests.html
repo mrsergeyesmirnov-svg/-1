@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Казна · Заявки</title>
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <div class="app" id="app" hidden>
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <button class="btn ghost sm" type="button" id="logoutBtn">Выйти</button>
+    </div>
+    <nav class="nav">
+      <a href="/home.html">Обзор</a>
+      <a href="/money.html">Деньги</a>
+      <a href="/calendar.html">Календарь</a>
+      <a class="on" href="/requests.html">Заявки</a>
+      <a href="/import.html">Импорт</a>
+      <a href="/people.html">Люди</a>
+    </nav>
+    <div class="badge">Очередь</div>
+    <h1>Заявки управляющих</h1>
+    <p class="sub">Приоритет, одобрение и перевод в календарь оплат — без переписки в чате.</p>
+
+    <div class="panel">
+      <h2>Очередь</h2>
+      <div id="list"><p class="muted">Загрузка…</p></div>
+      <p id="msg" class="muted" style="margin-top:10px;"></p>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script>
+    (function () {
+      var statusMap = {
+        new: "новая",
+        reviewing: "на проверке",
+        approved: "одобрена",
+        rejected: "отклонена",
+        scheduled: "в календаре",
+        paid: "оплачена"
+      };
+      var prioMap = { urgent: "срочно", high: "высокая", normal: "обычная", low: "низкая" };
+
+      function esc(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+
+      async function act(id, patch) {
+        var msg = document.getElementById("msg");
+        msg.textContent = "Сохраняю…";
+        try {
+          await KaznaAPI.patchRequest(id, patch);
+          msg.textContent = "Готово.";
+          await reload();
+        } catch (ex) {
+          msg.textContent = ex.message;
+        }
+      }
+
+      function render(rows) {
+        var el = document.getElementById("list");
+        if (!rows.length) {
+          el.innerHTML = '<p class="muted">Заявок нет. Управляющий создаёт их в своём кабинете (manager@kazna.local).</p>';
+          return;
+        }
+        el.innerHTML = rows.map(function (r) {
+          var actions =
+            '<div class="req-actions">' +
+            '<select data-prio="' + r.id + '">' +
+            ["urgent","high","normal","low"].map(function (p) {
+              return '<option value="' + p + '"' + (p === r.priority ? " selected" : "") + ">" +
+                (prioMap[p] || p) + "</option>";
+            }).join("") +
+            "</select>" +
+            '<button class="btn sm accent" type="button" data-cal="' + r.id + '">В календарь</button>' +
+            '<button class="btn sm" type="button" data-ok="' + r.id + '">Ок</button>' +
+            '<button class="btn sm ghost" type="button" data-no="' + r.id + '">Отклонить</button>' +
+            "</div>";
+
+          return (
+            '<div class="row req-fin">' +
+            "<div><strong>" + esc(r.title) + '</strong><div class="muted">' +
+            esc(r.creatorName || "управляющий") +
+            (r.site ? " · " + esc(r.site) : "") +
+            " · " + esc(r.dueDateLabel) +
+            (r.comment ? "<br>" + esc(r.comment) : "") +
+            "</div></div>" +
+            '<div class="amount">' + esc(r.amountLabel) + "</div>" +
+            '<div><span class="status ' + esc(r.status) + '">' + esc(statusMap[r.status] || r.status) + "</span></div>" +
+            actions +
+            "</div>"
+          );
+        }).join("");
+
+        el.querySelectorAll("[data-prio]").forEach(function (sel) {
+          sel.onchange = function () {
+            act(Number(sel.getAttribute("data-prio")), { priority: sel.value });
+          };
+        });
+        el.querySelectorAll("[data-cal]").forEach(function (btn) {
+          btn.onclick = function () {
+            act(Number(btn.getAttribute("data-cal")), { to_calendar: true, status: "scheduled" });
+          };
+        });
+        el.querySelectorAll("[data-ok]").forEach(function (btn) {
+          btn.onclick = function () {
+            act(Number(btn.getAttribute("data-ok")), { status: "approved", to_calendar: true });
+          };
+        });
+        el.querySelectorAll("[data-no]").forEach(function (btn) {
+          btn.onclick = function () {
+            act(Number(btn.getAttribute("data-no")), { status: "rejected" });
+          };
+        });
+      }
+
+      async function reload() {
+        render(await KaznaAPI.requests());
+      }
+
+      KaznaAPI.me().then(async function (user) {
+        if (user.role === "manager") { location.href = "/manager.html"; return; }
+        document.getElementById("app").hidden = false;
+        document.getElementById("logoutBtn").onclick = async function () {
+          await KaznaAPI.logout(); location.href = "/";
+        };
+        await reload();
+      }).catch(function () { location.href = "/"; });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Казна · Импорт</title>
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <div class="app" id="app" hidden>
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <button class="btn ghost sm" type="button" id="logoutBtn">Выйти</button>
+    </div>
+    <nav class="nav">
+      <a href="/home.html">Обзор</a>
+      <a href="/money.html">Деньги</a>
+      <a href="/calendar.html">Календарь</a>
+      <a href="/requests.html">Заявки</a>
+      <a class="on" href="/import.html">Импорт</a>
+      <a href="/people.html">Люди</a>
+    </nav>
+
+    <div class="badge">Данные</div>
+    <h1>iiko и остатки</h1>
+    <p class="sub">
+      Платежи и список организаций — из <strong>iiko</strong>.
+      Живые остатки р/с и касса на точке из Cloud API не приходят — их грузите Excel’ем или правите на «Деньги».
+    </p>
+
+    <div class="panel">
+      <h2>1. iiko → платежи</h2>
+      <p class="muted">
+        apiLogin iikoCloud → организации + приходные накладные в календарь.
+        Юрлица подтягиваются как счета (остаток 0, пока не загрузите Excel).
+        Если в iiko есть дата оплаты — статус «оплачено» сам.
+      </p>
+      <form id="iikoCfg" class="form-grid" style="margin-top:12px;">
+        <div class="field">
+          <label for="apiLogin">apiLogin</label>
+          <input id="apiLogin" placeholder="если уже сохранён — можно пусто" autocomplete="off" />
+          <div class="muted" id="loginHint" style="margin-top:4px;"></div>
+        </div>
+        <div class="field">
+          <label for="daysBack">Дней назад</label>
+          <input id="daysBack" type="number" min="1" max="366" value="30" />
+        </div>
+        <div class="field full">
+          <label for="orgSelect">Организация iiko</label>
+          <select id="orgSelect">
+            <option value="">все доступные</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label for="iikoNote">Комментарий</label>
+          <input id="iikoNote" placeholder="сеть / точки" />
+        </div>
+        <div class="full req-actions">
+          <button class="btn ghost" type="submit">Сохранить</button>
+          <button class="btn ghost" type="button" id="iikoTestBtn">Проверить связь</button>
+          <button class="btn accent" type="button" id="iikoSyncBtn">Синхронизировать</button>
+        </div>
+      </form>
+      <p id="iikoCfgMsg" class="muted" style="margin-top:12px;"></p>
+      <pre id="iikoOut" class="inspect" hidden></pre>
+    </div>
+
+    <div class="panel">
+      <h2>2. Excel → остатки по счетам</h2>
+      <p class="muted">
+        Колонки: <strong>Счёт / Организация</strong> и <strong>Остаток</strong>.
+        Обновляет деньги сети, не ломает список юрлиц из iiko.
+      </p>
+      <form id="balForm" style="margin-top:12px;display:grid;gap:10px;">
+        <input type="file" id="balFile" accept=".xlsx,.xlsm" required />
+        <button class="btn accent" type="submit">Загрузить остатки</button>
+      </form>
+      <p id="balMsg" class="muted" style="margin-top:12px;"></p>
+    </div>
+
+    <div class="panel">
+      <h2>3. По желанию: старый Excel с платёжками</h2>
+      <p class="muted">
+        Лучше не использовать как основной источник — путает счета.
+        Если уже залили мусор: удалите excel-платежи одной кнопкой.
+      </p>
+      <div class="req-actions" style="margin:10px 0;">
+        <button class="btn ghost sm" type="button" id="purgeExcel">Удалить все платежи из Excel</button>
+      </div>
+      <details>
+        <summary class="muted" style="cursor:pointer;font-weight:700;">Показать загрузку Excel-платежей</summary>
+        <form id="payForm" style="margin-top:12px;display:grid;gap:10px;">
+          <input type="file" id="payFile" accept=".xlsx,.xlsm,.csv" />
+          <label class="muted" style="display:flex;gap:8px;align-items:center;">
+            <input type="checkbox" id="replace" checked /> заменить предыдущий Excel-импорт
+          </label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <button class="btn" type="submit">Загрузить платежи из Excel</button>
+            <button class="btn ghost" type="button" id="inspectBtn">Показать заголовки</button>
+          </div>
+        </form>
+        <p id="payMsg" class="muted" style="margin-top:12px;"></p>
+        <pre id="inspectOut" class="inspect" hidden></pre>
+      </details>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    KaznaAPI.me().then(async function (user) {
+      if (user.role !== "fin_director") {
+        location.href = user.role === "manager" ? "/manager.html" : "/home.html";
+        return;
+      }
+      document.getElementById("app").hidden = false;
+      document.getElementById("logoutBtn").onclick = async function () {
+        await KaznaAPI.logout(); location.href = "/";
+      };
+
+      function fillOrgs(orgs, selected) {
+        var sel = document.getElementById("orgSelect");
+        var cur = selected || sel.value || "";
+        sel.innerHTML = '<option value="">все доступные</option>' +
+          (orgs || []).map(function (o) {
+            return '<option value="' + o.id + '"' + (o.id === cur ? " selected" : "") + ">" +
+              (o.name || o.id) + "</option>";
+          }).join("");
+      }
+
+      async function loadIikoCfg() {
+        var cfg = await KaznaAPI.getIikoConfig();
+        document.getElementById("loginHint").textContent = cfg.configured
+          ? ("Сохранён: " + cfg.apiLoginMasked)
+          : "apiLogin ещё не сохранён";
+        document.getElementById("daysBack").value = cfg.daysBack || 30;
+        document.getElementById("iikoNote").value = cfg.note || "";
+        if (cfg.organizationId) {
+          fillOrgs([{ id: cfg.organizationId, name: cfg.organizationName || cfg.organizationId }], cfg.organizationId);
+        }
+        var msg = document.getElementById("iikoCfgMsg");
+        if (cfg.lastResult) msg.textContent = "Последний синк: " + cfg.lastResult;
+        if (cfg.lastError) msg.textContent = "Ошибка: " + cfg.lastError;
+      }
+
+      document.getElementById("iikoCfg").onsubmit = async function (e) {
+        e.preventDefault();
+        var msg = document.getElementById("iikoCfgMsg");
+        msg.textContent = "Сохраняю…";
+        try {
+          var payload = {
+            organization_id: document.getElementById("orgSelect").value || null,
+            days_back: Number(document.getElementById("daysBack").value || 30),
+            note: document.getElementById("iikoNote").value || null,
+            enabled: true
+          };
+          var login = document.getElementById("apiLogin").value.trim();
+          if (login) payload.api_login = login;
+          var res = await KaznaAPI.saveIikoConfig(payload);
+          document.getElementById("apiLogin").value = "";
+          msg.textContent = res.message;
+          await loadIikoCfg();
+        } catch (ex) {
+          msg.textContent = ex.message;
+        }
+      };
+
+      document.getElementById("iikoTestBtn").onclick = async function () {
+        var msg = document.getElementById("iikoCfgMsg");
+        var out = document.getElementById("iikoOut");
+        msg.textContent = "Проверяю…";
+        try {
+          var login = document.getElementById("apiLogin").value.trim();
+          if (login) {
+            await KaznaAPI.saveIikoConfig({
+              api_login: login,
+              organization_id: document.getElementById("orgSelect").value || null,
+              days_back: Number(document.getElementById("daysBack").value || 30)
+            });
+            document.getElementById("apiLogin").value = "";
+          }
+          var res = await KaznaAPI.testIiko();
+          fillOrgs(res.organizations, document.getElementById("orgSelect").value);
+          out.hidden = false;
+          out.textContent = JSON.stringify(res.organizations, null, 2);
+          msg.textContent = res.message;
+          await loadIikoCfg();
+        } catch (ex) {
+          msg.textContent = ex.message;
+        }
+      };
+
+      document.getElementById("iikoSyncBtn").onclick = async function () {
+        var msg = document.getElementById("iikoCfgMsg");
+        var out = document.getElementById("iikoOut");
+        msg.textContent = "Синхронизирую…";
+        try {
+          var res = await KaznaAPI.syncIiko({
+            organization_id: document.getElementById("orgSelect").value || null,
+            days_back: Number(document.getElementById("daysBack").value || 30),
+            replace: false
+          });
+          out.hidden = false;
+          out.textContent = JSON.stringify(res, null, 2);
+          msg.textContent = res.message + " → Календарь.";
+        } catch (ex) {
+          msg.textContent = ex.message;
+        }
+      };
+
+      document.getElementById("balForm").onsubmit = async function (e) {
+        e.preventDefault();
+        var msg = document.getElementById("balMsg");
+        msg.textContent = "Загружаю…";
+        try {
+          var fd = new FormData();
+          fd.append("file", document.getElementById("balFile").files[0]);
+          var res = await fetch("/api/accounts/set-balances", { method: "POST", body: fd, credentials: "same-origin" });
+          var data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Ошибка");
+          msg.textContent = data.message || ("Счетов: " + data.accounts);
+        } catch (ex) {
+          msg.textContent = ex.message;
+        }
+      };
+
+      document.getElementById("purgeExcel").onclick = async function () {
+        if (!confirm("Удалить все платежи, загруженные из Excel?")) return;
+        try {
+          var res = await KaznaAPI.deletePaymentsSource("excel");
+          alert(res.message);
+        } catch (ex) {
+          alert(ex.message);
+        }
+      };
+
+      document.getElementById("payForm").onsubmit = async function (e) {
+        e.preventDefault();
+        var msg = document.getElementById("payMsg");
+        var file = document.getElementById("payFile").files[0];
+        if (!file) { msg.textContent = "Выберите файл."; return; }
+        msg.textContent = "Загружаю…";
+        try {
+          var res = await KaznaAPI.importExcel(file, document.getElementById("replace").checked);
+          msg.textContent = res.message;
+        } catch (ex) {
+          msg.textContent = ex.message;
+        }
+      };
+
+      document.getElementById("inspectBtn").onclick = async function () {
+        var file = document.getElementById("payFile").files[0];
+        var out = document.getElementById("inspectOut");
+        var msg = document.getElementById("payMsg");
+        if (!file) { msg.textContent = "Сначала выберите файл."; return; }
+        try {
+          var info = await KaznaAPI.inspectImport(file);
+          out.hidden = false;
+          out.textContent = JSON.stringify(info, null, 2);
+          msg.textContent = "Заголовки ниже.";
+        } catch (ex) {
+          msg.textContent = ex.message;
+        }
+      };
+
+      try { await loadIikoCfg(); } catch (e) {}
+    }).catch(function () { location.href = "/"; });
+  </script>
+</body>
+</html>

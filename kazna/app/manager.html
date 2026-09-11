@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Казна · Управляющий</title>
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <div class="app" id="app" hidden>
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <div class="user-chip">
+        <div>
+          <strong id="userName">—</strong>
+          <div id="userRole" class="muted"></div>
+        </div>
+        <button class="btn ghost sm" type="button" id="logoutBtn">Выйти</button>
+      </div>
+    </div>
+    <nav class="nav">
+      <a class="on" href="/manager.html">Мои заявки</a>
+    </nav>
+    <div class="badge">Кабинет управляющего</div>
+    <h1>Заявка на оплату</h1>
+    <p class="sub">Пишете сумму и зачем — финдир видит очередь, ставит приоритет и кидает в календарь оплат.</p>
+
+    <div class="panel" id="accPanel">
+      <h2>Ваши счета / юрлица</h2>
+      <div id="myAccounts"><p class="muted">Загрузка…</p></div>
+    </div>
+
+    <div class="panel">
+      <h2>Новая заявка</h2>
+      <form id="reqForm" class="form-grid">
+        <div class="field">
+          <label for="title">На что</label>
+          <input id="title" required maxlength="512" placeholder="Например: продукты на выходные" />
+        </div>
+        <div class="field">
+          <label for="amount">Сумма, ₽</label>
+          <input id="amount" type="number" min="1" step="0.01" required placeholder="45000" />
+        </div>
+        <div class="field">
+          <label for="due">Желаемый срок</label>
+          <input id="due" type="date" />
+        </div>
+        <div class="field">
+          <label for="priority">Срочность с вашей стороны</label>
+          <select id="priority">
+            <option value="normal">обычная</option>
+            <option value="high">высокая</option>
+            <option value="urgent">срочно</option>
+            <option value="low">может подождать</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label for="comment">Комментарий</label>
+          <textarea id="comment" rows="3" placeholder="Кому платить, счёт, почему нельзя отложить"></textarea>
+        </div>
+        <div class="full">
+          <button class="btn accent" type="submit">Отправить финдиру</button>
+        </div>
+      </form>
+      <p id="formMsg" class="muted" style="margin-top:10px;"></p>
+    </div>
+
+    <div class="panel">
+      <h2>Мои заявки</h2>
+      <div id="list"><p class="muted">Загрузка…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script>
+    (function () {
+      var statusMap = {
+        new: "новая",
+        reviewing: "на проверке",
+        approved: "одобрена",
+        rejected: "отклонена",
+        scheduled: "в календаре",
+        paid: "оплачена"
+      };
+      var prioMap = { urgent: "срочно", high: "высокая", normal: "обычная", low: "низкая" };
+
+      function esc(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+
+      function renderAccounts(user) {
+        var el = document.getElementById("myAccounts");
+        var acc = user.accounts || [];
+        if (!acc.length) {
+          el.innerHTML = '<p class="muted">Финдир ещё не привязал вам счета — напишите ему или работайте заявками по точке <strong>' +
+            esc(user.site || "без точки") + "</strong>.</p>";
+          return;
+        }
+        el.innerHTML = acc.map(function (a) {
+          return '<div class="row req"><div><strong>' + esc(a.name) + '</strong><div class="muted">' +
+            esc(a.org || "юрлицо / р/с") + "</div></div><div></div><div></div><div>" +
+            '<span class="status ok">ваш</span></div><div></div></div>';
+        }).join("");
+      }
+
+      function render(rows) {
+        var el = document.getElementById("list");
+        if (!rows.length) {
+          el.innerHTML = '<p class="muted">Пока нет заявок — создайте первую выше.</p>';
+          return;
+        }
+        el.innerHTML = rows.map(function (r) {
+          var canCancel = r.status === "new" || r.status === "reviewing";
+          return (
+            '<div class="row req">' +
+            "<div><strong>" + esc(r.title) + '</strong><div class="muted">' +
+            esc(r.site || "") + " · " + esc(r.dueDateLabel) +
+            (r.comment ? " · " + esc(r.comment) : "") +
+            (r.paymentId ? " · уже в календаре оплат" : "") +
+            "</div></div>" +
+            '<div class="amount">' + esc(r.amountLabel) + "</div>" +
+            '<div><span class="prio ' + esc(r.priority) + '">' + esc(prioMap[r.priority] || r.priority) + "</span></div>" +
+            '<div><span class="status ' + esc(r.status) + '">' + esc(statusMap[r.status] || r.status) + "</span></div>" +
+            "<div>" + (canCancel
+              ? '<button class="btn sm ghost" type="button" data-cancel="' + r.id + '">Отменить</button>'
+              : "") + "</div></div>"
+          );
+        }).join("");
+
+        el.querySelectorAll("[data-cancel]").forEach(function (btn) {
+          btn.onclick = async function () {
+            try {
+              await KaznaAPI.patchRequest(Number(btn.getAttribute("data-cancel")), { status: "rejected" });
+              await reload();
+            } catch (ex) {
+              alert(ex.message);
+            }
+          };
+        });
+      }
+
+      async function reload() {
+        render(await KaznaAPI.requests());
+      }
+
+      KaznaAPI.me().then(async function (user) {
+        if (user.role !== "manager") { location.href = "/home.html"; return; }
+        document.getElementById("app").hidden = false;
+        document.getElementById("userName").textContent = user.name;
+        document.getElementById("userRole").textContent = user.roleLabel;
+        renderAccounts(user);
+        document.getElementById("logoutBtn").onclick = async function () {
+          await KaznaAPI.logout(); location.href = "/";
+        };
+
+        document.getElementById("reqForm").onsubmit = async function (e) {
+          e.preventDefault();
+          var msg = document.getElementById("formMsg");
+          msg.textContent = "Отправляю…";
+          try {
+            await KaznaAPI.createRequest({
+              title: document.getElementById("title").value,
+              amount: Number(document.getElementById("amount").value),
+              due_date: document.getElementById("due").value || null,
+              priority: document.getElementById("priority").value,
+              comment: document.getElementById("comment").value || null
+            });
+            msg.textContent = "Заявка ушла финдиру.";
+            e.target.reset();
+            await reload();
+          } catch (ex) {
+            msg.textContent = ex.message;
+          }
+        };
+
+        await reload();
+      }).catch(function () { location.href = "/"; });
+    })();
+  </script>
+</body>
+</html>
