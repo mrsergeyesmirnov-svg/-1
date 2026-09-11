@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="crm.css" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
-    :root { --audit-ink:#1c1917; --audit-muted:#78716c; --audit-line:#e7e5e4; --audit-soft:#fafaf9; --audit-good:#15803d; --audit-mid:#b45309; --audit-bad:#be123c; --audit-blue:#1d4ed8; }
+    :root { --audit-ink:#1c1917; --audit-muted:#78716c; --audit-line:#e7e5e4; --audit-good:#15803d; --audit-mid:#b45309; --audit-bad:#be123c; }
     body.audit-page { background:#f5f5f4; color:var(--audit-ink); min-height:100vh; }
     .audit-shell { max-width:920px; margin:0 auto; padding:18px 14px calc(110px + env(safe-area-inset-bottom)); }
     .audit-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:16px; }
@@ -23,7 +23,7 @@
     .audit-card p { margin:5px 0; }
     .audit-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
     .audit-field label { display:block; font-size:.76rem; font-weight:800; color:var(--audit-muted); margin:0 0 5px; text-transform:uppercase; letter-spacing:.04em; }
-    .audit-field input,.audit-field select,.audit-field textarea { width:100%; box-sizing:border-box; border:1px solid var(--audit-line); border-radius:12px; padding:12px 12px; font:inherit; color:var(--audit-ink); background:#fff; }
+    .audit-field input,.audit-field select,.audit-field textarea { width:100%; box-sizing:border-box; border:1px solid var(--audit-line); border-radius:12px; padding:12px; font:inherit; color:var(--audit-ink); background:#fff; }
     .audit-field textarea { resize:vertical; min-height:74px; }
     .audit-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
     .audit-btn { appearance:none; border:1px solid var(--audit-line); border-radius:12px; background:#fff; color:var(--audit-ink); padding:11px 14px; font:inherit; font-weight:800; cursor:pointer; }
@@ -78,183 +78,34 @@
   <header class="no-print">
     <div class="wrap header-inner">
       <a class="logo" href="index.html">Академия<span>счастья</span><small>аудит</small></a>
-      <ul class="nav-links">
-        <li><a href="index.html">Платформа</a></li>
-        <li><a href="crm.html">CRM</a></li>
-        <li><a href="audit.html">Калькулятор</a></li>
-      </ul>
+      <ul class="nav-links"><li><a href="index.html">Платформа</a></li><li><a href="crm.html">CRM</a></li><li><a href="audit.html">Калькулятор</a></li></ul>
       <button class="header-cta" type="button" id="logoutBtn" hidden>Выйти</button>
     </div>
   </header>
-
-  <div class="gate" id="gate">
-    <div class="gate-card">
-      <h1>Master Audit</h1>
-      <p>Мобильный аудит ресторана: 150 стандартов, автосохранение, сравнение Day 0 / 30 / 60 и экспорт в Excel.</p>
-      <p class="err" id="gateErr"></p>
-      <form id="gateForm">
-        <div class="field"><label for="pwd">Пароль команды</label><input id="pwd" type="password" autocomplete="current-password" required /></div>
-        <button class="btn btn-primary" type="submit" style="width:100%">Войти</button>
-      </form>
-    </div>
-  </div>
-
-  <main id="app" hidden>
-    <div class="audit-shell">
-      <section id="homeView"></section>
-      <section id="runView" class="hidden"></section>
-      <section id="summaryView" class="hidden"></section>
-    </div>
-  </main>
+  <div class="gate" id="gate"><div class="gate-card"><h1>Master Audit</h1><p>Мобильный аудит ресторана: 150 стандартов, автосохранение, сравнение Day 0 / 30 / 60 и экспорт в Excel.</p><p class="err" id="gateErr"></p><form id="gateForm"><div class="field"><label for="pwd">Пароль команды</label><input id="pwd" type="password" autocomplete="current-password" required /></div><button class="btn btn-primary" type="submit" style="width:100%">Войти</button></form></div></div>
+  <main id="app" hidden><div class="audit-shell"><section id="homeView"></section><section id="runView" class="hidden"></section><section id="summaryView" class="hidden"></section></div></main>
   <div class="toast" id="toast"></div>
-
   <script src="crm-store.js"></script>
   <script>
   (function () {
     "use strict";
-    var TEMPLATE_FILES = ["data/master-audit-01.csv","data/master-audit-02.csv","data/master-audit-03.csv"];
-    var STORE_KEY = "ah_master_audits_v1";
-    var TEMPLATE_VERSION = "AH-AUDIT-1.0";
-    var EXPECT = null;
-    var items = [];
-    var sections = [];
-    var currentSessionId = "";
-    var currentIndex = 0;
-    var noteTimer = null;
-
-    function $(id){ return document.getElementById(id); }
-    function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-    function attr(s){ return esc(s).replace(/'/g,"&#39;"); }
-    function uid(){ return "aud_" + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
-    function isoDate(){ return new Date().toISOString().slice(0,10); }
-    function fmtDate(v){ if(!v) return "—"; try{return new Date(v + "T12:00:00").toLocaleDateString("ru-RU");}catch(_){return v;} }
-    function toast(t){ var el=$("toast"); el.textContent=t; el.classList.add("on"); clearTimeout(el._t); el._t=setTimeout(function(){el.classList.remove("on");},1400); }
-
-    async function sha256(text){ var buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(text)); return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,"0");}).join(""); }
-
-    function parseCSV(text){
-      var rows=[], row=[], field="", q=false;
-      for(var i=0;i<text.length;i++){
-        var c=text[i];
-        if(q){ if(c==='"'){ if(text[i+1]==='"'){ field+='"'; i++; } else q=false; } else field+=c; }
-        else if(c==='"') q=true;
-        else if(c===','){ row.push(field); field=""; }
-        else if(c==='\n'){ row.push(field.replace(/\r$/, "")); rows.push(row); row=[]; field=""; }
-        else field+=c;
-      }
-      if(field.length || row.length){ row.push(field.replace(/\r$/, "")); rows.push(row); }
-      var head=rows.shift() || [];
-      return rows.filter(function(r){return r.length && r[0];}).map(function(r){ var o={}; head.forEach(function(h,j){o[h]=r[j] == null ? "" : r[j];}); return o; });
-    }
-
-    async function loadTemplate(){
-      var all=[];
-      for(var i=0;i<TEMPLATE_FILES.length;i++){
-        var res=await fetch(TEMPLATE_FILES[i],{cache:"no-store"});
-        if(!res.ok) throw new Error("Не загрузился шаблон аудита: " + TEMPLATE_FILES[i]);
-        all=all.concat(parseCSV(await res.text()));
-      }
-      items=all.map(function(x){ return { id:Number(x.id), code:x.code, section:x.section, weight:Number(x.weight), critical:x.critical==="ДА", standard:x.standard, evidence:x.evidence }; });
-      sections=[];
-      items.forEach(function(x){ if(sections.indexOf(x.section)<0) sections.push(x.section); });
-      if(items.length!==150) throw new Error("Ожидалось 150 пунктов, загружено " + items.length);
-    }
-
-    function loadStore(){ try{ var raw=localStorage.getItem(STORE_KEY); var d=raw?JSON.parse(raw):null; return d && Array.isArray(d.sessions)?d:{sessions:[],baselines:{}}; }catch(_){ return {sessions:[],baselines:{}}; } }
-    function saveStore(store){ localStorage.setItem(STORE_KEY,JSON.stringify(store)); }
-    function getSession(id){ return loadStore().sessions.find(function(s){return s.id===id;}) || null; }
-    function putSession(session){ var st=loadStore(), idx=st.sessions.findIndex(function(s){return s.id===session.id;}); session.updatedAt=Date.now(); if(idx>=0) st.sessions[idx]=session; else st.sessions.unshift(session); saveStore(st); return session; }
-    function removeSession(id){ var st=loadStore(); st.sessions=st.sessions.filter(function(s){return s.id!==id;}); saveStore(st); }
-    function setBaseline(clientId,sessionId){ var st=loadStore(); st.baselines=st.baselines||{}; st.baselines[clientId]=sessionId; saveStore(st); }
-    function answerOf(s,item){ return (s.answers||{})[item.code] || {}; }
-
-    function scoreSession(s){
-      var sum=0, max=0, answered=0, red=[]; var by={};
-      sections.forEach(function(sec){by[sec]={sum:0,max:0,answered:0,red:0};});
-      items.forEach(function(it){ var a=answerOf(s,it); if(a.score===undefined || a.score===null || a.score==="") return; if(a.score==="na") return; var sc=Number(a.score); if(!Number.isFinite(sc)) return; answered++; sum+=(sc/2)*it.weight; max+=it.weight; var b=by[it.section]; b.answered++; b.sum+=(sc/2)*it.weight; b.max+=it.weight; if(it.critical && sc===0){ red.push(it); b.red++; } });
-      Object.keys(by).forEach(function(sec){ by[sec].score=by[sec].max?Math.round(by[sec].sum/by[sec].max*1000)/10:null; });
-      return { score:max?Math.round(sum/max*1000)/10:null, answered:answered, red:red, by:by, complete:answered===150 };
-    }
-
-    function sessionLabel(type){ return ({day0:"Day 0 · точка отсчёта",day30:"Day 30 · контроль",day60:"Day 60 · итог",extra:"Внеплановый"})[type]||type; }
-    function verdict(m){ if(m.red.length>=3) return "RED · критические разрывы"; if(m.red.length) return "RISK · закрыть Red Flags"; if(m.score==null) return "Аудит не начат"; if(m.score>=90) return "GOLD · система установлена"; if(m.score>=80) return "SILVER · стабильно"; if(m.score>=70) return "BRONZE · зона риска"; return "RED · низкая системность"; }
-    function scoreColor(v){ return v==null?"#a8a29e":v>=80?"#15803d":v>=70?"#b45309":"#be123c"; }
-
-    function clients(){ return window.SSCrm ? SSCrm.listClients() : []; }
-    function selectedClientFallback(){ var id=window.SSCrm&&SSCrm.getActiveClientId?SSCrm.getActiveClientId():""; return id&&SSCrm.getClient(id)?id:(clients()[0]&&clients()[0].id)||""; }
-
-    function renderHome(){
-      currentSessionId=""; $("runView").classList.add("hidden"); $("summaryView").classList.add("hidden"); $("homeView").classList.remove("hidden");
-      var cs=clients(), st=loadStore(); var cOpts=cs.map(function(c){return '<option value="'+attr(c.id)+'">'+esc(c.name||"Без названия")+'</option>';}).join("");
-      var sessionRows=st.sessions.slice().sort(function(a,b){return (b.updatedAt||0)-(a.updatedAt||0);}).map(function(s){ var m=scoreSession(s); var c=window.SSCrm&&SSCrm.getClient(s.clientId); return '<div class="session-row"><div><strong>'+esc((c&&c.name)||s.clientName||"Ресторан")+'</strong><div class="meta">'+esc(sessionLabel(s.type))+' · '+fmtDate(s.date)+' · '+m.answered+'/150</div></div><div style="display:flex;align-items:center;gap:8px"><div class="session-score" style="color:'+scoreColor(m.score)+'">'+(m.score==null?'—':m.score)+'</div><button class="audit-btn small" data-open="'+attr(s.id)+'">'+(m.complete?'Отчёт':'Продолжить')+'</button></div></div>'; }).join("");
-      $("homeView").innerHTML = '<div class="audit-top"><div><h1>Master Audit</h1><p>AH Restaurant Operating System · '+TEMPLATE_VERSION+'</p></div><a class="audit-btn small" href="crm.html">CRM</a></div>'+
-        '<div class="audit-card"><h2>Новый аудит</h2><div class="audit-form-grid"><div class="audit-field"><label>Ресторан</label><select id="newClient">'+(cOpts||'<option value="">Сначала создайте клиента в CRM</option>')+'</select></div><div class="audit-field"><label>Контрольная точка</label><select id="newType"><option value="day0">Day 0 · точка отсчёта</option><option value="day30">Day 30 · контроль</option><option value="day60">Day 60 · итог</option><option value="extra">Внеплановый аудит</option></select></div><div class="audit-field"><label>Дата</label><input id="newDate" type="date" value="'+isoDate()+'" /></div><div class="audit-field"><label>Аудитор</label><input id="newAuditor" placeholder="Имя консультанта" /></div></div><div class="audit-actions"><button class="audit-btn primary" id="btnNew" '+(!cs.length?'disabled':'')+'>Начать аудит</button></div></div>'+
-        '<div class="audit-card"><h2>Аудиты</h2><div class="session-list">'+(sessionRows||'<p style="color:var(--audit-muted)">Пока нет сохранённых аудитов.</p>')+'</div></div>'+
-        '<div class="audit-card"><h3>Как работает</h3><p style="color:var(--audit-muted);line-height:1.5">Оценка 0 / 1 / 2 или N/A сохраняется сразу на телефоне. После завершения можно сравнить с предыдущим аудитом, записать итог в CRM и выгрузить Excel.</p></div>';
-      if(cs.length){ $("newClient").value=selectedClientFallback(); }
-      $("btnNew").onclick=function(){ var cid=$("newClient").value, c=SSCrm.getClient(cid); if(!c)return; var s={id:uid(),version:TEMPLATE_VERSION,clientId:cid,clientName:c.name||"Ресторан",type:$("newType").value,date:$("newDate").value||isoDate(),auditor:$("newAuditor").value.trim(),answers:{},createdAt:Date.now(),updatedAt:Date.now(),completedAt:null,crmSyncedAt:null}; putSession(s); currentSessionId=s.id; currentIndex=0; SSCrm.setActiveClient(cid); renderRun(); };
-      $("homeView").querySelectorAll("[data-open]").forEach(function(b){b.onclick=function(){ var s=getSession(b.dataset.open); if(!s)return; currentSessionId=s.id; var m=scoreSession(s); if(m.complete) renderSummary(); else { currentIndex=Math.max(0,items.findIndex(function(it){var a=answerOf(s,it); return a.score===undefined || a.score===null || a.score==="";})); renderRun(); } };});
-    }
-
-    function renderRun(){
-      var s=getSession(currentSessionId); if(!s){renderHome();return;} $("homeView").classList.add("hidden"); $("summaryView").classList.add("hidden"); $("runView").classList.remove("hidden");
-      currentIndex=Math.max(0,Math.min(items.length-1,currentIndex)); var it=items[currentIndex], a=answerOf(s,it), m=scoreSession(s); var secIndex=sections.indexOf(it.section);
-      var chips=sections.map(function(sec,i){ var b=m.by[sec]; return '<button class="section-chip '+(sec===it.section?'on':'')+'" data-sec="'+i+'">'+esc(sec.replace(/^\d+\.\s*/,""))+' · '+b.answered+'/15</button>'; }).join("");
-      var pct=Math.round(m.answered/150*100);
-      $("runView").innerHTML='<div class="progress-wrap"><div class="progress-meta"><span>'+esc(s.clientName)+' · '+esc(sessionLabel(s.type))+'</span><span>'+m.answered+'/150 · '+pct+'%</span></div><div class="progress-line"><div class="progress-bar" style="width:'+pct+'%"></div></div><div class="section-tabs">'+chips+'</div></div>'+
-        '<div class="question-card"><div class="question-kicker"><span>'+esc(it.code)+' · '+esc(it.section.replace(/^\d+\.\s*/,""))+'</span>'+(it.critical?'<span class="critical-tag">● критично</span>':'')+'</div><h2>'+esc(it.standard)+'</h2><div class="evidence"><strong>Как проверять</strong><br>'+esc(it.evidence)+'</div><div class="score-grid">'+
-        '<button class="score-btn '+(a.score===0?'on':'')+'" data-score="0">0<span>нет системы</span></button><button class="score-btn '+(a.score===1?'on':'')+'" data-score="1">1<span>частично</span></button><button class="score-btn '+(a.score===2?'on':'')+'" data-score="2">2<span>работает</span></button><button class="score-btn '+(a.score==='na'?'on':'')+'" data-score="na">N/A<span>не применимо</span></button></div>'+ 
-        '<div class="audit-field"><label>Комментарий / evidence</label><textarea id="answerNote" placeholder="Можно диктовать голосом с клавиатуры телефона…">'+esc(a.note||"")+'</textarea></div><div class="question-nav"><button class="audit-btn" id="btnBack">← Назад</button><button class="audit-btn" id="btnList">К списку</button><button class="audit-btn primary" id="btnNext">'+(currentIndex===149?'Итог':'Далее →')+'</button></div><div class="save-state" id="saveState">Автосохранение включено</div></div>';
-      $("runView").querySelectorAll("[data-sec]").forEach(function(b){ b.onclick=function(){ var sec=sections[Number(b.dataset.sec)], ix=items.findIndex(function(x){return x.section===sec;}); if(ix>=0){currentIndex=ix;renderRun();} }; });
-      $("runView").querySelectorAll("[data-score]").forEach(function(b){ b.onclick=function(){ setScore(b.dataset.score); }; });
-      $("answerNote").oninput=function(){ clearTimeout(noteTimer); noteTimer=setTimeout(function(){ saveNote($("answerNote").value); },300); };
-      $("btnBack").onclick=function(){ if(currentIndex>0){currentIndex--;renderRun();} else renderHome(); };
-      $("btnList").onclick=renderHome;
-      $("btnNext").onclick=function(){ saveNote($("answerNote").value); if(currentIndex<149){currentIndex++;renderRun();} else renderSummary(); };
-    }
-
-    function setScore(raw){ var s=getSession(currentSessionId); if(!s)return; var it=items[currentIndex]; s.answers=s.answers||{}; var a=s.answers[it.code]||{}; a.score=raw==="na"?"na":Number(raw); a.at=Date.now(); s.answers[it.code]=a; putSession(s); toast("Сохранено"); if(currentIndex<149){ setTimeout(function(){ currentIndex++; renderRun(); },180); } else setTimeout(renderSummary,180); }
-    function saveNote(text){ var s=getSession(currentSessionId); if(!s)return; var it=items[currentIndex]; s.answers=s.answers||{}; var a=s.answers[it.code]||{}; a.note=String(text||"").trim(); a.noteAt=Date.now(); s.answers[it.code]=a; putSession(s); var el=$("saveState"); if(el){el.textContent="Комментарий сохранён";setTimeout(function(){if($("saveState"))$("saveState").textContent="Автосохранение включено";},700);} }
-
-    function previousSession(s){ var all=loadStore().sessions.filter(function(x){return x.clientId===s.clientId && x.id!==s.id && x.completedAt && (x.date||"")<=(s.date||"");}).sort(function(a,b){return (b.completedAt||0)-(a.completedAt||0);}); return all[0]||null; }
-    function deltaHtml(v,old){ if(v==null||old==null)return ""; var d=Math.round((v-old)*10)/10; if(!d)return '<span class="delta">0</span>'; return '<span class="delta '+(d>0?'up':'down')+'">'+(d>0?'+':'')+d+'</span>'; }
-
-    function renderSummary(){
-      var s=getSession(currentSessionId); if(!s){renderHome();return;} var m=scoreSession(s); if(!m.complete){ var un=150-m.answered; if(!confirm("Не заполнено пунктов: "+un+". Открыть промежуточный отчёт?")){ currentIndex=Math.max(0,items.findIndex(function(it){var a=answerOf(s,it);return a.score===undefined||a.score===null||a.score==="";})); renderRun(); return; } }
-      if(m.complete && !s.completedAt){ s.completedAt=Date.now(); putSession(s); }
-      $("homeView").classList.add("hidden"); $("runView").classList.add("hidden"); $("summaryView").classList.remove("hidden");
-      var prev=previousSession(s), pm=prev?scoreSession(prev):null;
-      var secRows=sections.map(function(sec){var b=m.by[sec], old=pm&&pm.by[sec]&&pm.by[sec].score;return '<div class="section-score-row"><div><strong>'+esc(sec.replace(/^\d+\.\s*/,""))+'</strong><div style="font-size:.76rem;color:var(--audit-muted)">'+b.answered+'/15 · Red Flags: '+b.red+'</div></div><div style="font-weight:800">'+(b.score==null?'—':b.score)+' '+deltaHtml(b.score,old)+'</div></div>';}).join("");
-      var red=m.red.map(function(it){return '<li><strong>'+esc(it.code)+'</strong> · '+esc(it.standard)+'</li>';}).join("");
-      $("summaryView").innerHTML='<div class="audit-top"><div><h1>Результат аудита</h1><p>'+esc(s.clientName)+' · '+esc(sessionLabel(s.type))+' · '+fmtDate(s.date)+'</p></div><button class="audit-btn small" id="btnHome">Все аудиты</button></div><div class="audit-card"><div class="summary-hero"><div class="big-score" style="color:'+scoreColor(m.score)+'">'+(m.score==null?'—':m.score)+'</div><div><h2>'+esc(verdict(m))+'</h2><p style="color:var(--audit-muted)">'+m.answered+' из 150 пунктов подтверждены оценкой'+(prev&&pm&&pm.score!=null?' · изменение к прошлому: '+(m.score-pm.score>=0?'+':'')+(Math.round((m.score-pm.score)*10)/10):'')+'</p></div></div><div class="summary-grid"><div class="metric-box"><div class="k">Red Flags</div><div class="v" style="color:'+(m.red.length?'var(--audit-bad)':'var(--audit-good)')+'">'+m.red.length+'</div></div><div class="metric-box"><div class="k">Заполнено</div><div class="v">'+m.answered+'/150</div></div></div></div><div class="audit-card"><h3>По блокам</h3><div class="section-score-list">'+secRows+'</div></div>'+(red?'<div class="audit-card"><h3 style="color:var(--audit-bad)">Критические разрывы</h3><ul class="red-list">'+red+'</ul></div>':'')+'<div class="audit-card"><h3>Действия</h3><div class="audit-actions"><button class="audit-btn primary" id="btnXlsx">Экспорт Excel</button><button class="audit-btn" id="btnCrm">Записать итог в CRM</button>'+(s.type==="day60"?'<button class="audit-btn" id="btnBaseline">Зафиксировать как Healthy Baseline</button>':'')+'<button class="audit-btn" id="btnContinue">Вернуться к пунктам</button><button class="audit-btn danger" id="btnDelete">Удалить аудит</button></div></div>';
-      $("btnHome").onclick=renderHome; $("btnContinue").onclick=function(){currentIndex=0;renderRun();}; $("btnXlsx").onclick=function(){exportXlsx(s,m,prev,pm);}; $("btnCrm").onclick=function(){syncCrm(s,m);}; if($("btnBaseline"))$("btnBaseline").onclick=function(){setBaseline(s.clientId,s.id);toast("Healthy Baseline сохранён");}; $("btnDelete").onclick=function(){if(confirm("Удалить этот аудит?")){removeSession(s.id);renderHome();}};
-    }
-
-    function syncCrm(s,m){ if(!window.SSCrm){alert("CRM store не подключён");return;} var c=SSCrm.getClient(s.clientId); if(!c){alert("Клиент не найден в CRM");return;} var text="Master Audit · "+sessionLabel(s.type)+": "+(m.score==null?"—":m.score)+"/100 · Red Flags: "+m.red.length+" · "+m.answered+"/150 · "+TEMPLATE_VERSION; SSCrm.addComment(c.id,text); if(s.type==="day0") SSCrm.upsertClient({id:c.id,status:"diagnose"}); else if(s.type==="day30"||s.type==="day60") SSCrm.upsertClient({id:c.id,status:"change"}); s.crmSyncedAt=Date.now(); putSession(s); toast("Итог записан в CRM"); }
-
-    function exportXlsx(s,m,prev,pm){
-      if(!window.XLSX){alert("Модуль Excel не загрузился. Проверьте интернет и повторите.");return;}
-      var wb=XLSX.utils.book_new();
-      var dash=[
-        ["AH RESTAURANT OPERATING SYSTEM — MASTER AUDIT v1.0"],[],
-        ["Ресторан",s.clientName],["Дата",s.date],["Контрольная точка",sessionLabel(s.type)],["Аудитор",s.auditor||""],["Версия",TEMPLATE_VERSION],[],
-        ["Итоговый балл",m.score],["Red Flags",m.red.length],["Заполнено",m.answered],["Вердикт",verdict(m)],[],
-        ["Блок","Баллы","Red Flags","Предыдущий","Δ"]
-      ];
-      sections.forEach(function(sec){var b=m.by[sec], old=pm&&pm.by[sec]?pm.by[sec].score:null; dash.push([sec,b.score,b.red,old,old==null||b.score==null?null:Math.round((b.score-old)*10)/10]);});
-      XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(dash),"Dashboard");
-      var detail=[["№","ID","Блок","Вес, %","Критичный","Стандарт / вопрос аудита","Как проверять / evidence","Оценка","Комментарий","Red Flag"]];
-      items.forEach(function(it){var a=answerOf(s,it);var rf=it.critical&&a.score===0?"RED FLAG":"";detail.push([it.id,it.code,it.section,it.weight,it.critical?"ДА":"НЕТ",it.standard,it.evidence,a.score===undefined?"":a.score,a.note||"",rf]);});
-      XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(detail),"Master Audit");
-      var reds=[["ID","Блок","Критический разрыв","Комментарий"]]; m.red.forEach(function(it){var a=answerOf(s,it);reds.push([it.code,it.section,it.standard,a.note||""]);}); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(reds),"Red Flags");
-      var safe=(s.clientName||"restaurant").replace(/[\\/:*?"<>|]+/g,"_").slice(0,45); XLSX.writeFile(wb,safe+"_"+s.type+"_"+s.date+"_audit.xlsx");
-    }
-
-    async function showApp(){ $("gate").hidden=true; $("app").hidden=false; $("logoutBtn").hidden=false; try{await loadTemplate(); renderHome();}catch(e){$("app").innerHTML='<div class="audit-shell"><div class="audit-card"><h2>Ошибка загрузки</h2><p>'+esc(e.message)+'</p></div></div>';} }
-    async function init(){ EXPECT=await sha256("smena2026"); if(sessionStorage.getItem("ss_audit_ok")==="1") showApp(); }
-    $("gateForm").onsubmit=async function(e){e.preventDefault();var err=$("gateErr");err.classList.remove("on");if(await sha256($("pwd").value)!==EXPECT){err.textContent="Неверный пароль";err.classList.add("on");return;}sessionStorage.setItem("ss_audit_ok","1");showApp();};
-    $("logoutBtn").onclick=function(){sessionStorage.removeItem("ss_audit_ok");location.reload();};
-    init();
+    var TEMPLATE_FILES=["data/master-audit-01.csv","data/master-audit-02.csv","data/master-audit-03.csv"],STORE_KEY="ah_master_audits_v1",TEMPLATE_VERSION="AH-AUDIT-1.0",EXPECT=null,items=[],sections=[],currentSessionId="",currentIndex=0,noteTimer=null;
+    function $(id){return document.getElementById(id);} function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");} function attr(s){return esc(s).replace(/'/g,"&#39;");} function uid(){return "aud_"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);} function isoDate(){return new Date().toISOString().slice(0,10);} function fmtDate(v){if(!v)return"—";try{return new Date(v+"T12:00:00").toLocaleDateString("ru-RU");}catch(_){return v;}} function toast(t){var el=$("toast");el.textContent=t;el.classList.add("on");clearTimeout(el._t);el._t=setTimeout(function(){el.classList.remove("on");},1400);}
+    async function sha256(text){var buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(text));return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,"0");}).join("");}
+    function parseCSV(text){var rows=[],row=[],field="",q=false;for(var i=0;i<text.length;i++){var c=text[i];if(q){if(c==='"'){if(text[i+1]==='"'){field+='"';i++;}else q=false;}else field+=c;}else if(c==='"')q=true;else if(c===','){row.push(field);field="";}else if(c==='\n'){row.push(field.replace(/\r$/, ""));rows.push(row);row=[];field="";}else field+=c;}if(field.length||row.length){row.push(field.replace(/\r$/, ""));rows.push(row);}var head=rows.shift()||[];return rows.filter(function(r){return r.length&&r[0];}).map(function(r){var o={};head.forEach(function(h,j){o[h]=r[j]==null?"":r[j];});return o;});}
+    async function loadTemplate(){var all=[];for(var i=0;i<TEMPLATE_FILES.length;i++){var res=await fetch(TEMPLATE_FILES[i],{cache:"no-store"});if(!res.ok)throw new Error("Не загрузился шаблон аудита: "+TEMPLATE_FILES[i]);all=all.concat(parseCSV(await res.text()));}items=all.map(function(x){return{id:Number(x.id),code:x.code,section:x.section,weight:Number(x.weight),critical:x.critical==="ДА",standard:x.standard,evidence:x.evidence};});sections=[];items.forEach(function(x){if(sections.indexOf(x.section)<0)sections.push(x.section);});if(items.length!==150)throw new Error("Ожидалось 150 пунктов, загружено "+items.length);}
+    function loadStore(){try{var raw=localStorage.getItem(STORE_KEY),d=raw?JSON.parse(raw):null;return d&&Array.isArray(d.sessions)?d:{sessions:[],baselines:{}};}catch(_){return{sessions:[],baselines:{}};}} function saveStore(store){localStorage.setItem(STORE_KEY,JSON.stringify(store));} function getSession(id){return loadStore().sessions.find(function(s){return s.id===id;})||null;} function putSession(session){var st=loadStore(),idx=st.sessions.findIndex(function(s){return s.id===session.id;});session.updatedAt=Date.now();if(idx>=0)st.sessions[idx]=session;else st.sessions.unshift(session);saveStore(st);return session;} function removeSession(id){var st=loadStore();st.sessions=st.sessions.filter(function(s){return s.id!==id;});saveStore(st);} function setBaseline(clientId,sessionId){var st=loadStore();st.baselines=st.baselines||{};st.baselines[clientId]=sessionId;saveStore(st);} function answerOf(s,item){return(s.answers||{})[item.code]||{};}
+    function scoreSession(s){var sum=0,max=0,answered=0,red=[],by={};sections.forEach(function(sec){by[sec]={sum:0,max:0,answered:0,red:0};});items.forEach(function(it){var a=answerOf(s,it);if(a.score===undefined||a.score===null||a.score==="")return;answered++;var b=by[it.section];b.answered++;if(a.score==="na")return;var sc=Number(a.score);if(!Number.isFinite(sc))return;sum+=(sc/2)*it.weight;max+=it.weight;b.sum+=(sc/2)*it.weight;b.max+=it.weight;if(it.critical&&sc===0){red.push(it);b.red++;}});Object.keys(by).forEach(function(sec){by[sec].score=by[sec].max?Math.round(by[sec].sum/by[sec].max*1000)/10:null;});return{score:max?Math.round(sum/max*1000)/10:null,answered:answered,red:red,by:by,complete:answered===150};}
+    function sessionLabel(type){return({day0:"Day 0 · точка отсчёта",day30:"Day 30 · контроль",day60:"Day 60 · итог",extra:"Внеплановый"})[type]||type;} function verdict(m){if(m.red.length>=3)return"RED · критические разрывы";if(m.red.length)return"RISK · закрыть Red Flags";if(m.score==null)return"Аудит не начат";if(m.score>=90)return"GOLD · система установлена";if(m.score>=80)return"SILVER · стабильно";if(m.score>=70)return"BRONZE · зона риска";return"RED · низкая системность";} function scoreColor(v){return v==null?"#a8a29e":v>=80?"#15803d":v>=70?"#b45309":"#be123c";}
+    function clients(){return window.SSCrm?SSCrm.listClients():[];} function selectedClientFallback(){var id=window.SSCrm&&SSCrm.getActiveClientId?SSCrm.getActiveClientId():"";return id&&SSCrm.getClient(id)?id:(clients()[0]&&clients()[0].id)||"";}
+    function renderHome(){currentSessionId="";$("runView").classList.add("hidden");$("summaryView").classList.add("hidden");$("homeView").classList.remove("hidden");var cs=clients(),st=loadStore(),cOpts=cs.map(function(c){return'<option value="'+attr(c.id)+'">'+esc(c.name||"Без названия")+'</option>';}).join("");var sessionRows=st.sessions.slice().sort(function(a,b){return(b.updatedAt||0)-(a.updatedAt||0);}).map(function(s){var m=scoreSession(s),c=window.SSCrm&&SSCrm.getClient(s.clientId);return'<div class="session-row"><div><strong>'+esc((c&&c.name)||s.clientName||"Ресторан")+'</strong><div class="meta">'+esc(sessionLabel(s.type))+' · '+fmtDate(s.date)+' · '+m.answered+'/150</div></div><div style="display:flex;align-items:center;gap:8px"><div class="session-score" style="color:'+scoreColor(m.score)+'">'+(m.score==null?'—':m.score)+'</div><button class="audit-btn small" data-open="'+attr(s.id)+'">'+(m.complete?'Отчёт':'Продолжить')+'</button></div></div>';}).join("");$("homeView").innerHTML='<div class="audit-top"><div><h1>Master Audit</h1><p>AH Restaurant Operating System · '+TEMPLATE_VERSION+'</p></div><a class="audit-btn small" href="crm.html">CRM</a></div><div class="audit-card"><h2>Новый аудит</h2><div class="audit-form-grid"><div class="audit-field"><label>Ресторан</label><select id="newClient">'+(cOpts||'<option value="">Сначала создайте клиента в CRM</option>')+'</select></div><div class="audit-field"><label>Контрольная точка</label><select id="newType"><option value="day0">Day 0 · точка отсчёта</option><option value="day30">Day 30 · контроль</option><option value="day60">Day 60 · итог</option><option value="extra">Внеплановый аудит</option></select></div><div class="audit-field"><label>Дата</label><input id="newDate" type="date" value="'+isoDate()+'" /></div><div class="audit-field"><label>Аудитор</label><input id="newAuditor" placeholder="Имя консультанта" /></div></div><div class="audit-actions"><button class="audit-btn primary" id="btnNew" '+(!cs.length?'disabled':'')+'>Начать аудит</button></div></div><div class="audit-card"><h2>Аудиты</h2><div class="session-list">'+(sessionRows||'<p style="color:var(--audit-muted)">Пока нет сохранённых аудитов.</p>')+'</div></div><div class="audit-card"><h3>Как работает</h3><p style="color:var(--audit-muted);line-height:1.5">Оценка 0 / 1 / 2 или N/A сохраняется сразу на телефоне. N/A считается заполненным, но не влияет на балл. После завершения можно сравнить с предыдущим аудитом, записать итог в CRM и выгрузить Excel.</p></div>';if(cs.length)$("newClient").value=selectedClientFallback();$("btnNew").onclick=function(){var cid=$("newClient").value,c=SSCrm.getClient(cid);if(!c)return;var s={id:uid(),version:TEMPLATE_VERSION,clientId:cid,clientName:c.name||"Ресторан",type:$("newType").value,date:$("newDate").value||isoDate(),auditor:$("newAuditor").value.trim(),answers:{},createdAt:Date.now(),updatedAt:Date.now(),completedAt:null,crmSyncedAt:null};putSession(s);currentSessionId=s.id;currentIndex=0;SSCrm.setActiveClient(cid);renderRun();};$("homeView").querySelectorAll("[data-open]").forEach(function(b){b.onclick=function(){var s=getSession(b.dataset.open);if(!s)return;currentSessionId=s.id;var m=scoreSession(s);if(m.complete)renderSummary();else{currentIndex=Math.max(0,items.findIndex(function(it){var a=answerOf(s,it);return a.score===undefined||a.score===null||a.score==="";}));renderRun();}};});}
+    function renderRun(){var s=getSession(currentSessionId);if(!s){renderHome();return;}$("homeView").classList.add("hidden");$("summaryView").classList.add("hidden");$("runView").classList.remove("hidden");currentIndex=Math.max(0,Math.min(items.length-1,currentIndex));var it=items[currentIndex],a=answerOf(s,it),m=scoreSession(s);var chips=sections.map(function(sec,i){var b=m.by[sec];return'<button class="section-chip '+(sec===it.section?'on':'')+'" data-sec="'+i+'">'+esc(sec.replace(/^\d+\.\s*/,""))+' · '+b.answered+'/15</button>';}).join(""),pct=Math.round(m.answered/150*100);$("runView").innerHTML='<div class="progress-wrap"><div class="progress-meta"><span>'+esc(s.clientName)+' · '+esc(sessionLabel(s.type))+'</span><span>'+m.answered+'/150 · '+pct+'%</span></div><div class="progress-line"><div class="progress-bar" style="width:'+pct+'%"></div></div><div class="section-tabs">'+chips+'</div></div><div class="question-card"><div class="question-kicker"><span>'+esc(it.code)+' · '+esc(it.section.replace(/^\d+\.\s*/,""))+'</span>'+(it.critical?'<span class="critical-tag">● критично</span>':'')+'</div><h2>'+esc(it.standard)+'</h2><div class="evidence"><strong>Как проверять</strong><br>'+esc(it.evidence)+'</div><div class="score-grid"><button class="score-btn '+(a.score===0?'on':'')+'" data-score="0">0<span>нет системы</span></button><button class="score-btn '+(a.score===1?'on':'')+'" data-score="1">1<span>частично</span></button><button class="score-btn '+(a.score===2?'on':'')+'" data-score="2">2<span>работает</span></button><button class="score-btn '+(a.score==='na'?'on':'')+'" data-score="na">N/A<span>не применимо</span></button></div><div class="audit-field"><label>Комментарий / evidence</label><textarea id="answerNote" placeholder="Можно диктовать голосом с клавиатуры телефона…">'+esc(a.note||"")+'</textarea></div><div class="question-nav"><button class="audit-btn" id="btnBack">← Назад</button><button class="audit-btn" id="btnList">К списку</button><button class="audit-btn primary" id="btnNext">'+(currentIndex===149?'Итог':'Далее →')+'</button></div><div class="save-state" id="saveState">Автосохранение включено</div></div>';$("runView").querySelectorAll("[data-sec]").forEach(function(b){b.onclick=function(){var sec=sections[Number(b.dataset.sec)],ix=items.findIndex(function(x){return x.section===sec;});if(ix>=0){currentIndex=ix;renderRun();}};});$("runView").querySelectorAll("[data-score]").forEach(function(b){b.onclick=function(){setScore(b.dataset.score);};});$("answerNote").oninput=function(){clearTimeout(noteTimer);noteTimer=setTimeout(function(){saveNote($("answerNote").value);},300);};$("btnBack").onclick=function(){if(currentIndex>0){currentIndex--;renderRun();}else renderHome();};$("btnList").onclick=renderHome;$("btnNext").onclick=function(){saveNote($("answerNote").value);if(currentIndex<149){currentIndex++;renderRun();}else renderSummary();};}
+    function setScore(raw){var s=getSession(currentSessionId);if(!s)return;var it=items[currentIndex];s.answers=s.answers||{};var a=s.answers[it.code]||{};a.score=raw==="na"?"na":Number(raw);a.at=Date.now();s.answers[it.code]=a;putSession(s);toast("Сохранено");if(currentIndex<149)setTimeout(function(){currentIndex++;renderRun();},180);else setTimeout(renderSummary,180);} function saveNote(text){var s=getSession(currentSessionId);if(!s)return;var it=items[currentIndex];s.answers=s.answers||{};var a=s.answers[it.code]||{};a.note=String(text||"").trim();a.noteAt=Date.now();s.answers[it.code]=a;putSession(s);var el=$("saveState");if(el){el.textContent="Комментарий сохранён";setTimeout(function(){if($("saveState"))$("saveState").textContent="Автосохранение включено";},700);}}
+    function previousSession(s){return loadStore().sessions.filter(function(x){return x.clientId===s.clientId&&x.id!==s.id&&x.completedAt&&(x.date||"")<=(s.date||"");}).sort(function(a,b){return(b.completedAt||0)-(a.completedAt||0);})[0]||null;} function deltaHtml(v,old){if(v==null||old==null)return"";var d=Math.round((v-old)*10)/10;if(!d)return'<span class="delta">0</span>';return'<span class="delta '+(d>0?'up':'down')+'">'+(d>0?'+':'')+d+'</span>';}
+    function renderSummary(){var s=getSession(currentSessionId);if(!s){renderHome();return;}var m=scoreSession(s);if(!m.complete){var un=150-m.answered;if(!confirm("Не заполнено пунктов: "+un+". Открыть промежуточный отчёт?")){currentIndex=Math.max(0,items.findIndex(function(it){var a=answerOf(s,it);return a.score===undefined||a.score===null||a.score==="";}));renderRun();return;}}if(m.complete&&!s.completedAt){s.completedAt=Date.now();putSession(s);}$("homeView").classList.add("hidden");$("runView").classList.add("hidden");$("summaryView").classList.remove("hidden");var prev=previousSession(s),pm=prev?scoreSession(prev):null,secRows=sections.map(function(sec){var b=m.by[sec],old=pm&&pm.by[sec]&&pm.by[sec].score;return'<div class="section-score-row"><div><strong>'+esc(sec.replace(/^\d+\.\s*/,""))+'</strong><div style="font-size:.76rem;color:var(--audit-muted)">'+b.answered+'/15 · Red Flags: '+b.red+'</div></div><div style="font-weight:800">'+(b.score==null?'—':b.score)+' '+deltaHtml(b.score,old)+'</div></div>';}).join(""),red=m.red.map(function(it){return'<li><strong>'+esc(it.code)+'</strong> · '+esc(it.standard)+'</li>';}).join("");$("summaryView").innerHTML='<div class="audit-top"><div><h1>Результат аудита</h1><p>'+esc(s.clientName)+' · '+esc(sessionLabel(s.type))+' · '+fmtDate(s.date)+'</p></div><button class="audit-btn small" id="btnHome">Все аудиты</button></div><div class="audit-card"><div class="summary-hero"><div class="big-score" style="color:'+scoreColor(m.score)+'">'+(m.score==null?'—':m.score)+'</div><div><h2>'+esc(verdict(m))+'</h2><p style="color:var(--audit-muted)">'+m.answered+' из 150 пунктов заполнены'+(prev&&pm&&pm.score!=null?' · изменение к прошлому: '+(m.score-pm.score>=0?'+':'')+(Math.round((m.score-pm.score)*10)/10):'')+'</p></div></div><div class="summary-grid"><div class="metric-box"><div class="k">Red Flags</div><div class="v" style="color:'+(m.red.length?'var(--audit-bad)':'var(--audit-good)')+'">'+m.red.length+'</div></div><div class="metric-box"><div class="k">Заполнено</div><div class="v">'+m.answered+'/150</div></div></div></div><div class="audit-card"><h3>По блокам</h3><div class="section-score-list">'+secRows+'</div></div>'+(red?'<div class="audit-card"><h3 style="color:var(--audit-bad)">Критические разрывы</h3><ul class="red-list">'+red+'</ul></div>':'')+'<div class="audit-card"><h3>Действия</h3><div class="audit-actions"><button class="audit-btn primary" id="btnXlsx">Экспорт Excel</button><button class="audit-btn" id="btnCrm">Записать итог в CRM</button>'+(s.type==="day60"?'<button class="audit-btn" id="btnBaseline">Зафиксировать как Healthy Baseline</button>':'')+'<button class="audit-btn" id="btnContinue">Вернуться к пунктам</button><button class="audit-btn danger" id="btnDelete">Удалить аудит</button></div></div>';$("btnHome").onclick=renderHome;$("btnContinue").onclick=function(){currentIndex=0;renderRun();};$("btnXlsx").onclick=function(){exportXlsx(s,m,prev,pm);};$("btnCrm").onclick=function(){syncCrm(s,m);};if($("btnBaseline"))$("btnBaseline").onclick=function(){setBaseline(s.clientId,s.id);toast("Healthy Baseline сохранён");};$("btnDelete").onclick=function(){if(confirm("Удалить этот аудит?")){removeSession(s.id);renderHome();}};}
+    function syncCrm(s,m){if(!window.SSCrm){alert("CRM store не подключён");return;}var c=SSCrm.getClient(s.clientId);if(!c){alert("Клиент не найден в CRM");return;}var text="Master Audit · "+sessionLabel(s.type)+": "+(m.score==null?"—":m.score)+"/100 · Red Flags: "+m.red.length+" · "+m.answered+"/150 · "+TEMPLATE_VERSION;SSCrm.addComment(c.id,text);if(s.type==="day0")SSCrm.upsertClient({id:c.id,status:"diagnose"});else if(s.type==="day30"||s.type==="day60")SSCrm.upsertClient({id:c.id,status:"change"});s.crmSyncedAt=Date.now();putSession(s);toast("Итог записан в CRM");}
+    function exportXlsx(s,m,prev,pm){if(!window.XLSX){alert("Модуль Excel не загрузился. Проверьте интернет и повторите.");return;}var wb=XLSX.utils.book_new(),dash=[["AH RESTAURANT OPERATING SYSTEM — MASTER AUDIT v1.0"],[],["Ресторан",s.clientName],["Дата",s.date],["Контрольная точка",sessionLabel(s.type)],["Аудитор",s.auditor||""],["Версия",TEMPLATE_VERSION],[],["Итоговый балл",m.score],["Red Flags",m.red.length],["Заполнено",m.answered],["Вердикт",verdict(m)],[],["Блок","Баллы","Red Flags","Предыдущий","Δ"]];sections.forEach(function(sec){var b=m.by[sec],old=pm&&pm.by[sec]?pm.by[sec].score:null;dash.push([sec,b.score,b.red,old,old==null||b.score==null?null:Math.round((b.score-old)*10)/10]);});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(dash),"Dashboard");var detail=[["№","ID","Блок","Вес, %","Критичный","Стандарт / вопрос аудита","Как проверять / evidence","Оценка","Комментарий","Red Flag"]];items.forEach(function(it){var a=answerOf(s,it),rf=it.critical&&a.score===0?"RED FLAG":"";detail.push([it.id,it.code,it.section,it.weight,it.critical?"ДА":"НЕТ",it.standard,it.evidence,a.score===undefined?"":a.score,a.note||"",rf]);});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(detail),"Master Audit");var reds=[["ID","Блок","Критический разрыв","Комментарий"]];m.red.forEach(function(it){var a=answerOf(s,it);reds.push([it.code,it.section,it.standard,a.note||""]);});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(reds),"Red Flags");var safe=(s.clientName||"restaurant").replace(/[\\/:*?"<>|]+/g,"_").slice(0,45);XLSX.writeFile(wb,safe+"_"+s.type+"_"+s.date+"_audit.xlsx");}
+    async function showApp(){$("gate").hidden=true;$("app").hidden=false;$("logoutBtn").hidden=false;try{await loadTemplate();renderHome();}catch(e){$("app").innerHTML='<div class="audit-shell"><div class="audit-card"><h2>Ошибка загрузки</h2><p>'+esc(e.message)+'</p></div></div>';}} async function init(){EXPECT=await sha256("smena2026");if(sessionStorage.getItem("ss_audit_ok")==="1")showApp();} $("gateForm").onsubmit=async function(e){e.preventDefault();var err=$("gateErr");err.classList.remove("on");if(await sha256($("pwd").value)!==EXPECT){err.textContent="Неверный пароль";err.classList.add("on");return;}sessionStorage.setItem("ss_audit_ok","1");showApp();};$("logoutBtn").onclick=function(){sessionStorage.removeItem("ss_audit_ok");location.reload();};init();
   })();
   </script>
 </body>
