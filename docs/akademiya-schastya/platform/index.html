@@ -18,6 +18,7 @@
       <a class="logo" href="../index.html">Академия<span>счастья</span><small>платформа</small></a>
       <ul class="nav-links">
         <li><a href="crm.html">CRM</a></li>
+        <li><a href="restaurant-audit.html">Master Audit</a></li>
         <li><a href="audit.html">Калькулятор</a></li>
         <li><a href="finance.html">Финансы</a></li>
         <li><a href="../index.html">На сайт</a></li>
@@ -29,7 +30,7 @@
   <div class="gate" id="gate">
     <div class="gate-card">
       <h1>Платформа для консультантов</h1>
-      <p>Рабочий контур Академии: клиенты, расчёты, финансы, туры. Не публичная витрина.</p>
+      <p>Рабочий контур Академии: клиенты, диагностика, расчёты, финансы, туры. Не публичная витрина.</p>
       <p class="err" id="gateErr"></p>
       <form id="gateForm">
         <div class="field">
@@ -52,7 +53,7 @@
       </div>
       <p class="platform-lead">
         Основная CRM и операционка консультантов: клиенты и статусы воронки,
-        счета и акты из калькулятора, учёт денег, план туров.
+        мобильный Master Audit, счета и акты из калькулятора, учёт денег, план туров.
       </p>
       <div class="sticker-list platform-grid">
         <a class="sticker platform-card" href="crm.html">
@@ -61,8 +62,14 @@
           <p class="sticker-meta">Счета и акты сами приклеиваются из калькулятора. Это ядро платформы.</p>
           <div class="sticker-foot"><span class="status-pill change">живо</span><span class="door-go">Открыть →</span></div>
         </a>
+        <a class="sticker platform-card" href="restaurant-audit.html">
+          <div class="sticker-title">Master Audit · 150 стандартов</div>
+          <p class="sticker-sub">Day 0 / 30 / 60 · мобильный ввод · автосохранение</p>
+          <p class="sticker-meta">Оценки 0/1/2/N/A, Red Flags, сравнение до/после, запись итога в CRM и экспорт в Excel.</p>
+          <div class="sticker-foot"><span class="status-pill change">beta</span><span class="door-go">Начать аудит →</span></div>
+        </a>
         <a class="sticker platform-card" href="audit.html">
-          <div class="sticker-title">Калькулятор · ИИ-аудитор</div>
+          <div class="sticker-title">Калькулятор проекта</div>
           <p class="sticker-sub">Часы × сложность → цена, счёт, акт</p>
           <p class="sticker-meta">Печать документа сразу пишет его в карточку клиента.</p>
           <div class="sticker-foot"><span class="status-pill change">живо</span><span class="door-go">Считать →</span></div>
@@ -81,7 +88,7 @@
         </a>
       </div>
       <p class="platform-foot-note">
-        Пароль тот же, что у аудита. Данные CRM пока в браузере устройства (localStorage).
+        Пароль тот же, что у аудита. CRM и Master Audit в этой версии сохраняются в браузере устройства (localStorage); итог аудита можно записать комментарием в карточку клиента и выгрузить в Excel.
       </p>
     </div>
   </main>
