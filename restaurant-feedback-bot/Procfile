@@ -1,2 +1,4 @@
-# Основной pulse-бот (смены). На Railway задайте переменные BOT_TOKEN, ADMIN_IDS.
-worker: python bot.py
+# Pulse bot + Mini App + consultant platform API on one Railway service.
+# Required: BOT_TOKEN, ADMIN_IDS, DATABASE_URL.
+# Platform login users are bootstrapped from PLATFORM_BOOTSTRAP_USERS_JSON.
+worker: python launcher.py
