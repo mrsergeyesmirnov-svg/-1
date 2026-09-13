@@ -12,11 +12,19 @@ from aiohttp import web
 
 import bot
 import menu_training
+import menu_training_review
 import miniapp_api
 import platform_api
 
-# Register menu-training handlers before polling starts. The module receives only
-# the minimum bot/data hooks it needs and never gets access to shift feedback data.
+# Review hub is registered first so the shared mt:m:* callback opens the richer
+# manager review UI. Neither module gets access to shift-feedback answers.
+menu_training_review.configure(
+    bot.load_data,
+    bot.save_data,
+    bot.is_global_admin,
+)
+menu_training_review.register(bot.dp)
+
 menu_training.configure(
     bot.bot,
     bot.load_data,
