@@ -1,6 +1,6 @@
 """Manager-only review of AI-parsed TTK drafts.
 
-This UI deliberately contains no learner identities or learner progress.
+No learner identity, learner list or individual progress is exposed here.
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from aiogram import F
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 import pulse_model
-
+import training_materials
 
 LOAD_DATA: Callable[[], Awaitable[dict[str, Any]]] | None = None
 SAVE_DATA: Callable[[dict[str, Any]], Awaitable[None]] | None = None
@@ -41,31 +41,31 @@ def _draft(rec: dict[str, Any]) -> list[dict[str, Any]]:
     return [d for d in (root.get("draft_dishes") or []) if isinstance(d, dict) and d.get("name")]
 
 
-def _list_text(rec: dict[str, Any], title: str, page: int) -> tuple[str, InlineKeyboardMarkup]:
-    dishes = _draft(rec)
-    per_page = 8
-    pages = max(1, (len(dishes) + per_page - 1) // per_page)
-    page = max(0, min(page, pages - 1))
-    start = page * per_page
-    chunk = dishes[start:start + per_page]
-    lines = [
-        f"<b>👀 Черновик ТТК</b> · {html.escape(title)}",
-        "",
-        f"Позиций: <b>{len(dishes)}</b> · страница {page + 1}/{pages}",
-        "",
-    ]
+def _hub(rec: dict[str, Any], title: str, chat_id: int) -> tuple[str, InlineKeyboardMarkup]:
+    root = rec.get("menu_training") if isinstance(rec.get("menu_training"), dict) else {}
+    draft = _draft(rec)
+    published = list((root or {}).get("published_dishes") or [])
+    files = training_materials.list_files(rec)
+    statuses: dict[str, int] = {}
+    for f in files:
+        status = str(f.get("analysis_status") or "not_analyzed")
+        statuses[status] = statuses.get(status, 0) + 1
+    confirmed = sum(1 for d in draft if d.get("allergens_confirmed"))
+    text = (
+        f"<b>🧠 ТТК и тесты</b> · {html.escape(title)}\n\n"
+        f"Статус: <b>{html.escape(str((root or {}).get('status') or 'empty'))}</b>\n"
+        f"Черновик: <b>{len(draft)}</b> позиций\n"
+        f"Опубликовано: <b>{len(published)}</b> · версия <b>{int((root or {}).get('version') or 0)}</b>\n"
+        f"Аллергены подтверждены источником: <b>{confirmed}</b> / {len(draft)}\n\n"
+        "Файлы: " + (", ".join(f"{k} — {v}" for k, v in sorted(statuses.items())) if statuses else "нет") + "\n\n"
+        "<i>Прогресс конкретных сотрудников менеджеру не раскрывается.</i>"
+    )
     rows: list[list[InlineKeyboardButton]] = []
-    for idx, dish in enumerate(chunk, start=start):
-        name = str(dish.get("name") or "Без названия")
-        allergen = "✅" if dish.get("allergens_confirmed") else "⚠️"
-        lines.append(f"{idx + 1}. {allergen} {html.escape(name)}")
-        rows.append([
-            InlineKeyboardButton(text=f"{idx + 1}. {name[:28]}", callback_data=f"mtr:d:{{chat}}:{idx}"[:64])
-        ])
-    # placeholder chat is replaced by caller to keep this formatter pure
-    if not chunk:
-        lines.append("<i>Черновик пуст.</i>")
-    return "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=rows)
+    if draft:
+        rows.append([InlineKeyboardButton(text="👀 Проверить черновик", callback_data=f"mtr:l:{chat_id}:0"[:64])])
+        rows.append([InlineKeyboardButton(text="✅ Опубликовать базу", callback_data=f"mt:pub:{chat_id}"[:64])])
+    rows.append([InlineKeyboardButton(text="🔄 Анализировать все ТТК заново", callback_data=f"mt:rean:{chat_id}"[:64])])
+    return text, InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def _list_keyboard(chat_id: int, rec: dict[str, Any], page: int) -> InlineKeyboardMarkup:
@@ -92,7 +92,11 @@ def _list_keyboard(chat_id: int, rec: dict[str, Any], page: int) -> InlineKeyboa
 def _detail(dish: dict[str, Any]) -> str:
     ingredients = ", ".join(str(x) for x in (dish.get("ingredients") or [])) or "—"
     allergens = ", ".join(str(x) for x in (dish.get("allergens") or [])) or "—"
-    allergen_status = "подтверждены источником" if dish.get("allergens_confirmed") else "НЕ подтверждены источником — вопросы по аллергенам не создаются"
+    allergen_status = (
+        "подтверждены источником"
+        if dish.get("allergens_confirmed")
+        else "НЕ подтверждены источником — вопросы по аллергенам не создаются"
+    )
     facts = "\n".join(f"• {html.escape(str(x))}" for x in (dish.get("important_facts") or [])) or "—"
     return (
         f"<b>{html.escape(str(dish.get('name') or 'Без названия'))}</b>\n"
@@ -108,6 +112,24 @@ def _detail(dish: dict[str, Any]) -> str:
 
 
 def register(dp: Any) -> None:
+    # Registered before menu_training.register(), so this is the visible manager hub.
+    @dp.callback_query(F.data.startswith("mt:m:"))
+    async def manager_hub(callback: CallbackQuery) -> None:
+        try:
+            chat_id = int(callback.data.split(":", 2)[2])
+        except Exception:
+            await callback.answer("Ошибка", show_alert=True)
+            return
+        data = await LOAD_DATA()
+        if not _can(data, callback.from_user.id, chat_id):
+            await callback.answer("Нет доступа", show_alert=True)
+            return
+        rec = (data.get("chats") or {}).get(str(chat_id)) or {}
+        title = str(rec.get("title", chat_id))
+        text, keyboard = _hub(rec, title, chat_id)
+        await callback.answer()
+        await callback.message.answer(text, parse_mode="HTML", reply_markup=keyboard)
+
     @dp.callback_query(F.data.startswith("mtr:l:"))
     async def list_draft(callback: CallbackQuery) -> None:
         parts = callback.data.split(":")
