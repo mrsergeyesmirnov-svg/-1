@@ -12,11 +12,25 @@ from aiohttp import web
 
 import bot
 import menu_training
+import menu_training_hotfix
 import menu_training_nudges
 import menu_training_publish
 import menu_training_review
 import miniapp_api
 import platform_api
+
+# Temporary Materials cleanup: hide the old onboarding-guide block/button and
+# remove explanatory copy about named progress from manager-facing screens.
+menu_training_hotfix.apply_ui_cleanup(bot, menu_training_review)
+menu_training_hotfix.configure(
+    bot.bot,
+    bot.load_data,
+    bot.save_data,
+    bot.is_global_admin,
+)
+# Register immediate analysis handlers first so «Анализировать ТТК» gives visible
+# feedback and actually starts processing instead of only queueing the file.
+menu_training_hotfix.register(bot.dp)
 
 # Publication and review handlers are registered before the core training module
 # so shared callbacks use the privacy-safe version-aware implementations.
