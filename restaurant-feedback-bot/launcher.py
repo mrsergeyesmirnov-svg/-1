@@ -12,6 +12,7 @@ from aiohttp import web
 
 import bot
 import menu_training
+import menu_training_nudges
 import menu_training_publish
 import menu_training_review
 import miniapp_api
@@ -40,6 +41,9 @@ menu_training.configure(
     bot.is_global_admin,
 )
 menu_training.register(bot.dp)
+
+menu_training_nudges.configure(bot.bot, bot.load_data)
+menu_training_nudges.register(bot.dp)
 
 
 async def start_http() -> None:
@@ -75,6 +79,7 @@ async def main() -> None:
         bot.main(),
         start_http(),
         menu_training.background_worker(),
+        menu_training_nudges.worker(),
     )
 
 
