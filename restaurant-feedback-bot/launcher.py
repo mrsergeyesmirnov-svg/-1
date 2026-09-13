@@ -11,8 +11,19 @@ os.environ["MINIAPP_HTTP"] = "0"
 from aiohttp import web
 
 import bot
+import menu_training
 import miniapp_api
 import platform_api
+
+# Register menu-training handlers before polling starts. The module receives only
+# the minimum bot/data hooks it needs and never gets access to shift feedback data.
+menu_training.configure(
+    bot.bot,
+    bot.load_data,
+    bot.save_data,
+    bot.is_global_admin,
+)
+menu_training.register(bot.dp)
 
 
 async def start_http() -> None:
@@ -44,7 +55,11 @@ async def start_http() -> None:
 
 
 async def main() -> None:
-    await asyncio.gather(bot.main(), start_http())
+    await asyncio.gather(
+        bot.main(),
+        start_http(),
+        menu_training.background_worker(),
+    )
 
 
 if __name__ == "__main__":
