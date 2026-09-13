@@ -12,12 +12,20 @@ from aiohttp import web
 
 import bot
 import menu_training
+import menu_training_publish
 import menu_training_review
 import miniapp_api
 import platform_api
 
-# Review hub is registered first so the shared mt:m:* callback opens the richer
-# manager review UI. Neither module gets access to shift-feedback answers.
+# Publication and review handlers are registered before the core training module
+# so shared callbacks use the privacy-safe version-aware implementations.
+menu_training_publish.configure(
+    bot.load_data,
+    bot.save_data,
+    bot.is_global_admin,
+)
+menu_training_publish.register(bot.dp)
+
 menu_training_review.configure(
     bot.load_data,
     bot.save_data,
