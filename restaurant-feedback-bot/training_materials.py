@@ -231,6 +231,7 @@ def staff_folders_keyboard(chat_id: int, rec: dict[str, Any]):
                 ],
                 [InlineKeyboardButton(text="🧠 Полный тест", callback_data=f"mt:q:full:{cid}"[:64])],
                 [InlineKeyboardButton(text="📈 Мой прогресс", callback_data=f"mt:p:{cid}"[:64])],
+                [InlineKeyboardButton(text="🎓 Режим стажёра", callback_data=f"mtn:t:{cid}"[:64])],
             ]
         )
     for f in list_folders(rec):
