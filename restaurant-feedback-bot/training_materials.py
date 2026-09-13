@@ -1,13 +1,21 @@
 """
 Обучающие материалы точки: папки и файлы (Telegram file_id).
 Доступ сотруднику — после хотя бы одного отклика на смену (привязка uid → chat_id).
+
+Новые поддерживаемые ТТК автоматически ставятся в очередь на AI-разбор. Публикация
+структурированной базы делается менеджером отдельно; до публикации тесты сотрудникам
+не показываются.
 """
 from __future__ import annotations
 
 import secrets
 from datetime import datetime
 from html import escape
+from pathlib import Path
 from typing import Any
+
+
+ANALYSABLE_EXTENSIONS = {".pdf", ".docx", ".txt", ".xlsx"}
 
 
 def record_staff_link(data: dict[str, Any], user_id: int, chat_id: int) -> None:
@@ -77,9 +85,18 @@ def add_folder(rec: dict[str, Any], name: str) -> tuple[bool, str | None, str | 
 def delete_folder(rec: dict[str, Any], folder_id: str) -> bool:
     root = _root(rec)
     folders = [f for f in list_folders(rec) if f["id"] != folder_id]
+    removed_ids = {
+        str(f.get("id")) for f in list_files(rec) if str(f.get("folder_id")) == folder_id
+    }
     files = [f for f in list_files(rec) if str(f.get("folder_id")) != folder_id]
     root["folders"] = folders
     root["files"] = files
+    menu = rec.get("menu_training")
+    if isinstance(menu, dict) and removed_ids:
+        menu["draft_dishes"] = [
+            d for d in (menu.get("draft_dishes") or [])
+            if not isinstance(d, dict) or str(d.get("source_file_id")) not in removed_ids
+        ]
     return True
 
 
@@ -100,6 +117,7 @@ def add_file(
     files = list_files(rec)
     if len(files) >= 50:
         return False, "Не больше 50 файлов на точку."
+    ext = Path(title).suffix.lower()
     files.append(
         {
             "id": "tm_" + secrets.token_hex(4),
@@ -109,6 +127,8 @@ def add_file(
             "file_type": file_type,
             "by_uid": by_uid,
             "at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "analysis_status": "pending" if ext in ANALYSABLE_EXTENSIONS else "not_analyzed",
+            "analysis_error": "",
         }
     )
     _root(rec)["files"] = files
@@ -118,21 +138,40 @@ def add_file(
 def delete_file(rec: dict[str, Any], file_id: str) -> bool:
     root = _root(rec)
     root["files"] = [f for f in list_files(rec) if f["id"] != file_id]
+    menu = rec.get("menu_training")
+    if isinstance(menu, dict):
+        menu["draft_dishes"] = [
+            d for d in (menu.get("draft_dishes") or [])
+            if not isinstance(d, dict) or str(d.get("source_file_id")) != str(file_id)
+        ]
     return True
+
+
+def _published_training_available(rec: dict[str, Any]) -> bool:
+    menu = rec.get("menu_training")
+    return bool(
+        isinstance(menu, dict)
+        and menu.get("status") == "published"
+        and menu.get("published_dishes")
+    )
 
 
 def format_staff_menu(rec: dict[str, Any], chat_title: str) -> str:
     folders = list_folders(rec)
-    if not folders:
-        return (
-            f"<b>📚 Обучение</b> · {escape(chat_title)}\n\n"
-            "<i>Материалы пока не добавлены.</i>"
+    lines = [f"<b>📚 Обучение</b> · {escape(chat_title)}", ""]
+    if _published_training_available(rec):
+        published = (rec.get("menu_training") or {}).get("published_dishes") or []
+        lines.extend(
+            [
+                f"Меню для обучения: <b>{len(published)}</b> позиций",
+                "Можно тренироваться по одному вопросу, пройти короткую тренировку или полный тест.",
+                "",
+            ]
         )
-    lines = [
-        f"<b>📚 Обучение</b> · {escape(chat_title)}",
-        "",
-        "Выберите папку:",
-    ]
+    if not folders:
+        lines.append("<i>Файлы пока не добавлены.</i>")
+        return "\n".join(lines)
+    lines.append("Материалы по папкам:")
     for f in folders:
         n = len(list_files(rec, f["id"]))
         lines.append(f"• {escape(f['name'])} — <b>{n}</b> файлов")
@@ -150,7 +189,14 @@ def format_folder_files(rec: dict[str, Any], folder_id: str, chat_title: str) ->
     ]
     if files:
         for i, f in enumerate(files, 1):
-            lines.append(f"{i}. {escape(f.get('title', 'Файл'))}")
+            status = str(f.get("analysis_status") or "")
+            marker = {
+                "pending": " ⏳",
+                "processing": " 🧠",
+                "done": " ✅",
+                "error": " ⚠️",
+            }.get(status, "")
+            lines.append(f"{i}. {escape(f.get('title', 'Файл'))}{marker}")
     else:
         lines.append("<i>В папке пока нет файлов.</i>")
     return "\n".join(lines)
@@ -159,11 +205,15 @@ def format_folder_files(rec: dict[str, Any], folder_id: str, chat_title: str) ->
 def format_manager_menu(rec: dict[str, Any], chat_title: str) -> str:
     folders = list_folders(rec)
     files_n = len(list_files(rec))
+    menu = rec.get("menu_training") if isinstance(rec.get("menu_training"), dict) else {}
+    published_n = len((menu or {}).get("published_dishes") or [])
     return (
         f"<b>📚 Материалы</b> · {escape(chat_title)}\n\n"
-        f"Папок: <b>{len(folders)}</b> · файлов: <b>{files_n}</b>\n\n"
+        f"Папок: <b>{len(folders)}</b> · файлов: <b>{files_n}</b>\n"
+        f"Опубликовано позиций меню для тестов: <b>{published_n}</b>\n\n"
         "Сотрудники, которые хотя бы раз отметили смену, видят материалы "
-        "своей точки в кнопке «📚 Обучение»."
+        "своей точки в кнопке «📚 Обучение». ТТК поддерживаются в PDF, DOCX, XLSX и TXT.\n\n"
+        "<i>Поимённый прогресс сотрудников менеджерам не показывается.</i>"
     )
 
 
@@ -172,6 +222,18 @@ def staff_folders_keyboard(chat_id: int, rec: dict[str, Any]):
 
     cid = str(chat_id)
     rows: list[list] = []
+    if _published_training_available(rec):
+        rows.extend(
+            [
+                [
+                    InlineKeyboardButton(text="🎯 Один вопрос", callback_data=f"mt:q:one:{cid}"[:64]),
+                    InlineKeyboardButton(text="⚡ Тренировка", callback_data=f"mt:q:quick:{cid}"[:64]),
+                ],
+                [InlineKeyboardButton(text="🧠 Полный тест", callback_data=f"mt:q:full:{cid}"[:64])],
+                [InlineKeyboardButton(text="📈 Мой прогресс", callback_data=f"mt:p:{cid}"[:64])],
+                [InlineKeyboardButton(text="🎓 Режим стажёра", callback_data=f"mtn:t:{cid}"[:64])],
+            ]
+        )
     for f in list_folders(rec):
         short = f["name"][:28] + ("…" if len(f["name"]) > 28 else "")
         rows.append(
@@ -210,7 +272,10 @@ def manager_menu_keyboard(chat_id: int, rec: dict[str, Any]):
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
     cid = str(chat_id)
+    menu = rec.get("menu_training") if isinstance(rec.get("menu_training"), dict) else {}
+    published_n = len((menu or {}).get("published_dishes") or [])
     rows: list[list] = [
+        [InlineKeyboardButton(text=f"🧠 ТТК и тесты · {published_n}", callback_data=f"mt:m:{cid}"[:64])],
         [InlineKeyboardButton(text="➕ Папка", callback_data=f"tr:mfadd:{cid}"[:64])],
     ]
     for f in list_folders(rec):
@@ -236,6 +301,12 @@ def manager_folder_keyboard(chat_id: int, folder_id: str):
                 InlineKeyboardButton(
                     text="➕ Загрузить файл",
                     callback_data=f"tr:mup:{cid}:{folder_id}"[:64],
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🧠 Анализировать ТТК в папке",
+                    callback_data=f"mt:af:{cid}:{folder_id}"[:64],
                 )
             ],
             [

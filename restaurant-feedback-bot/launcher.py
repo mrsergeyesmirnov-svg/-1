@@ -11,8 +11,39 @@ os.environ["MINIAPP_HTTP"] = "0"
 from aiohttp import web
 
 import bot
+import menu_training
+import menu_training_nudges
+import menu_training_publish
+import menu_training_review
 import miniapp_api
 import platform_api
+
+# Publication and review handlers are registered before the core training module
+# so shared callbacks use the privacy-safe version-aware implementations.
+menu_training_publish.configure(
+    bot.load_data,
+    bot.save_data,
+    bot.is_global_admin,
+)
+menu_training_publish.register(bot.dp)
+
+menu_training_review.configure(
+    bot.load_data,
+    bot.save_data,
+    bot.is_global_admin,
+)
+menu_training_review.register(bot.dp)
+
+menu_training.configure(
+    bot.bot,
+    bot.load_data,
+    bot.save_data,
+    bot.is_global_admin,
+)
+menu_training.register(bot.dp)
+
+menu_training_nudges.configure(bot.bot, bot.load_data)
+menu_training_nudges.register(bot.dp)
 
 
 async def start_http() -> None:
@@ -44,7 +75,12 @@ async def start_http() -> None:
 
 
 async def main() -> None:
-    await asyncio.gather(bot.main(), start_http())
+    await asyncio.gather(
+        bot.main(),
+        start_http(),
+        menu_training.background_worker(),
+        menu_training_nudges.worker(),
+    )
 
 
 if __name__ == "__main__":
