@@ -36,10 +36,15 @@ if _running_legacy_bot_entrypoint():
                     raise RuntimeError("bot runtime module not found")
 
                 import menu_training
+                import menu_training_fastgrade
                 import menu_training_hotfix
                 import menu_training_nudges
                 import menu_training_publish
                 import menu_training_review
+
+                # Fast grading first: source-grounded local checks for factual answers,
+                # short AI attempt + local fallback for selling descriptions.
+                menu_training_fastgrade.install()
 
                 # Clean manager-facing Materials UI first.
                 menu_training_hotfix.apply_ui_cleanup(bot_module, menu_training_review)
