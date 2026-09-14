@@ -38,12 +38,17 @@ if _running_legacy_bot_entrypoint():
                 import menu_training
                 import menu_training_fastgrade
                 import menu_training_hotfix
+                import menu_training_intelligence
                 import menu_training_nudges
                 import menu_training_publish
                 import menu_training_review
 
-                # Fast grading first: source-grounded local checks for factual answers,
-                # short AI attempt + local fallback for selling descriptions.
+                # Semantic understanding first: clean OCR/glued ingredients, remove
+                # non-food technical rows, generate realistic questions and richer pitches.
+                menu_training_intelligence.install()
+
+                # Fast grading then captures the richer AI sales grader and keeps factual
+                # checks instant with source-grounded matching.
                 menu_training_fastgrade.install()
 
                 # Clean manager-facing Materials UI first.
