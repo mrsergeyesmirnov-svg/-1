@@ -14,11 +14,16 @@ import bot
 import menu_training
 import menu_training_fastgrade
 import menu_training_hotfix
+import menu_training_intelligence
 import menu_training_nudges
 import menu_training_publish
 import menu_training_review
 import miniapp_api
 import platform_api
+
+# Understand restaurant language before installing the fast grader: clean OCR/glued
+# ingredients, generate realistic AI questions and richer selling descriptions.
+menu_training_intelligence.install()
 
 # Make open training answers responsive: factual questions are checked locally
 # against approved TTK facts; sales answers use AI with a fast source-grounded fallback.
