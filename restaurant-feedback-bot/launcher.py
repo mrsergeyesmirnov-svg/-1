@@ -12,12 +12,17 @@ from aiohttp import web
 
 import bot
 import menu_training
+import menu_training_fastgrade
 import menu_training_hotfix
 import menu_training_nudges
 import menu_training_publish
 import menu_training_review
 import miniapp_api
 import platform_api
+
+# Make open training answers responsive: factual questions are checked locally
+# against approved TTK facts; sales answers use AI with a fast source-grounded fallback.
+menu_training_fastgrade.install()
 
 # Temporary Materials cleanup: hide the old onboarding-guide block/button and
 # remove explanatory copy about named progress from manager-facing screens.
