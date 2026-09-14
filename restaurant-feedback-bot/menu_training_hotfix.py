@@ -1,7 +1,6 @@
-"""Immediate TTK analysis actions and temporary materials UI cleanup.
+"""Immediate TTK analysis actions, materials UI cleanup, and training answer routing.
 
-This module is intentionally small and can be removed once the old onboarding-guide
-block is redesigned. It does not read shift feedback and does not expose learner data.
+This module does not read shift feedback and does not expose learner data.
 """
 from __future__ import annotations
 
@@ -10,8 +9,8 @@ import html
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
-from aiogram import F
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram import BaseMiddleware, F
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 import menu_training
 import training_materials
@@ -72,6 +71,107 @@ def apply_ui_cleanup(bot_module: Any, review_module: Any) -> None:
         return text
 
     menu_training._manager_status_text = clean_status
+
+
+async def _handle_open_training_answer(message: Message) -> bool:
+    """Consume a reply to the current open training question before bot.py catch-all text handler."""
+    if message.chat.type != "private" or not message.text or not message.reply_to_message:
+        return False
+    if not await menu_training._ensure_schema():
+        return False
+
+    learner = menu_training._learner_hash(message.from_user.id)
+    pool = menu_training.db_pulse.pool()
+    if pool is None:
+        return False
+    async with pool.acquire() as conn:
+        session = await conn.fetchrow(
+            "SELECT * FROM menu_training_sessions "
+            "WHERE learner_hash=$1 AND status='active' "
+            "ORDER BY created_at DESC LIMIT 1",
+            learner,
+        )
+    if not session:
+        return False
+
+    prompt_id = session["prompt_message_id"]
+    if not prompt_id or int(message.reply_to_message.message_id) != int(prompt_id):
+        return False
+
+    questions = menu_training._json(session["questions"], [])
+    idx = int(session["current_index"] or 0)
+    if idx >= len(questions):
+        return False
+    q = questions[idx]
+    if q.get("type") != "open":
+        return False
+
+    wait_msg = await message.answer("⏱ Проверяю ответ…")
+    try:
+        # A training answer should feel instant. Never leave the user waiting indefinitely.
+        grade = await asyncio.wait_for(
+            menu_training._grade_open(q, message.text.strip()),
+            timeout=15,
+        )
+    except asyncio.TimeoutError:
+        try:
+            await wait_msg.edit_text(
+                "ИИ отвечает дольше обычного. Ответ не потерян — отправь его ещё раз через несколько секунд."
+            )
+        except Exception:
+            await message.answer(
+                "ИИ отвечает дольше обычного. Ответ не потерян — отправь его ещё раз через несколько секунд."
+            )
+        return True
+    except Exception as exc:
+        try:
+            await wait_msg.edit_text(
+                "Не удалось проверить ответ. Он не засчитан — попробуй отправить ещё раз."
+            )
+        except Exception:
+            await message.answer("Не удалось проверить ответ. Попробуй отправить ещё раз.")
+        print(f"[menu-training open grade] {exc!r}")
+        return True
+
+    value = max(0.0, min(1.0, float(grade.get("score") or 0) / 10.0))
+    correct = bool(grade.get("correct"))
+    feedback = html.escape(str(grade.get("feedback") or ""))
+    ideal = html.escape(str(grade.get("ideal_answer") or q.get("model_answer") or ""))
+    result_text = (
+        f"<b>{'✅' if correct else '🔁'} {float(grade.get('score') or 0):.0f}/10</b>\n"
+        f"{feedback}\n\n<b>Сильный ответ:</b> {ideal}"
+    )
+    try:
+        await wait_msg.edit_text(result_text, parse_mode="HTML")
+    except Exception:
+        await message.answer(result_text, parse_mode="HTML")
+
+    updated = await menu_training._accept_result(
+        session,
+        q,
+        {
+            "value": value,
+            "correct": correct,
+            "answer": message.text.strip(),
+            "feedback": str(grade.get("feedback") or ""),
+        },
+    )
+    if int(updated["current_index"] or 0) >= len(questions):
+        await menu_training._finish_session(message.chat.id, str(session["id"]))
+    else:
+        await menu_training._show_question(message.chat.id, updated)
+    return True
+
+
+class _TrainingAnswerMiddleware(BaseMiddleware):
+    async def __call__(self, handler, event, data):
+        if isinstance(event, Message):
+            try:
+                if await _handle_open_training_answer(event):
+                    return None
+            except Exception as exc:
+                print(f"[menu-training middleware] {exc!r}")
+        return await handler(event, data)
 
 
 async def _run_analysis(uid: int, chat_id: int, metas: list[dict[str, Any]], label: str) -> None:
@@ -159,9 +259,13 @@ def _supported_files(rec: dict[str, Any], folder_id: str | None = None) -> list[
 
 
 def register(dp: Any) -> None:
-    # These handlers must be registered before menu_training.register(). They give
-    # visible feedback immediately and start the analysis now instead of merely
-    # putting files into a background queue.
+    # The main bot has a broad @dp.message(F.text) handler registered before the
+    # training module. Middleware is therefore required so replies to open test
+    # questions are not swallowed by that generic handler.
+    if not getattr(dp, "_pulse_training_answer_middleware", False):
+        dp.message.outer_middleware(_TrainingAnswerMiddleware())
+        setattr(dp, "_pulse_training_answer_middleware", True)
+
     @dp.callback_query(F.data.startswith("mt:af:"))
     async def analyse_folder_now(callback: CallbackQuery) -> None:
         parts = (callback.data or "").split(":", 3)
