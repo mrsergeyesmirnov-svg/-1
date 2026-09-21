@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Казна · рынок, цена, роадмап (внутр.)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #faf7f3; --surface: #fff; --ink: #1c1917; --muted: #57534e;
+      --line: #e7e2dc; --accent: #ff5a1f; --calm: #0d9488;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: Mulish, system-ui, sans-serif; background: var(--bg);
+      color: var(--ink); line-height: 1.55; -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 32px 16px 64px; }
+    .warn {
+      background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px;
+      padding: 12px 14px; font-size: 0.88rem; color: #9a3412; margin-bottom: 20px;
+    }
+    h1 { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 8px; }
+    h2 { font-size: 1.15rem; font-weight: 800; margin: 28px 0 10px; }
+    h3 { font-size: 1rem; font-weight: 800; margin: 0 0 6px; }
+    .lead { color: var(--muted); margin: 0 0 18px; }
+    .card {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+      padding: 16px 18px; margin: 10px 0;
+    }
+    .grid { display: grid; gap: 12px; }
+    @media (min-width: 700px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .price { font-size: 1.4rem; font-weight: 800; color: var(--accent); }
+    ul { margin: 6px 0 0; padding-left: 1.1em; color: var(--muted); }
+    ul li { margin: 4px 0; }
+    ul li strong { color: var(--ink); }
+    .step {
+      display: grid; grid-template-columns: 42px 1fr; gap: 12px; align-items: start;
+      padding: 12px 0; border-bottom: 1px solid var(--line);
+    }
+    .step:last-child { border-bottom: 0; }
+    .n {
+      width: 36px; height: 36px; border-radius: 10px; background: var(--accent); color: #fff;
+      font-weight: 800; display: flex; align-items: center; justify-content: center;
+    }
+    .muted { color: var(--muted); font-size: 0.86rem; }
+    a { color: var(--calm); font-weight: 700; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="warn">
+      <strong>Внутренний файл.</strong> Не вкладывать в КП клиенту. Для обсуждения цены и плана работ.
+      КП клиенту: <a href="../kp.html">kp.html</a>
+    </div>
+
+    <h1>Рынок · цена · роадмап</h1>
+    <p class="lead">Ориентиры, чтобы завтра спокойно отправить КП (100к таблицы / 450к платформа).</p>
+
+    <h2>1. Сколько это реально стоит на рынке</h2>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Что сравниваем</th><th>Деньги</th><th>Что это значит для нас</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Финоко</strong> — настройка согласования + платёжный календарь</td>
+            <td>30–150 тыс. ₽ разово<br />+ веб от ~80 тыс. ₽/год (~6,7–20 тыс./мес по числу юрлиц)</td>
+            <td>Узкий «календарь+согласование» на готовом движке дешевле нашей платформы. Полный ресторанный комплект Финоко — <strong>от 356 тыс. ₽</strong> + подписка.</td>
+          </tr>
+          <tr>
+            <td><strong>Adesk</strong> — ДДС / календарь / юрлица (без глубокой iiko-кассы)</td>
+            <td>~2–6 тыс. ₽/мес (год), сеть юрлиц дороже</td>
+            <td>Дешёвая подписка, но не «под iiko + кассы ресторанов + роли управов» из коробки.</td>
+          </tr>
+          <tr>
+            <td><strong>СоваРест</strong></td>
+            <td>~3,5 тыс. ₽/мес за объект + финансы отдельно</td>
+            <td>Больше аналитика, не чистая казна. Сеть из многих точек = другая полка.</td>
+          </tr>
+          <tr>
+            <td><strong>Кастом под ключ</strong> (студия, роли + iiko + календарь + кассы)</td>
+            <td>обычно <strong>0,6–1,5+ млн ₽</strong> + поддержка</td>
+            <td>Наша 450к — ниже студийного кастома, выше «настройка готового Финоко».</td>
+          </tr>
+          <tr>
+            <td><strong>Google Sheets + скрипты</strong> (фриланс)</td>
+            <td>40–200 тыс. ₽</td>
+            <td>Наши <strong>100к</strong> — середина рынка за нормальный контур, не «табличку на вечер».</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Вывод по цене клиенту</h3>
+        <p class="price">100к / 450к — нормально</p>
+        <ul>
+          <li><strong>100к таблицы</strong> — честно за 2–3 недели и живой контур</li>
+          <li><strong>450к платформа</strong> — ниже полного Финоко+внедрение сети и сильно ниже студии; выше «просто настроить календарь в SaaS»</li>
+          <li>Твоя маржа ~300–350к с платформы — ок, если scope не раздуть</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Если торгуются</h3>
+        <ul>
+          <li>не резать ниже <strong>80к</strong> таблицы / <strong>400к</strong> платформа без урезания scope</li>
+          <li>торговать <strong>сроком и этапами</strong>, не «скидкой за всё»</li>
+          <li>кассы + автоиз iiko + планы года — ценность; без этого цена должна падать</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>2. Роадмап (для нас, не для КП)</h2>
+    <div class="card">
+      <div class="step">
+        <div class="n">0</div>
+        <div>
+          <strong>Завтра — отправка КП</strong>
+          <div class="muted">kp.html + ссылка на эскизы. Без роадмапа клиенту. Созвон: выбрать A или B, доступы iiko после аванса.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="n">1</div>
+        <div>
+          <strong>Неделя 1 — бриф и данные</strong>
+          <div class="muted">Аванс 30%. Список организаций/счетов/касс. Одна тестовая выгрузка из iiko (остатки + накладная/оплата). Критерии приёмки на 1 странице. Договор с лимитом ответственности.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="n">2</div>
+        <div>
+          <strong>Недели 2–3 — если вариант A (таблицы)</strong>
+          <div class="muted">Сводка «сейчас / сегодня / после» · календарь · заявки · автопометка оплачено где возможно · обучение 1 час · акт.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="n">2</div>
+        <div>
+          <strong>Недели 2–5 — если вариант B (платформа) MVP</strong>
+          <div class="muted">Вход и роли · заявки + приоритеты · календарь · счета · простой экран касс · импорт iiko по крону · демо финдиру.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="n">3</div>
+        <div>
+          <strong>Недели 6–8 — платформа доводка</strong>
+          <div class="muted">Планы (день/месяц/год) · перераспределение касс · автоархив по оплате iiko · права управляющих · 2 раунда правок · акт · поддержка с 40к/мес.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="n">4</div>
+        <div>
+          <strong>После запуска (опционально)</strong>
+          <div class="muted">Стабилизация 1 месяц · кейс · разговор про совместные продажи % на другие сети.</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>3. План задач (чеклист разработки B)</h2>
+    <div class="card">
+      <h3>Блок данные</h3>
+      <ul>
+        <li>подключить выгрузку/API iiko: счета, накладные, оплаты</li>
+        <li>маппинг организаций сети ↔ счета ↔ кассы точек</li>
+        <li>fallback: Excel/CSV если API тупит</li>
+      </ul>
+      <h3 style="margin-top:14px;">Блок роли</h3>
+      <ul>
+        <li>логин управляющего / финдира</li>
+        <li>права на точки (настраивает финдир)</li>
+        <li>заявки: дата, сумма, приоритет; финдир может сменить приоритет</li>
+        <li>планы: дни недели, месяц, год</li>
+      </ul>
+      <h3 style="margin-top:14px;">Блок деньги</h3>
+      <ul>
+        <li>виджеты сейчас / сегодня / после</li>
+        <li>календарь + перенос даты</li>
+        <li>кассы: норма / факт / перераспределение (учётная операция или заявка)</li>
+        <li>оплата в iiko → архив без галочки</li>
+      </ul>
+      <h3 style="margin-top:14px;">Блок сдача</h3>
+      <ul>
+        <li>чеклист приёмки · акт · 14–30 дней гарантии по багам</li>
+        <li>не брать в v1: банк-автоплатёж, полная Сова, бухгалтерия</li>
+      </ul>
+    </div>
+
+    <h2>4. Риски по срокам (себе)</h2>
+    <div class="card">
+      <ul>
+        <li><strong>iiko</strong> — главный тормоз; закладывай +1–2 недели буфера</li>
+        <li><strong>Кассы «можно ли перекинуть»</strong> — юридически/учётно уточнить у них, иначе только «сигнал», не проводка</li>
+        <li><strong>Планы год</strong> — можно отдать во вторую очередь после MVP, если жмут срок</li>
+      </ul>
+    </div>
+
+    <p class="muted" style="margin-top:24px;">
+      Источники ориентиров: сайты Финоко (комплект ресторана от 356к; настройка календаря 30–150к; подписка от ~80к/год),
+      Adesk (прайс ~2–6к/мес), СоваРест (~3,5к/мес за объект). Цифры публичные витрины, у сети на месте часто выше.
+    </p>
+  </div>
+</body>
+</html>
