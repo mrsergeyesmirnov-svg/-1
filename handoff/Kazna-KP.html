@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>КП · Казна</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #faf7f3;
+      --surface: #fff;
+      --ink: #1c1917;
+      --muted: #57534e;
+      --line: #e7e2dc;
+      --accent: #ff5a1f;
+      --accent-soft: rgba(255, 90, 31, 0.12);
+      --calm: #0d9488;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Mulish, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 840px; margin: 0 auto; padding: 36px 18px 72px; }
+    .top {
+      display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+      padding-bottom: 18px; border-bottom: 1px solid var(--line); margin-bottom: 24px;
+    }
+    .brand { font-weight: 800; font-size: 1.2rem; letter-spacing: -0.03em; }
+    .brand span { color: var(--accent); }
+    .meta { font-size: 0.84rem; color: var(--muted); text-align: right; }
+    h1 {
+      font-size: clamp(1.55rem, 3.8vw, 2.1rem);
+      font-weight: 800; letter-spacing: -0.03em; line-height: 1.15;
+      margin: 0 0 10px;
+    }
+    h2 { font-size: 1.15rem; font-weight: 800; margin: 28px 0 10px; }
+    h3 { font-size: 1rem; font-weight: 800; margin: 0 0 6px; }
+    .lead { color: var(--muted); margin: 0 0 16px; max-width: 40em; }
+    .outcome {
+      background: linear-gradient(135deg, #fff7f3 0%, #fff 55%);
+      border: 1px solid rgba(255,90,31,.28);
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin: 14px 0 18px;
+      font-size: 1.02rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.35;
+    }
+    .outcome span { color: var(--accent); }
+    .pill {
+      display: inline-block; font-size: 0.74rem; font-weight: 700;
+      padding: 6px 11px; border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+      margin: 0 6px 6px 0;
+    }
+    .card {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+      padding: 18px; margin: 12px 0;
+    }
+    .card.hot { border-color: rgba(255,90,31,.35); }
+    .grid { display: grid; gap: 12px; }
+    @media (min-width: 700px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+    .price { font-size: 1.85rem; font-weight: 800; letter-spacing: -0.03em; margin: 6px 0 2px; }
+    .price small { display: block; font-size: 0.84rem; font-weight: 600; color: var(--muted); margin-top: 4px; }
+    ul { margin: 6px 0 0; padding-left: 1.1em; color: var(--muted); }
+    ul li { margin: 4px 0; }
+    ul li strong { color: var(--ink); }
+    .before-after {
+      display: grid; gap: 12px;
+    }
+    @media (min-width: 700px) {
+      .before-after { grid-template-columns: 1fr 1fr; }
+    }
+    .ba {
+      border-radius: 12px; padding: 14px 16px; border: 1px solid var(--line);
+    }
+    .ba.before { background: #f3f0eb; }
+    .ba.after {
+      background: #fff7f3;
+      border-color: rgba(255,90,31,.28);
+    }
+    .ba h3 { margin-bottom: 8px; }
+    .ba ul { margin-top: 0; }
+    .steps { list-style: none; padding: 0; margin: 8px 0 0; }
+    .steps li {
+      display: grid; grid-template-columns: 88px 1fr; gap: 10px;
+      padding: 10px 0; border-bottom: 1px solid var(--line);
+      color: var(--muted); font-size: 0.92rem;
+    }
+    .steps li:last-child { border-bottom: 0; }
+    .steps strong { color: var(--ink); display: block; }
+    .step-label {
+      font-size: 0.72rem; font-weight: 800; letter-spacing: .04em;
+      text-transform: uppercase; color: var(--accent); padding-top: 2px;
+    }
+    .table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .table th, .table td { text-align: left; padding: 9px 6px; border-bottom: 1px solid var(--line); }
+    .table th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .note {
+      background: #f3f0eb; border-radius: 10px; padding: 12px 14px; font-size: 0.88rem; color: var(--muted); margin-top: 10px;
+    }
+    .note strong { color: var(--ink); }
+    .footer {
+      margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line);
+      font-size: 0.84rem; color: var(--muted);
+    }
+    .footer a { color: var(--calm); font-weight: 700; text-decoration: none; }
+    .links a {
+      display: inline-block; margin: 6px 8px 0 0; padding: 10px 14px; border-radius: 999px;
+      background: var(--ink); color: #fff; font-weight: 700; font-size: 0.84rem; text-decoration: none;
+    }
+    .links a.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+    @media print { .links { display: none; } }
+  </style>
+
+<style id="mock-css">
+:root {
+  --bg: #faf7f3;
+  --surface: #ffffff;
+  --ink: #1c1917;
+  --muted: #57534e;
+  --line: #e7e2dc;
+  --accent: #ff5a1f;
+  --accent-soft: rgba(255, 90, 31, 0.12);
+  --ok: #0d9488;
+  --ok-soft: rgba(13, 148, 136, 0.12);
+  --warn: #b45309;
+  --warn-soft: rgba(180, 83, 9, 0.12);
+  --danger: #be123c;
+  --danger-soft: rgba(190, 18, 60, 0.1);
+  --radius: 14px;
+  --font: Mulish, system-ui, sans-serif;
+  --shadow: 0 4px 18px rgba(28, 25, 23, 0.05);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--font);
+  background:
+    radial-gradient(800px 420px at 100% 0%, var(--accent-soft), transparent 55%),
+    var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+.app { max-width: 980px; margin: 0 auto; padding: 16px 14px 36px; }
+.topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-bottom: 14px;
+}
+.logo { font-weight: 800; letter-spacing: -0.03em; font-size: 1.15rem; }
+.logo span { color: var(--accent); }
+.nav { display: flex; flex-wrap: wrap; gap: 6px; }
+.nav a {
+  font-size: 0.78rem; font-weight: 700; color: var(--muted);
+  padding: 7px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface);
+}
+.nav a.on, .nav a:hover {
+  color: var(--accent); border-color: rgba(255,90,31,.35); background: var(--accent-soft);
+}
+.badge {
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+h1 {
+  margin: 6px 0 12px; font-size: clamp(1.35rem, 3vw, 1.7rem); font-weight: 800; letter-spacing: -0.03em;
+}
+.grid-3 { display: grid; gap: 10px; }
+@media (min-width: 760px) { .grid-3 { grid-template-columns: 1fr 1fr 1fr; } }
+.metric {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 14px 14px; box-shadow: var(--shadow);
+}
+.metric .label { font-size: 0.78rem; color: var(--muted); font-weight: 600; }
+.metric .value {
+  font-size: clamp(1.35rem, 2.6vw, 1.7rem); font-weight: 800; letter-spacing: -0.03em; margin-top: 6px;
+}
+.metric .hint { font-size: 0.76rem; color: var(--muted); margin-top: 4px; }
+.metric.ok .value { color: var(--ok); }
+.metric.warn .value { color: var(--warn); }
+.metric.danger .value { color: var(--danger); }
+.panel {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 14px; margin-top: 12px; box-shadow: var(--shadow);
+}
+.panel h2 { margin: 0 0 10px; font-size: 0.95rem; font-weight: 800; }
+.row {
+  display: grid; gap: 8px; align-items: center;
+  padding: 11px 0; border-bottom: 1px solid var(--line);
+}
+.row:last-child { border-bottom: 0; }
+@media (min-width: 700px) {
+  .row.pay { grid-template-columns: 1.5fr 0.7fr 0.8fr 0.7fr auto; }
+  .row.req { grid-template-columns: 1.4fr 0.6fr 0.7fr 0.7fr auto; }
+}
+.muted { color: var(--muted); font-size: 0.8rem; }
+.amount { font-weight: 800; letter-spacing: -0.02em; }
+.status {
+  display: inline-flex; font-size: 0.72rem; font-weight: 700;
+  padding: 4px 9px; border-radius: 999px; background: #f3f0eb; color: var(--muted);
+}
+.status.new { background: var(--danger-soft); color: var(--danger); }
+.status.ok { background: var(--ok-soft); color: var(--ok); }
+.status.plan { background: var(--accent-soft); color: var(--accent); }
+.status.done { background: #f3f0eb; color: var(--muted); }
+.btn {
+  appearance: none; border: 0; cursor: pointer; font: inherit; font-weight: 700; font-size: 0.78rem;
+  padding: 8px 11px; border-radius: 999px; background: var(--accent); color: #fff;
+}
+.btn.ghost { background: #fff; color: var(--muted); border: 1px solid var(--line); }
+.btn.sm { padding: 6px 10px; font-size: 0.74rem; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.chip {
+  font-size: 0.74rem; font-weight: 700; padding: 6px 10px; border-radius: 999px;
+  background: #fff; border: 1px solid var(--line); color: var(--muted);
+}
+.chip.on { background: var(--accent-soft); border-color: rgba(255,90,31,.35); color: var(--accent); }
+.calendar { display: grid; gap: 8px; }
+.day {
+  background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 11px; box-shadow: var(--shadow);
+}
+.day header {
+  display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;
+}
+.day header strong { font-size: 0.88rem; }
+.pay-item {
+  display: flex; justify-content: space-between; gap: 10px; align-items: center;
+  padding: 8px 10px; border-radius: 10px; background: #faf7f3; margin-top: 6px;
+  cursor: grab; border: 1px dashed transparent;
+}
+.pay-item:active { cursor: grabbing; }
+.pay-item.dragging { opacity: 0.5; border-color: var(--accent); }
+.pay-item .t { font-size: 0.82rem; font-weight: 650; }
+.hero-mock {
+  margin: 6px 0 14px; padding: 18px; border-radius: 16px;
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow);
+}
+.hero-mock h1 { margin: 0 0 6px; }
+.hero-mock p { margin: 0; color: var(--muted); max-width: 36em; font-size: 0.92rem; }
+.foot-note { margin-top: 16px; font-size: 0.74rem; color: var(--muted); text-align: center; }
+
+
+.view { display: none; }
+.view.on { display: block; }
+#view-kp.on { display: block; }
+body.mode-mock { background: var(--bg); }
+.back-kp {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  padding: 10px 14px; background: rgba(250,247,243,.96);
+  border-bottom: 1px solid var(--line); backdrop-filter: blur(8px);
+}
+.back-kp a {
+  font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer;
+  padding: 7px 11px; border-radius: 999px; border: 1px solid var(--line);
+  background: #fff; color: var(--muted); text-decoration: none;
+}
+.back-kp a.on {
+  color: var(--accent); border-color: rgba(255,90,31,.35); background: var(--accent-soft);
+}
+.back-kp .to-kp { background: var(--ink); color: #fff; border-color: var(--ink); }
+</style>
+</head>
+<body>
+<div id="view-kp" class="view on">
+
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <div class="brand">Казна<span>.</span></div>
+        <div style="font-size:.84rem;color:var(--muted);margin-top:4px;">Коммерческое предложение</div>
+      </div>
+      <div class="meta">
+        ИП Смирнов Сергей Евгеньевич<br />
+        ИНН 784815635497 · ОГРНИП 326784700194735<br />
+        Telegram: <a href="https://t.me/yank0vski" style="color:var(--calm);font-weight:700;text-decoration:none;">@yank0vski</a>
+      </div>
+    </div>
+
+    <h1>Свободные деньги сети — видно каждое утро</h1>
+    <p class="lead">
+      Платформа для финансового директора и управляющих:
+      заявки, счета, кассы и календарь оплат в одном месте.
+      Оплаты закрываются по данным iiko — без ручной галочки.
+    </p>
+    <div class="outcome">
+      Каждое утро за <span>30 секунд</span> понятно: сколько денег свободно и что можно оплатить сегодня.
+    </div>
+    <span class="pill">роли и доступы</span>
+    <span class="pill">iiko + Excel</span>
+    <span class="pill">бессрочная лицензия</span>
+
+    <h2>Что изменится</h2>
+    <div class="before-after">
+      <div class="ba before">
+        <h3>До</h3>
+        <ul>
+          <li>десятки Excel и переписок</li>
+          <li>заявки в Telegram</li>
+          <li>ручные проверки остатков</li>
+          <li>непонятно, сколько денег свободно сегодня</li>
+        </ul>
+      </div>
+      <div class="ba after">
+        <h3>После</h3>
+        <ul>
+          <li>одна система вместо разрозненных файлов</li>
+          <li>одна очередь заявок со статусами</li>
+          <li>остатки всегда актуальны</li>
+          <li>прогноз: что можно оплатить сегодня и на ближайшие дни</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Кто чем пользуется</h2>
+    <div class="grid grid-2">
+      <div class="card">
+        <h3>Управляющий</h3>
+        <ul>
+          <li>свой вход, права настраивает финансовый директор</li>
+          <li>заявки на оплату: сумма, дата, приоритет</li>
+          <li>финпланы: по дням (пн–вс), месяц, год — в отчётах</li>
+          <li>видит свои точки и свои заявки</li>
+        </ul>
+      </div>
+      <div class="card hot">
+        <h3>Финансовый директор</h3>
+        <ul>
+          <li>обрабатывает заявки, может поменять приоритет</li>
+          <li>календарь оплат, перенос дат</li>
+          <li>остатки по всем расчётным счетам и организациям сети</li>
+          <li>кассы ресторанов: сколько должно быть / сколько есть / можно ли перераспределить</li>
+          <li>выдаёт и ограничивает права управляющим</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Что на экране каждый день</h2>
+    <div class="card">
+      <ul>
+        <li><strong>Счета</strong> — сколько реально осталось на расчётных счетах</li>
+        <li><strong>Кассы</strong> — по каждому ресторану: норма, факт, можно ли забрать/перекинуть</li>
+        <li><strong>Сегодня</strong> — что к оплате и хватает ли денег</li>
+        <li><strong>После оплат</strong> — сколько останется</li>
+        <li><strong>Календарь</strong> — заявки и накладные с отсрочкой, удобные даты</li>
+        <li><strong>Без галочки</strong> — оплатили в iiko → позиция сама уходит в архив, правда остаётся в iiko</li>
+      </ul>
+    </div>
+
+    <h2>Вариант A · Google Таблицы</h2>
+    <div class="card">
+      <h3>Быстрый слой: сводка и календарь</h3>
+      <div class="price">100 000 ₽
+        <small>разово · аванс 30% — 30 000 ₽</small>
+        <small>таблицы и доступы — у вашей команды</small>
+      </div>
+      <p style="margin:10px 0 0;color:var(--muted);font-size:.92rem;">
+        Подходит, если нужен быстрый старт без отдельных логинов.
+        Роли, нормальный контур касс и полноценное автозакрытие из iiko —
+        это уже вариант B.
+      </p>
+      <div class="grid grid-2" style="margin-top:12px;">
+        <div>
+          <strong>В стоимость входит</strong>
+          <ul>
+            <li>сводка остатков</li>
+            <li>платёжный календарь</li>
+            <li>заявки в таблице</li>
+            <li>настройка и обучение</li>
+          </ul>
+        </div>
+        <div>
+          <strong>Срок и поддержка</strong>
+          <ul>
+            <li>2–3 недели</li>
+            <li>поддержка по желанию: 12 000 ₽/мес</li>
+            <li>или разовые правки</li>
+          </ul>
+        </div>
+      </div>
+      <div class="note"><strong>Оплата:</strong> 30% старт → 40% при сдаче → 30% после приёмки.</div>
+    </div>
+
+    <h2>Вариант B · Платформа с ролями</h2>
+    <div class="card hot">
+      <h3>Свой вход для управляющих и финансового директора</h3>
+      <div class="price">450 000 ₽
+        <small>разово · аванс 30% — 135 000 ₽</small>
+        <small>бессрочная лицензия на использование внутри вашей компании</small>
+      </div>
+
+      <div style="margin-top:14px;">
+        <strong>В стоимость входит</strong>
+        <ul>
+          <li>проектирование системы под вашу сеть</li>
+          <li>интеграция с iiko (в согласованном на старте объёме)</li>
+          <li>роли и отдельные входы</li>
+          <li>платёжный календарь и картина свободных денег</li>
+          <li>очередь заявок со статусами и приоритетами</li>
+          <li>счета, кассы, история изменений</li>
+          <li>внедрение и обучение сотрудников</li>
+          <li>30 дней исправления ошибок после запуска</li>
+        </ul>
+      </div>
+
+      <div class="grid grid-2" style="margin-top:14px;">
+        <div>
+          <strong>Срок</strong>
+          <ul>
+            <li>ориентир 6–8 недель после аванса и доступов</li>
+            <li>демо рабочей версии в середине пути</li>
+          </ul>
+        </div>
+        <div>
+          <strong>Оплата</strong>
+          <ul>
+            <li>30% старт → 40% демо → 30% приёмка</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="note" style="margin-top:14px;">
+        Эскизы экранов: <a href="#mock-overview" data-go="mock-overview" style="color:var(--accent);font-weight:700;">смотреть</a>.
+      </div>
+    </div>
+
+    <h2>Как идём по варианту B</h2>
+    <div class="card">
+      <ol class="steps">
+        <li>
+          <div class="step-label">Этап 1</div>
+          <div>
+            <strong>Проектирование и доступы</strong>
+            карта организаций, счетов, касс и ролей; проверка выгрузки iiko
+          </div>
+        </li>
+        <li>
+          <div class="step-label">Этап 2</div>
+          <div>
+            <strong>Каркас платформы</strong>
+            входы и права, заявки, календарь, счета
+          </div>
+        </li>
+        <li>
+          <div class="step-label">Этап 3</div>
+          <div>
+            <strong>iiko и кассы</strong>
+            автозакрытие оплат, норма/факт по кассам, демо на ваших данных
+          </div>
+        </li>
+        <li>
+          <div class="step-label">Этап 4</div>
+          <div>
+            <strong>Запуск</strong>
+            обучение, приёмка по чек-листу, гарантийный месяц
+          </div>
+        </li>
+      </ol>
+      <div class="note">
+        <strong>Срок:</strong> ориентир 6–8 недель после аванса и предоставления доступов.
+        Точные даты фиксируем после этапа 1.
+      </div>
+    </div>
+
+    <h2>Гарантия</h2>
+    <div class="card">
+      <ul>
+        <li>в течение <strong>30 дней после акта</strong> бесплатно исправляются ошибки работы системы по согласованному объёму</li>
+        <li>новые функции и изменения процессов — отдельно, по оценке</li>
+      </ul>
+    </div>
+
+    <h2>Поддержка после сдачи · 40 000 ₽/мес</h2>
+    <div class="card">
+      <p style="margin:0 0 8px;color:var(--muted);font-size:.92rem;">
+        Не «плата за существование», а сопровождение рабочего контура.
+      </p>
+      <ul>
+        <li>контроль и сопровождение связки с iiko</li>
+        <li>исправление ошибок</li>
+        <li>консультации по работе в системе</li>
+        <li>мелкие доработки в разумном объёме</li>
+        <li>обновления в рамках текущего контура</li>
+      </ul>
+      <div class="note">
+        Если продукт зайдёт сети — можно обсудить совместные внедрения в другие проекты (доля с новых продаж). Без обязательств в этом КП.
+      </div>
+    </div>
+
+    <h2>Коротко</h2>
+    <div class="card" style="padding:6px 10px;">
+      <table class="table">
+        <thead><tr><th></th><th>A · Таблицы</th><th>B · Платформа</th></tr></thead>
+        <tbody>
+          <tr><td>Результат</td><td>быстрая сводка</td><td>утро: свободно / можно платить</td></tr>
+          <tr><td>Роли</td><td>общий доступ Google</td><td>свои логины и права</td></tr>
+          <tr><td>Срок</td><td>2–3 недели</td><td>6–8 недель</td></tr>
+          <tr><td>Цена</td><td>100 000 ₽</td><td>450 000 ₽</td></tr>
+          <tr><td>Аванс 30%</td><td>30 000 ₽</td><td>135 000 ₽</td></tr>
+          <tr><td>Поддержка</td><td>по желанию от 12 000 ₽</td><td>40 000 ₽/мес с составом работ</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Данные из iiko</h2>
+    <div class="card">
+      <ul>
+        <li>остатки расчётных счетов</li>
+        <li>накладные, отсрочки, оплаты</li>
+        <li>факт оплаты в iiko = закрытие в Казне и запись в историю (без кнопки «оплачено»)</li>
+        <li>истина по документам остаётся в iiko</li>
+      </ul>
+    </div>
+
+    <h2>Права на систему</h2>
+    <div class="card">
+      <ul>
+        <li>заказчику — <strong>бессрочная лицензия</strong> на использование системы внутри вашей компании</li>
+        <li>исключительные права на программный код, архитектуру и дальнейшее развитие продукта остаются у исполнителя, если стороны письменно не договорят иное</li>
+        <li>ваши данные и выгрузки принадлежат вам</li>
+      </ul>
+    </div>
+
+    <h2>Не входит сейчас</h2>
+    <div class="card">
+      <ul>
+        <li>полная «Сова» / весь Cosmic</li>
+        <li>автоплатежи из банка сами по себе</li>
+        <li>замена бухгалтерии</li>
+      </ul>
+    </div>
+
+    <div class="links">
+      <a href="#mock-overview" data-go="mock-overview">Эскизы платформы</a>
+      <a class="ghost" href="https://t.me/yank0vski" target="_blank" rel="noopener">Написать в Telegram</a>
+    </div>
+
+    <div class="footer">
+      <strong style="color:var(--ink);">Исполнитель:</strong>
+      ИП Смирнов Сергей Евгеньевич · ИНН 784815635497 · ОГРНИП 326784700194735<br />
+      <a href="https://t.me/yank0vski">@yank0vski</a>
+      · <a href="https://pulseteam.online/" target="_blank" rel="noopener">pulseteam.online</a><br /><br />
+      КП 14 дней с даты отправки. Суммы без НДС (уточняется при договоре).
+    </div>
+  </div>
+
+</div><!-- /view-kp -->
+
+<div class="back-kp" id="mock-nav" hidden>
+  <a class="to-kp" href="#kp" data-go="kp">← К КП</a>
+  <a href="#mock-overview" data-go="mock-overview">Обзор</a>
+  <a href="#mock-roles" data-go="mock-roles">Роли</a>
+  <a href="#mock-cash" data-go="mock-cash">Деньги</a>
+  <a href="#mock-calendar" data-go="mock-calendar">Календарь</a>
+  <a href="#mock-requests" data-go="mock-requests">Заявки</a>
+</div>
+<div id="view-mock-overview" class="view">
+  <div class="app">
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <div class="nav">
+        <a class="on" href="#mock-overview" data-go="mock-overview">Обзор</a>
+        <a href="#mock-roles" data-go="mock-roles">Роли</a>
+        <a href="#mock-cash" data-go="mock-cash">Деньги</a>
+        <a href="#mock-calendar" data-go="mock-calendar">Календарь</a>
+        <a href="#mock-requests" data-go="mock-requests">Заявки</a>
+        <a href="#kp" data-go="kp">← КП</a>
+      </div>
+    </div>
+
+    <div class="hero-mock">
+      <div class="badge">Эскиз · не готовый продукт</div>
+      <h1>Платформа с ролями</h1>
+      <p>Управляющий подаёт заявки и планы. Финансовый директор решает, видит счета и кассы, оплаты закрываются из iiko сами.</p>
+    </div>
+
+    <div class="grid-3">
+      <a class="metric" href="#mock-roles" data-go="mock-roles" style="display:block;">
+        <div class="label">Роли</div>
+        <div class="value" style="font-size:1.1rem;">Входы и права</div>
+        <div class="hint">управляющий · финдир</div>
+      </a>
+      <a class="metric" href="#mock-cash" data-go="mock-cash" style="display:block;">
+        <div class="label">Деньги</div>
+        <div class="value" style="font-size:1.1rem;">Счета и кассы</div>
+        <div class="hint">хватит ли · перераспределение</div>
+      </a>
+      <a class="metric" href="#mock-calendar" data-go="mock-calendar" style="display:block;">
+        <div class="label">Календарь</div>
+        <div class="value" style="font-size:1.1rem;">Оплаты</div>
+        <div class="hint">даты · архив из iiko</div>
+      </a>
+    </div>
+    <p class="foot-note">Казна · эскизы к КП · вариант B 450 000 ₽</p>
+  </div>
+</div>
+<div id="view-mock-roles" class="view">
+  <div class="app">
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <div class="nav">
+        <a href="#mock-overview" data-go="mock-overview">Обзор</a>
+        <a class="on" href="#mock-roles" data-go="mock-roles">Роли</a>
+        <a href="#mock-cash" data-go="mock-cash">Деньги</a>
+        <a href="#mock-calendar" data-go="mock-calendar">Календарь</a>
+        <a href="#mock-requests" data-go="mock-requests">Заявки</a>
+      </div>
+    </div>
+
+    <div class="badge">Входы и права</div>
+    <h1>У каждого свой логин</h1>
+
+    <div class="grid-3">
+      <div class="metric">
+        <div class="label">Управляющий</div>
+        <div class="value" style="font-size:1.1rem;">Заявки и планы</div>
+        <div class="hint">даты · приоритет · день / месяц / год</div>
+      </div>
+      <div class="metric">
+        <div class="label">Финансовый директор</div>
+        <div class="value" style="font-size:1.1rem;">Решения</div>
+        <div class="hint">меняет приоритет · календарь · права</div>
+      </div>
+      <div class="metric">
+        <div class="label">Права</div>
+        <div class="value" style="font-size:1.1rem;">Настраивает финдир</div>
+        <div class="hint">какие точки и что можно видеть</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Пример: заявка от управляющего</h2>
+      <div class="row req">
+        <div>
+          <strong>Поставщик рыбы</strong>
+          <div class="muted">приоритет управляющего: высокий · дата 29.07</div>
+        </div>
+        <div class="amount">310 тыс.</div>
+        <div class="muted">финдир поставил: средний</div>
+        <div><span class="status plan">на решении</span></div>
+        <div><button class="btn sm" type="button">В календарь</button></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Планы управляющего</h2>
+      <div class="row pay">
+        <div><strong>План выручки по дням</strong><div class="muted">пн–вс этой недели</div></div>
+        <div class="amount">2,8 млн</div>
+        <div class="muted">заполнено</div>
+        <div><span class="status ok">ок</span></div>
+        <div></div>
+      </div>
+      <div class="row pay">
+        <div><strong>План на месяц</strong><div class="muted">август</div></div>
+        <div class="amount">11,2 млн</div>
+        <div class="muted">в отчётах</div>
+        <div><span class="status ok">ок</span></div>
+        <div></div>
+      </div>
+      <div class="row pay">
+        <div><strong>План на год</strong><div class="muted">черновик</div></div>
+        <div class="amount">128 млн</div>
+        <div class="muted">для финдира</div>
+        <div><span class="status plan">черновик</span></div>
+        <div></div>
+      </div>
+    </div>
+    <p class="foot-note">Эскиз ролей · Казна</p>
+  </div>
+</div>
+<div id="view-mock-cash" class="view">
+  <div class="app">
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <div class="nav">
+        <a href="#mock-overview" data-go="mock-overview">Обзор</a>
+        <a href="#mock-roles" data-go="mock-roles">Роли</a>
+        <a class="on" href="#mock-cash" data-go="mock-cash">Деньги</a>
+        <a href="#mock-calendar" data-go="mock-calendar">Календарь</a>
+        <a href="#mock-requests" data-go="mock-requests">Заявки</a>
+      </div>
+    </div>
+
+    <div class="badge">Счета и кассы</div>
+    <h1>Могу ли оплатить сегодня?</h1>
+
+    <div class="grid-3">
+      <div class="metric">
+        <div class="label">На расчётных счетах</div>
+        <div class="value">12,4 млн ₽</div>
+        <div class="hint">все организации сети</div>
+      </div>
+      <div class="metric warn">
+        <div class="label">К оплате сегодня</div>
+        <div class="value">3,1 млн ₽</div>
+        <div class="hint">накладные + согласованные заявки</div>
+      </div>
+      <div class="metric ok">
+        <div class="label">После оплат</div>
+        <div class="value">9,3 млн ₽</div>
+        <div class="hint">денег хватает</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Расчётные счета</h2>
+      <div class="row pay">
+        <div><strong>Организация «Невский»</strong><div class="muted">р/с</div></div>
+        <div class="amount">2,4 млн</div>
+        <div class="muted">к оплате 420 тыс.</div>
+        <div><span class="status ok">хватит</span></div>
+        <div></div>
+      </div>
+      <div class="row pay">
+        <div><strong>Организация «Север»</strong><div class="muted">2 счёта</div></div>
+        <div class="amount">4,1 млн</div>
+        <div class="muted">к оплате 1,8 млн</div>
+        <div><span class="status ok">хватит</span></div>
+        <div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Кассы ресторанов</h2>
+      <div class="row pay">
+        <div><strong>Касса · Невский</strong><div class="muted">норма 80 тыс. · факт 95 тыс.</div></div>
+        <div class="amount">+15 тыс.</div>
+        <div class="muted">можно забрать</div>
+        <div><span class="status ok">излишек</span></div>
+        <div><button class="btn sm ghost" type="button">Перераспределить</button></div>
+      </div>
+      <div class="row pay">
+        <div><strong>Касса · Васильевский</strong><div class="muted">норма 70 тыс. · факт 40 тыс.</div></div>
+        <div class="amount">−30 тыс.</div>
+        <div class="muted">нужно пополнить</div>
+        <div><span class="status new">нехватка</span></div>
+        <div><button class="btn sm ghost" type="button">С Невского</button></div>
+      </div>
+      <div class="row pay">
+        <div><strong>Касса · Север</strong><div class="muted">норма 90 тыс. · факт 88 тыс.</div></div>
+        <div class="amount">ок</div>
+        <div class="muted">почти норма</div>
+        <div><span class="status ok">норма</span></div>
+        <div></div>
+      </div>
+    </div>
+    <p class="foot-note">Цифры для примера · факт оплаты закрывается из iiko</p>
+  </div>
+</div>
+<div id="view-mock-calendar" class="view">
+  <div class="app">
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <div class="nav">
+        <a href="#mock-overview" data-go="mock-overview">Обзор</a>
+        <a href="#mock-roles" data-go="mock-roles">Роли</a>
+        <a href="#mock-cash" data-go="mock-cash">Деньги</a>
+        <a class="on" href="#mock-calendar" data-go="mock-calendar">Календарь</a>
+        <a href="#mock-requests" data-go="mock-requests">Заявки</a>
+      </div>
+    </div>
+
+    <div class="badge">Платёжный календарь</div>
+    <h1>Перенеси оплату на другую дату</h1>
+    <p class="muted" style="margin:0 0 10px;">Зажми карточку и перетащи. Галочку «оплачено» ставить не нужно — Казна сама видит оплату в iiko и убирает строку в архив.</p>
+
+    <div class="chips">
+      <span class="chip on">14 дней</span>
+      <span class="chip">30 дней</span>
+      <span class="chip">только проблемы</span>
+      <span class="chip on">авто из iiko</span>
+    </div>
+
+    <div class="calendar" id="calendar">
+      <div class="day" data-day="27">
+        <header><strong>Пн 27 июл</strong><span class="muted">1,2 млн</span></header>
+        <div class="pay-item" draggable="true">
+          <div class="t">Поставщик продуктов<div class="muted">накладная · отсрочка 14 дней</div></div>
+          <div class="amount">640 тыс.</div>
+        </div>
+        <div class="pay-item" draggable="true">
+          <div class="t">Аренда<div class="muted">заявка управляющего</div></div>
+          <div class="amount">560 тыс.</div>
+        </div>
+      </div>
+      <div class="day" data-day="28">
+        <header><strong>Вт 28 июл</strong><span class="muted">380 тыс.</span></header>
+        <div class="pay-item" draggable="true">
+          <div class="t">Расходники<div class="muted">накладная</div></div>
+          <div class="amount">380 тыс.</div>
+        </div>
+      </div>
+      <div class="day" data-day="29">
+        <header><strong>Ср 29 июл</strong><span class="muted">пусто</span></header>
+      </div>
+      <div class="day" data-day="30">
+        <header><strong>Чт 30 июл</strong><span class="muted">только что из iiko</span></header>
+        <div style="padding:10px;border-radius:10px;background:#f0fdfa;border:1px solid rgba(13,148,136,.25);font-size:.82rem;">
+          <strong style="color:#0d9488;">Ремонт холодильника · 210 тыс.</strong>
+          <div class="muted">оплата найдена в iiko → ушло в архив само</div>
+        </div>
+      </div>
+    </div>
+    <p class="foot-note">Перетаскивание работает · оплату закрывает iiko, не кнопка</p>
+  </div>
+  <script>
+    const cal = document.getElementById("calendar");
+    let dragEl = null;
+    cal.querySelectorAll(".pay-item").forEach((el) => {
+      el.addEventListener("dragstart", () => { dragEl = el; el.classList.add("dragging"); });
+      el.addEventListener("dragend", () => { el.classList.remove("dragging"); dragEl = null; });
+    });
+    cal.querySelectorAll(".day").forEach((day) => {
+      day.addEventListener("dragover", (e) => e.preventDefault());
+      day.addEventListener("drop", (e) => {
+        e.preventDefault();
+        if (dragEl) day.appendChild(dragEl);
+      });
+    });
+  </script>
+</div>
+<div id="view-mock-requests" class="view">
+  <div class="app">
+    <div class="topbar">
+      <div class="logo">Казна<span>.</span></div>
+      <div class="nav">
+        <a href="#mock-overview" data-go="mock-overview">Обзор</a>
+        <a href="#mock-roles" data-go="mock-roles">Роли</a>
+        <a href="#mock-cash" data-go="mock-cash">Деньги</a>
+        <a href="#mock-calendar" data-go="mock-calendar">Календарь</a>
+        <a class="on" href="#mock-requests" data-go="mock-requests">Заявки</a>
+      </div>
+    </div>
+
+    <div class="badge">Заявки от управляющих</div>
+    <h1>Статус меняет финансовый директор</h1>
+
+    <div class="chips">
+      <span class="chip on">Новые</span>
+      <span class="chip">Согласовано</span>
+      <span class="chip">В календаре</span>
+      <span class="chip">Оплачено</span>
+    </div>
+
+    <div class="panel">
+      <div class="row req">
+        <div>
+          <strong>Замена бойлера</strong>
+          <div class="muted">управляющий · приоритет: высокий → финдир: средний</div>
+        </div>
+        <div class="amount">186 тыс.</div>
+        <div class="muted">дата 29.07</div>
+        <div><span class="status new">новая</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn sm" type="button">Согласовать</button>
+          <button class="btn sm ghost" type="button">Сменить приоритет</button>
+        </div>
+      </div>
+      <div class="row req">
+        <div>
+          <strong>Доплата поставщику</strong>
+          <div class="muted">из накладной iiko</div>
+        </div>
+        <div class="amount">92 тыс.</div>
+        <div class="muted">отсрочка до 01.08</div>
+        <div><span class="status plan">согласовано</span></div>
+        <div><button class="btn sm ghost" type="button">В календарь</button></div>
+      </div>
+      <div class="row req">
+        <div>
+          <strong>Реклама на август</strong>
+          <div class="muted">управляющий</div>
+        </div>
+        <div class="amount">120 тыс.</div>
+        <div class="muted">в календаре 05.08</div>
+        <div><span class="status ok">в календаре</span></div>
+        <div></div>
+      </div>
+      <div class="row req">
+        <div>
+          <strong>Хозтовары</strong>
+          <div class="muted">оплата пришла в iiko — ушло в архив без галочки</div>
+        </div>
+        <div class="amount">44 тыс.</div>
+        <div class="muted">—</div>
+        <div><span class="status done">в архиве</span></div>
+        <div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Как идёт заявка</h2>
+      <p class="muted" style="margin:0;">Новая → согласовано → в календаре → оплата в iiko → архив (сами, без кнопки).</p>
+    </div>
+    <p class="foot-note">Эскиз к КП</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  function show(id) {
+    document.querySelectorAll(".view").forEach(function (el) {
+      el.classList.toggle("on", el.id === "view-" + id);
+    });
+    var mock = id.indexOf("mock-") === 0;
+    document.body.classList.toggle("mode-mock", mock);
+    var nav = document.getElementById("mock-nav");
+    if (nav) {
+      nav.hidden = !mock;
+      nav.querySelectorAll("a[data-go]").forEach(function (a) {
+        a.classList.toggle("on", a.getAttribute("data-go") === id);
+      });
+    }
+    window.scrollTo(0, 0);
+  }
+  function fromHash() {
+    var h = (location.hash || "#kp").replace(/^#/, "") || "kp";
+    if (!document.getElementById("view-" + h)) h = "kp";
+    show(h);
+  }
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest("[data-go]");
+    if (!a) return;
+    e.preventDefault();
+    var id = a.getAttribute("data-go");
+    location.hash = id;
+    show(id);
+  });
+  window.addEventListener("hashchange", fromHash);
+  fromHash();
+  function bindCal() {
+    var cal = document.querySelector("#view-mock-calendar #calendar");
+    if (!cal || cal.dataset.bound) return;
+    cal.dataset.bound = "1";
+    var dragEl = null;
+    cal.querySelectorAll(".pay-item").forEach(function (el) {
+      el.addEventListener("dragstart", function () { dragEl = el; el.classList.add("dragging"); });
+      el.addEventListener("dragend", function () { el.classList.remove("dragging"); dragEl = null; });
+    });
+    cal.querySelectorAll(".day").forEach(function (day) {
+      day.addEventListener("dragover", function (e) { e.preventDefault(); });
+      day.addEventListener("drop", function (e) {
+        e.preventDefault();
+        if (dragEl) day.appendChild(dragEl);
+      });
+    });
+  }
+  bindCal();
+  window.addEventListener("hashchange", bindCal);
+})();
+</script>
+</body></html>
